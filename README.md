@@ -59,11 +59,21 @@ node scripts/releve.mjs
 Un seul script, sans dépendance : `GITHUB_TOKEN` (ou `PARC_TOKEN`) dans
 l'environnement, environ 320 appels d'API, et `index.html` est réécrit.
 
-| Option | Effet |
-|---|---|
-| *(rien)* | ce que fait la CI : dépôts publics, tout depuis l'API |
-| `--local <racine>` | ajoute ce que l'API ignore : branche courante et fichiers non commités des copies de travail |
-| `--prives` | inclut les dépôts privés du compte (demande un PAT, pas le `GITHUB_TOKEN`) |
+| Option | Effet | Écrit dans |
+|---|---|---|
+| *(rien)* | ce que fait la CI : dépôts publics, tout depuis l'API | `index.html` |
+| `--local <racine>` | ajoute ce que l'API ignore : branche courante et fichiers non commités des copies de travail | `index.local.html` (ignoré par git) |
+| `--prives` | inclut les dépôts privés du compte (demande un PAT, pas le `GITHUB_TOKEN`) | — |
+| `--sortie <chemin>` | force le fichier de sortie | — |
+
+Le mode `--local` écrit volontairement ailleurs : sa page porte l'état d'une
+copie de travail, qui n'a rien à faire en ligne et que le relevé suivant
+effacerait de toute façon.
+
+Le dépôt qui héberge le relevé **s'exclut lui-même** : lu pendant sa propre
+exécution, son workflow serait toujours « en cours » et ses numéros de run
+changeraient à chaque passage — il se rendrait éternellement différent de
+lui-même.
 
 Le fichier n'est réécrit que si le **fond** a bougé : sans cette comparaison, la
 CI commiterait chaque jour un diff d'une ligne où seul l'horodatage change.

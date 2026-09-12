@@ -21,7 +21,9 @@ const JETON = process.env.PARC_TOKEN || process.env.GITHUB_TOKEN || process.env.
 const args = process.argv.slice(2)
 const RACINE_LOCALE = args.includes('--local') ? args[args.indexOf('--local') + 1] : null
 const AVEC_PRIVES = args.includes('--prives')
-const SORTIE = join(ICI, '..', 'index.html')
+// En mode --local la page porte l'état de la copie de travail : elle ne doit
+// pas atterrir dans le fichier publié, que la CI réécrirait au relevé suivant.
+const SORTIE = args.includes('--sortie') ? args[args.indexOf('--sortie') + 1] : join(ICI, '..', RACINE_LOCALE ? 'index.local.html' : 'index.html')
 
 if (!JETON) {
   console.error('GITHUB_TOKEN absent : les quotas anonymes (60 req/h) ne suffiront pas.')
@@ -571,7 +573,7 @@ if (inchange) {
   console.error(`Rien n'a bougé depuis le relevé précédent (${appels} appels d'API). Fichier laissé tel quel.`)
 } else {
   writeFileSync(SORTIE, page)
-  console.error(`index.html réécrit : ${(page.length / 1024).toFixed(1)} Kio, ${appels} appels d'API.`)
+  console.error(`${SORTIE} réécrit : ${(page.length / 1024).toFixed(1)} Kio, ${appels} appels d'API.`)
 }
 console.error(
   `${kpi.depots} dépôts — ${parFamille.pwa.depots} PWA, ${parFamille.socle.depots} socle, ${parFamille.desktop.depots} desktop, ${parFamille.autre.depots} autres | ` +
