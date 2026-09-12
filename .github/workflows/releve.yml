@@ -50,4 +50,7 @@ jobs:
 
       - name: Rien à publier
         if: steps.releve.outputs.change != 'oui'
-        run: echo "Le fond du relevé n'a pas bougé : aucun commit (seul l'horodatage aurait changé)."
+        # bloc littéral : un « : » suivi d'une espace dans un scalaire nu
+        # coupe la valeur en clé, et GitHub rejette le fichier entier
+        run: |
+          echo "Le fond du relevé n'a pas bougé : aucun commit (seul l'horodatage aurait changé)."
