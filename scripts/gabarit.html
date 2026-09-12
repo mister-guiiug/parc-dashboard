@@ -1510,6 +1510,7 @@
       pied.append(el('span', null, `Relevé du ${fmtHeure(D.genere)}.`))
       pied.append(el('span', null, `Source : API GitHub, lockfiles lus sur la branche par défaut, registre npm${D.avecLocal ? ', copies de travail locales' : ''}.`))
       if (D.publicsSeulement) pied.append(el('span', null, 'Les dépôts privés du compte sont exclus de ce relevé.'))
+      if (D.soi) pied.append(el('span', null, `Le dépôt ${D.soi}, qui produit cette page, s'exclut lui-même.`))
       pied.append(el('span', null, 'Page régénérée chaque jour par GitHub Actions.'))
 
       rendDepots()

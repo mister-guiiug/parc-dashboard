@@ -205,8 +205,13 @@ for (let page = 1; page <= 5; page++) {
   bruts.push(...lot)
   if (lot.length < 100) break
 }
-const depotsGitHub = bruts.filter((r) => !r.fork && !r.archived && (AVEC_PRIVES || !r.private)).sort((a, b) => a.name.localeCompare(b.name))
-console.error(`${depotsGitHub.length} dépôts retenus`)
+// Le dépôt qui héberge ce relevé s'exclut lui-même : au moment où il se lit,
+// son propre workflow est forcément « en cours », et ses numéros de run bougent
+// à chaque passage — il se rendrait éternellement différent de lui-même, et la
+// comparaison « le fond a-t-il changé ? » ne dirait plus jamais non.
+const SOI = (process.env.GITHUB_REPOSITORY || '').split('/')[1] || 'parc-dashboard'
+const depotsGitHub = bruts.filter((r) => !r.fork && !r.archived && r.name !== SOI && (AVEC_PRIVES || !r.private)).sort((a, b) => a.name.localeCompare(b.name))
+console.error(`${depotsGitHub.length} dépôts retenus (${SOI} s'exclut lui-même)`)
 
 const depots = await enLot(depotsGitHub, 5, async (g) => {
   const nwo = g.full_name
@@ -518,6 +523,7 @@ const modele = {
   source: RACINE_LOCALE ? 'api+local' : 'api',
   avecLocal: !!RACINE_LOCALE,
   publicsSeulement: !AVEC_PRIVES,
+  soi: SOI,
   familles: FAMILLES,
   parFamille,
   kpi,
@@ -536,21 +542,30 @@ if (!gabarit.includes('__DONNEES__')) throw new Error('placeholder __DONNEES__ a
 const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16))
 const page = gabarit.replace('__DONNEES__', charge)
 
-// Ne réécrire que si le FOND a bougé : sinon la CI commiterait chaque jour un
-// diff d'une ligne où seul l'horodatage change.
-const sansDate = (t) => {
-  const m = /<script type="application\/json" id="donnees">([\s\S]*?)<\/script>/.exec(t)
+// Ne réécrire que si le FOND a bougé. Le fond exclut ce qui se mesure à
+// nouveau sans rien dire de l'état : l'horodatage du relevé, et le temps de
+// réponse de chaque site — sans ça, deux relevés consécutifs identiques
+// produiraient quand même un commit par jour.
+function fond(modele) {
+  if (!modele) return null
+  const o = JSON.parse(JSON.stringify(modele))
+  delete o.genere
+  for (const d of o.depots || []) {
+    if (d.pages) delete d.pages.ms
+  }
+  return JSON.stringify(o)
+}
+const modeleDe = (t) => {
+  const m = /<script type="application\/json" id="donnees">([\s\S]*?)<\/script>/.exec(t || '')
   if (!m) return null
   try {
-    const o = JSON.parse(m[1].replace(/\\u003c/g, '<'))
-    delete o.genere
-    return JSON.stringify(o)
+    return JSON.parse(m[1].replace(/\\u003c/g, '<'))
   } catch {
     return null
   }
 }
 const ancienne = existsSync(SORTIE) ? readFileSync(SORTIE, 'utf8') : ''
-const inchange = ancienne && sansDate(ancienne) === sansDate(page)
+const inchange = ancienne && fond(modeleDe(ancienne)) === fond(modele)
 
 if (inchange) {
   console.error(`Rien n'a bougé depuis le relevé précédent (${appels} appels d'API). Fichier laissé tel quel.`)
