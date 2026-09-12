@@ -915,12 +915,15 @@
             <span class="compteur" id="compteurLibs"></span>
           </div>
           <p class="chapo">
-            Versions réellement verrouillées, agrégées sur tout le parc. Le dégradé va du plus récent (foncé) au plus ancien ; au-delà de quatre versions, la queue est repliée en gris. Cliquez une ligne pour voir quel dépôt porte quelle version.
+            Versions réellement verrouillées dans les lockfiles, agrégées sur tout le parc. Seuls les paquets présents dans <strong>au moins deux dépôts</strong> sont listés : un paquet unique est une
+            dépendance d'application, pas une librairie du parc. Le dégradé va du plus récent (foncé) au plus ancien ; au-delà de quatre versions, la queue est repliée en gris. Cliquez une ligne pour
+            voir quel dépôt porte quelle version.
           </p>
           <div class="filtres">
             <input class="champ" id="rechercheLib" type="search" placeholder="Filtrer une librairie…" aria-label="Filtrer les librairies" />
             <button class="bouton" type="button" id="filtreRetard" aria-pressed="false">Avec du retard</button>
             <button class="bouton" type="button" id="filtreEclate" aria-pressed="false">Versions éclatées</button>
+            <button class="bouton" type="button" id="filtreToutes" aria-pressed="false">Montrer aussi les mono-dépôt</button>
           </div>
           <div class="carte tableEnveloppe">
             <table>
@@ -1354,7 +1357,11 @@
         const q = $('#rechercheLib').value.trim().toLowerCase()
         const seulRetard = $('#filtreRetard').getAttribute('aria-pressed') === 'true'
         const seulEclate = $('#filtreEclate').getAttribute('aria-pressed') === 'true'
+        const toutes = $('#filtreToutes').getAttribute('aria-pressed') === 'true'
         const liste = D.libs.filter((l) => {
+          // par défaut, seulement ce qui est PARTAGÉ : un paquet présent dans un
+          // seul dépôt est une dépendance d'application, pas une librairie du parc
+          if (!toutes && l.nbDepots < 2) return false
           if (seulRetard && !l.enRetard) return false
           if (seulEclate && l.nbVersions < 3) return false
           return !q || l.paquet.toLowerCase().includes(q)
@@ -1433,7 +1440,7 @@
           })
           tb.append(tr, detail)
         }
-        $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets suivis` : `${liste.length} sur ${D.libs.length} paquets`
+        $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets` : `${liste.length} sur ${D.libs.length} paquets`
         // synchrone : la lecture de clientWidth force le calcul de mise en page.
         // Passer par requestAnimationFrame laisserait les étiquettes non ajustées
         // dans un onglet d'arrière-plan, où les frames ne sont pas servies.
@@ -1451,7 +1458,7 @@
         }
       }
       $('#rechercheLib').addEventListener('input', rendLibs)
-      for (const id of ['#filtreRetard', '#filtreEclate']) {
+      for (const id of ['#filtreRetard', '#filtreEclate', '#filtreToutes']) {
         $(id).addEventListener('click', () => {
           const b = $(id)
           b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))

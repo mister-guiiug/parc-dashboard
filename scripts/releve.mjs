@@ -9,6 +9,7 @@
 // runner n'a aucune copie de travail sous la main. Le mode --local n'ajoute que
 // ce que l'API ne peut pas savoir (branche courante, fichiers non commités).
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -541,6 +542,10 @@ const modele = {
 
 const gabarit = readFileSync(join(ICI, 'gabarit.html'), 'utf8')
 if (!gabarit.includes('__DONNEES__')) throw new Error('placeholder __DONNEES__ absent du gabarit')
+// L'empreinte du gabarit entre dans le modèle : sans elle, la comparaison ne
+// porterait que sur les données et une refonte de la page ne serait JAMAIS
+// republiée — le relevé répondrait « rien n'a bougé » sur un gabarit réécrit.
+modele.gabarit = createHash('sha256').update(gabarit).digest('hex').slice(0, 12)
 const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16))
 const page = gabarit.replace('__DONNEES__', charge)
 
