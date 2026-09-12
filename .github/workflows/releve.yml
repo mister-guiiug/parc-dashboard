@@ -1,0 +1,53 @@
+name: Relevé du parc
+
+on:
+  schedule:
+    # 05:17 UTC : après la nuit, et à une minute qui n'est pas ronde — GitHub
+    # étale mal les crons de début d'heure, ils partent souvent en retard.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+  push:
+    # le gabarit ou le collecteur changent => on régénère tout de suite
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/releve.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: releve-du-parc
+  cancel-in-progress: false
+
+jobs:
+  relever:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Relever l'état du parc
+        id: releve
+        env:
+          # PARC_TOKEN (PAT, scope public_repo) si le jeton du dépôt ne suffit
+          # pas à lire l'API Actions des autres dépôts ; sinon GITHUB_TOKEN.
+          PARC_TOKEN: ${{ secrets.PARC_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/releve.mjs
+
+      - name: Publier si le fond a changé
+        if: steps.releve.outputs.change == 'oui'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "chore(releve): etat du parc au $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
+
+      - name: Rien à publier
+        if: steps.releve.outputs.change != 'oui'
+        run: echo "Le fond du relevé n'a pas bougé : aucun commit (seul l'horodatage aurait changé)."

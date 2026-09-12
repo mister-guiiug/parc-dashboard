@@ -7,16 +7,33 @@ verrouillées dans les lockfiles.
 
 **→ https://mister-guiiug.github.io/parc-dashboard/**
 
+Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github/workflows/releve.yml), 05:17 UTC).
+
 ## Ce que la page répond
 
 | Question | Où |
 |---|---|
+| Combien d'applications PWA, et qu'est-ce qui n'en est pas une ? | bloc « Par famille », puis une section par famille |
 | Qu'est-ce qui est rouge, et à quelle étape exactement ? | section « Ce qui est rouge » |
 | Plusieurs pipelines cassent-ils pour la même raison ? | bandeau de motif partagé, en tête de cette section |
-| Où en est chaque dépôt (branche, commit, modifs locales) ? | grille des dépôts |
 | Quels workflows tournent, et avec quel historique ? | les cinq derniers runs, en bande, sur chaque carte |
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
 | Qui est en retard sur quelle librairie ? | section « Librairies », ligne dépliable |
+
+## Comment les familles sont établies
+
+Chaque règle s'appuie sur un signal lisible dans le dépôt, jamais sur son nom —
+à deux exceptions près, qui n'en portent aucun :
+
+| Famille | Signal |
+|---|---|
+| Applications PWA | `vite-plugin-pwa` dans les dépendances |
+| Applications desktop | `electron`, le crate `tauri`, ou langage principal C# |
+| Socle | **liste explicite** de trois dépôts : le squelette *est* une PWA, aucun signal ne le distinguerait de ce qu'il engendre |
+| Outillage et divers | `engines.vscode` pour une extension, `.github` pour la configuration du compte, le langage principal sinon |
+
+Si un dépôt du socle disparaît du compte, le relevé le signale au lieu de le
+laisser glisser en silence dans une autre famille.
 
 ## Ce que les chiffres veulent dire
 
@@ -35,10 +52,26 @@ verrouillées dans les lockfiles.
 
 ## Régénérer
 
-La page est un instantané : les chiffres sont ceux du relevé daté en pied de
-page, ils ne se rafraîchissent pas tout seuls. Le relevé est produit par une
-série de scripts Node (git local, API GitHub Actions, lockfiles, registre npm)
-qui vivent hors de ce dépôt, du côté de la copie de travail du parc.
+```bash
+node scripts/releve.mjs
+```
+
+Un seul script, sans dépendance : `GITHUB_TOKEN` (ou `PARC_TOKEN`) dans
+l'environnement, environ 320 appels d'API, et `index.html` est réécrit.
+
+| Option | Effet |
+|---|---|
+| *(rien)* | ce que fait la CI : dépôts publics, tout depuis l'API |
+| `--local <racine>` | ajoute ce que l'API ignore : branche courante et fichiers non commités des copies de travail |
+| `--prives` | inclut les dépôts privés du compte (demande un PAT, pas le `GITHUB_TOKEN`) |
+
+Le fichier n'est réécrit que si le **fond** a bougé : sans cette comparaison, la
+CI commiterait chaque jour un diff d'une ligne où seul l'horodatage change.
+
+Si le `GITHUB_TOKEN` du dépôt ne suffit pas à lire l'API Actions des autres
+dépôts, le relevé s'arrête avec un message explicite plutôt que de publier une
+page « tout au vert » : poser alors un PAT (`public_repo`) dans le secret
+`PARC_TOKEN`.
 
 ## Licence
 

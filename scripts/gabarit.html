@@ -1,0 +1,1519 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parc mister-guiiug — dépôts, pipelines, librairies</title>
+    <meta name="description" content="État des dépôts git du parc : pipelines GitHub Actions, dernier CI/CD, versions des librairies." />
+    <style>
+      :root {
+        color-scheme: light;
+        --page: #f9f9f7;
+        --surface: #fcfcfb;
+        --ink: #0b0b0b;
+        --ink2: #52514e;
+        --muted: #898781;
+        --grid: #e1e0d9;
+        --baseline: #c3c2b7;
+        --border: rgba(11, 11, 11, 0.1);
+        --ghost: rgba(11, 11, 11, 0.035);
+        --ghost2: rgba(11, 11, 11, 0.07);
+        --series1: #2a78d6;
+        --good: #0ca30c;
+        --warning: #fab219;
+        --serious: #ec835a;
+        --critical: #d03b3b;
+        --goodInk: #006300;
+        /* rampe ordinale claire : les pas 650/500/400/250. Le pas 450 (#2a78d6)
+           est écarté volontairement — sa luminance tombe au point de bascule
+           blanc/noir, où AUCUNE encre ne dépasse 4,5:1 pour l'étiquette posée
+           dessus. Les quatre pas retenus passent le validateur --ordinal. */
+        --ord1: #104281;
+        --ord2: #256abf;
+        --ord3: #3987e5;
+        --ord4: #86b6ef;
+        --ordFold: #c3c2b7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:where(:not([data-theme='light'])) {
+          color-scheme: dark;
+          --page: #0d0d0d;
+          --surface: #1a1a19;
+          --ink: #ffffff;
+          --ink2: #c3c2b7;
+          --muted: #898781;
+          --grid: #2c2c2a;
+          --baseline: #383835;
+          --border: rgba(255, 255, 255, 0.1);
+          --ghost: rgba(255, 255, 255, 0.04);
+          --ghost2: rgba(255, 255, 255, 0.08);
+          --series1: #3987e5;
+          --goodInk: #0ca30c;
+          --ord1: #b7d3f6;
+          --ord2: #86b6ef;
+          --ord3: #3987e5;
+          --ord4: #184f95;
+          --ordFold: #383835;
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: #0d0d0d;
+        --surface: #1a1a19;
+        --ink: #ffffff;
+        --ink2: #c3c2b7;
+        --muted: #898781;
+        --grid: #2c2c2a;
+        --baseline: #383835;
+        --border: rgba(255, 255, 255, 0.1);
+        --ghost: rgba(255, 255, 255, 0.04);
+        --ghost2: rgba(255, 255, 255, 0.08);
+        --series1: #3987e5;
+        --goodInk: #0ca30c;
+        --ord1: #b7d3f6;
+        --ord2: #86b6ef;
+        --ord3: #3987e5;
+        --ord4: #184f95;
+        --ordFold: #383835;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--ink);
+        font: 400 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .enveloppe {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 28px 24px 72px;
+      }
+      a {
+        color: inherit;
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+
+      /* ---------- en-tête ---------- */
+      .chapeau {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: flex-end;
+        justify-content: space-between;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .chapeau h1 {
+        font-size: 21px;
+      }
+      .chapeau .sous {
+        color: var(--ink2);
+        font-size: 13px;
+        margin-top: 5px;
+      }
+      .outils {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .bouton {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--ink2);
+        border-radius: 999px;
+        padding: 6px 13px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .bouton:hover {
+        background: var(--ghost2);
+      }
+      .bouton[aria-pressed='true'] {
+        background: var(--ink);
+        color: var(--surface);
+        border-color: var(--ink);
+      }
+
+      /* ---------- hero + tuiles ---------- */
+      .bandeau {
+        display: grid;
+        grid-template-columns: minmax(260px, 340px) 1fr;
+        gap: 28px;
+        align-items: center;
+        margin: 26px 0 12px;
+      }
+      @media (max-width: 860px) {
+        .bandeau {
+          grid-template-columns: 1fr;
+        }
+      }
+      .hero .chiffre {
+        font-size: 64px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+      .hero .quoi {
+        color: var(--ink2);
+        font-size: 14px;
+        margin-top: 8px;
+        max-width: 30ch;
+      }
+      .hero .detail {
+        color: var(--ink2);
+        font-size: 13px;
+        margin-top: 4px;
+      }
+
+      .barreEtat {
+        display: flex;
+        gap: 2px;
+        height: 22px;
+        margin-bottom: 12px;
+      }
+      .barreEtat > span {
+        display: block;
+        border-radius: 2px;
+      }
+      .barreEtat > span:first-child {
+        border-radius: 4px 2px 2px 4px;
+      }
+      .barreEtat > span:last-child {
+        border-radius: 2px 4px 4px 2px;
+      }
+      .legende {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 20px;
+        font-size: 13px;
+        color: var(--ink2);
+      }
+      .legende span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .puce {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        flex: none;
+      }
+      .legende b {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .tuiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 22px 0 34px;
+      }
+      .tuile {
+        background: var(--surface);
+        padding: 14px 16px 15px;
+      }
+      .tuile .etiq {
+        color: var(--ink2);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .tuile .val {
+        font-size: 27px;
+        font-weight: 600;
+        line-height: 1.1;
+        margin-top: 5px;
+        letter-spacing: -0.02em;
+      }
+      .tuile .app {
+        font-size: 12px;
+        color: var(--ink2);
+        margin-top: 3px;
+      }
+
+      /* ---------- familles ---------- */
+      .familles {
+        margin-bottom: 38px;
+      }
+      .titreFamilles {
+        font-size: 17px;
+        margin-bottom: 4px;
+      }
+      .grilleFamilles {
+        display: grid;
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .ligneFamille {
+        display: grid;
+        grid-template-columns: minmax(150px, 210px) minmax(120px, 1fr) auto;
+        gap: 8px 16px;
+        align-items: center;
+        background: var(--surface);
+        padding: 11px 16px;
+      }
+      @media (max-width: 700px) {
+        .ligneFamille {
+          grid-template-columns: 1fr;
+        }
+      }
+      .ligneFamille .nomF {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .ligneFamille .sousF {
+        color: var(--ink2);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+      .barreF {
+        display: flex;
+        gap: 2px;
+        height: 14px;
+      }
+      .barreF > span {
+        border-radius: 2px;
+      }
+      .barreF > span:first-child {
+        border-radius: 4px 2px 2px 4px;
+      }
+      .barreF > span:last-child {
+        border-radius: 2px 4px 4px 2px;
+      }
+      .chiffresF {
+        font-size: 12.5px;
+        color: var(--ink2);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        display: flex;
+        gap: 14px;
+      }
+      .chiffresF b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      /* ---------- sections ---------- */
+      section {
+        margin-top: 42px;
+      }
+      .groupeFamille {
+        margin-bottom: 30px;
+      }
+      .teteGroupe {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 10px;
+        padding: 0 0 10px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid var(--grid);
+      }
+      .teteGroupe h3 {
+        font-size: 15px;
+      }
+      .teteGroupe .compteur {
+        color: var(--ink2);
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+      }
+      .titreSection {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 4px;
+      }
+      .titreSection h2 {
+        font-size: 17px;
+      }
+      .titreSection .compteur {
+        color: var(--ink2);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .chapo {
+        color: var(--ink2);
+        font-size: 13.5px;
+        margin: 0 0 16px;
+        max-width: 92ch;
+      }
+      .carte {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+
+      /* ---------- échecs ---------- */
+      .motif {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 11px 14px;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--warning);
+        border-radius: 8px;
+        background: var(--surface);
+        font-size: 13.5px;
+        color: var(--ink2);
+        margin-bottom: 14px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      thead th {
+        text-align: left;
+        font-weight: 500;
+        color: var(--ink2);
+        font-size: 12px;
+        padding: 0 12px 8px;
+        border-bottom: 1px solid var(--grid);
+        white-space: nowrap;
+      }
+      tbody td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--grid);
+        vertical-align: top;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      td.num,
+      th.num {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .tableEnveloppe {
+        overflow-x: auto;
+        padding: 14px 4px 6px;
+      }
+      code,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+      .depotLien {
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .depotLien:hover {
+        text-decoration: underline;
+      }
+
+      /* ---------- pastilles d'état ---------- */
+      .etat {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .glyphe {
+        width: 15px;
+        height: 15px;
+        border-radius: 4px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        font-size: 10px;
+        line-height: 1;
+        font-weight: 700;
+        color: #fff;
+      }
+      /* l'encre du glyphe suit la luminance de l'aplat : blanc sur #0ca30c ne
+         donne que 3,35:1, l'encre sombre y monte à 6,3:1 */
+      .g-vert {
+        background: var(--good);
+        color: #0b0b0b;
+      }
+      .g-rouge {
+        background: var(--critical);
+        color: #fff;
+      }
+      .g-encours {
+        background: var(--warning);
+        color: #0b0b0b;
+      }
+      .g-neutre {
+        background: transparent;
+        border: 1.5px solid var(--baseline);
+        color: var(--ink2);
+      }
+      .g-jamais {
+        background: transparent;
+        border: 1.5px dashed var(--baseline);
+        color: var(--ink2);
+      }
+
+      /* ---------- grille de dépôts ---------- */
+      .grilleDepots {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+        gap: 14px;
+      }
+      @media (max-width: 520px) {
+        .grilleDepots {
+          grid-template-columns: 1fr;
+        }
+      }
+      .depot {
+        padding: 15px 16px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+      }
+      .depot.aEchec {
+        border-left: 3px solid var(--critical);
+      }
+      .depot .tete {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .depot .tete h3 {
+        font-size: 15.5px;
+      }
+      .badge {
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--ink2);
+        background: var(--ghost);
+        white-space: nowrap;
+      }
+      .badge.prive {
+        border-color: var(--warning);
+        color: var(--ink2);
+      }
+      .depot .desc {
+        color: var(--ink2);
+        font-size: 13px;
+        margin: -3px 0 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .metaLignes {
+        font-size: 12.5px;
+        color: var(--ink2);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .metaLignes .cle {
+        color: var(--ink2);
+      }
+      .wfListe {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .wf {
+        display: grid;
+        grid-template-columns: 15px 1fr auto auto;
+        gap: 9px;
+        align-items: center;
+        background: var(--surface);
+        padding: 6px 10px;
+        font-size: 12.5px;
+        text-decoration: none;
+      }
+      .wf:hover {
+        background: var(--ghost2);
+      }
+      .wfPlus {
+        grid-template-columns: 15px 1fr;
+        border: 0;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        font-size: 12px;
+        color: var(--ink2);
+        cursor: pointer;
+      }
+      .wfPlus > span:first-child {
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+      }
+      .wf .nomWf {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .wf .quand {
+        color: var(--ink2);
+        font-size: 11.5px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .bande {
+        display: flex;
+        gap: 2px;
+        align-items: center;
+      }
+      .bande i {
+        display: block;
+        width: 7px;
+        height: 15px;
+        border-radius: 2px;
+      }
+      .b-vert {
+        background: var(--good);
+      }
+      .b-rouge {
+        background: var(--critical);
+      }
+      .b-neutre {
+        background: var(--baseline);
+      }
+      .b-encours {
+        background: var(--warning);
+      }
+      .b-vide {
+        background: var(--ghost2);
+      }
+      .pile {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      .lib {
+        font-size: 11.5px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 7px;
+        color: var(--ink2);
+        background: var(--ghost);
+        white-space: nowrap;
+      }
+      .lib b {
+        font-weight: 600;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .lib.retard {
+        border-color: var(--serious);
+      }
+      .piedDepot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        font-size: 12px;
+        color: var(--ink2);
+        border-top: 1px solid var(--grid);
+        padding-top: 9px;
+        margin-top: auto;
+      }
+      .piedDepot a {
+        color: var(--ink2);
+      }
+
+      /* ---------- filtres ---------- */
+      .filtres {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .champ {
+        flex: 1 1 220px;
+        min-width: 180px;
+        max-width: 340px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 7px 14px;
+        font: inherit;
+        font-size: 13.5px;
+      }
+      .champ::placeholder {
+        color: var(--muted);
+      }
+      select.bouton {
+        border-radius: 999px;
+      }
+
+      /* ---------- librairies ---------- */
+      .repartition {
+        display: flex;
+        gap: 2px;
+        height: 18px;
+        min-width: 170px;
+      }
+      .repartition > span {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        border-radius: 2px;
+        padding: 0 5px;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        overflow: visible;
+        white-space: nowrap;
+      }
+      .repartition > span:first-child {
+        border-radius: 4px 2px 2px 4px;
+      }
+      .repartition > span:last-child {
+        border-radius: 2px 4px 4px 2px;
+      }
+      tr.libLigne {
+        cursor: pointer;
+      }
+      tr.libLigne:hover td {
+        background: var(--ghost);
+      }
+      tr.detailLib td {
+        background: var(--ghost);
+        font-size: 12.5px;
+      }
+      .versionBloc {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 7px;
+      }
+      .versionBloc:last-child {
+        margin-bottom: 0;
+      }
+      .versionCle {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        min-width: 86px;
+      }
+      .chipDepot {
+        font-size: 11.5px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1px 7px;
+        background: var(--surface);
+        text-decoration: none;
+        color: var(--ink2);
+      }
+      .chipDepot:hover {
+        background: var(--ghost2);
+      }
+      .flecheDetail {
+        color: var(--muted);
+        font-size: 10px;
+        width: 10px;
+        display: inline-block;
+      }
+
+      /* ---------- activité ---------- */
+      .activite {
+        display: grid;
+        grid-template-columns: minmax(120px, 168px) 1fr;
+        gap: 3px 12px;
+        align-items: center;
+        padding: 16px 18px;
+      }
+      .activite .nomA {
+        font-size: 12.5px;
+        text-align: right;
+        color: var(--ink2);
+        text-decoration: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .activite .nomA:hover {
+        text-decoration: underline;
+        color: var(--ink);
+      }
+      .piste {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 20px;
+      }
+      .piste .barre {
+        height: 14px;
+        background: var(--series1);
+        border-radius: 0 4px 4px 0;
+        min-width: 2px;
+      }
+      .piste .vlab {
+        font-size: 11.5px;
+        color: var(--ink2);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .axeNote {
+        color: var(--ink2);
+        font-size: 11.5px;
+        padding: 4px 18px 14px;
+        border-top: 1px solid var(--grid);
+        margin-top: 8px;
+      }
+
+      footer {
+        margin-top: 52px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+        color: var(--ink2);
+        font-size: 12.5px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 22px;
+      }
+      .vide {
+        color: var(--ink2);
+        font-size: 13.5px;
+        padding: 18px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+
+      @media print {
+        .outils,
+        .filtres {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="enveloppe">
+      <header>
+        <div class="chapeau">
+          <div>
+            <h1>Parc <span class="mono">mister-guiiug</span> — dépôts, pipelines, librairies</h1>
+            <div class="sous" id="sousTitre"></div>
+          </div>
+          <div class="outils">
+            <button class="bouton" id="basculeTheme" type="button">Thème</button>
+            <a class="bouton" href="#echecs">Échecs</a>
+            <a class="bouton" href="#depots">Dépôts</a>
+            <a class="bouton" href="#librairies">Librairies</a>
+          </div>
+        </div>
+
+        <div class="bandeau">
+          <div class="hero">
+            <div class="chiffre" id="heroChiffre"></div>
+            <div class="quoi" id="heroQuoi"></div>
+            <div class="detail" id="heroDetail"></div>
+          </div>
+          <div>
+            <div class="barreEtat" id="barreEtat" role="img" aria-labelledby="legendeEtat"></div>
+            <div class="legende" id="legendeEtat"></div>
+          </div>
+        </div>
+
+        <div class="tuiles" id="tuiles"></div>
+
+        <div class="familles" id="familles">
+          <h2 class="titreFamilles">Par famille</h2>
+          <p class="chapo">
+            Une application PWA se reconnaît à <code>vite-plugin-pwa</code> et à son déploiement Pages ; une application desktop à Electron ou Tauri. Les trois couches du socle sont nommées
+            explicitement : le squelette est lui-même une PWA, aucun signal ne le distinguerait de ce qu'il engendre.
+          </p>
+          <div class="grilleFamilles" id="grilleFamilles"></div>
+        </div>
+      </header>
+
+      <main>
+        <section id="echecs">
+          <div class="titreSection">
+            <h2>Ce qui est rouge</h2>
+            <span class="compteur" id="compteurEchecs"></span>
+          </div>
+          <p class="chapo">
+            Dernier run de chaque workflow actif, pris sur la branche par défaut du dépôt (à défaut, le dernier run toutes branches). Les workflows réutilisables du socle sont exclus : ils n'ont pas de run propre.
+          </p>
+          <div id="motifs"></div>
+          <div class="carte tableEnveloppe">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dépôt</th>
+                  <th>Workflow</th>
+                  <th>État</th>
+                  <th>Où ça casse</th>
+                  <th class="num">Depuis</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="corpsEchecs"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="depots">
+          <div class="titreSection">
+            <h2>Dépôts</h2>
+            <span class="compteur" id="compteurDepots"></span>
+          </div>
+          <p class="chapo">Une carte par dépôt git : copie locale, pipelines, pile technique. Les versions de librairies sont celles <em>verrouillées</em> dans le lockfile — pas la plage déclarée.</p>
+          <div class="filtres" id="filtresFamilles"></div>
+          <div class="filtres">
+            <input class="champ" id="recherche" type="search" placeholder="Filtrer : nom, description, librairie…" aria-label="Filtrer les dépôts" />
+            <button class="bouton" type="button" data-filtre="echec" aria-pressed="false">Avec échec</button>
+            <button class="bouton" type="button" data-filtre="site" aria-pressed="false">Site en ligne</button>
+            <button class="bouton" type="button" data-filtre="modifie" aria-pressed="false" id="filtreModifs" hidden>Modifs locales</button>
+            <button class="bouton" type="button" data-filtre="prive" aria-pressed="false" id="filtrePrives" hidden>Privés</button>
+            <select class="bouton" id="tri" aria-label="Trier les dépôts">
+              <option value="echecs">Trier : échecs d'abord</option>
+              <option value="activite">Trier : activité récente</option>
+              <option value="nom">Trier : nom</option>
+              <option value="workflows">Trier : nombre de workflows</option>
+            </select>
+          </div>
+          <div id="grilleDepots"></div>
+          <p class="vide" id="aucunDepot" hidden>Aucun dépôt ne correspond à ce filtre.</p>
+        </section>
+
+        <section id="librairies">
+          <div class="titreSection">
+            <h2>Librairies</h2>
+            <span class="compteur" id="compteurLibs"></span>
+          </div>
+          <p class="chapo">
+            Versions réellement verrouillées, agrégées sur tout le parc. Le dégradé va du plus récent (foncé) au plus ancien ; au-delà de quatre versions, la queue est repliée en gris. Cliquez une ligne pour voir quel dépôt porte quelle version.
+          </p>
+          <div class="filtres">
+            <input class="champ" id="rechercheLib" type="search" placeholder="Filtrer une librairie…" aria-label="Filtrer les librairies" />
+            <button class="bouton" type="button" id="filtreRetard" aria-pressed="false">Avec du retard</button>
+            <button class="bouton" type="button" id="filtreEclate" aria-pressed="false">Versions éclatées</button>
+          </div>
+          <div class="carte tableEnveloppe">
+            <table>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Paquet</th>
+                  <th class="num">Dépôts</th>
+                  <th>Répartition des versions <span class="sr">(du plus récent au plus ancien)</span></th>
+                  <th class="num">Amont</th>
+                  <th class="num">En retard</th>
+                </tr>
+              </thead>
+              <tbody id="corpsLibs"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="activite">
+          <div class="titreSection">
+            <h2>Jours depuis le dernier commit local</h2>
+            <span class="compteur" id="compteurActivite"></span>
+          </div>
+          <p class="chapo">Mesuré sur la copie de travail, pas sur GitHub.</p>
+          <div class="filtres">
+            <button class="bouton" type="button" id="basculeTableauActivite" aria-pressed="false">Voir en tableau</button>
+          </div>
+          <div class="carte">
+            <div class="activite" id="grapheActivite"></div>
+            <div class="axeNote" id="axeActivite"></div>
+          </div>
+          <div class="carte tableEnveloppe" id="tableauActivite" hidden>
+            <table>
+              <thead>
+                <tr>
+                  <th>Dépôt</th>
+                  <th class="num">Jours</th>
+                  <th>Date du commit</th>
+                </tr>
+              </thead>
+              <tbody id="corpsActivite"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <footer id="pied"></footer>
+    </div>
+
+    <script type="application/json" id="donnees">
+      __DONNEES__
+    </script>
+    <script>
+      const D = JSON.parse(document.getElementById('donnees').textContent)
+      const $ = (s) => document.querySelector(s)
+      const el = (t, cls, txt) => {
+        const n = document.createElement(t)
+        if (cls) n.className = cls
+        if (txt != null) n.textContent = txt
+        return n
+      }
+      const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
+      const fmtHeure = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '—')
+      const depuis = (j) => (j == null ? '—' : j === 0 ? "aujourd'hui" : j === 1 ? 'hier' : j + ' j')
+      const MOTS = { vert: 'succès', rouge: 'échec', neutre: 'neutralisé', encours: 'en cours', jamais: 'jamais exécuté' }
+      const GLYPHES = { vert: '✓', rouge: '✕', neutre: '–', encours: '⋯', jamais: '∅' }
+
+      function pastille(etat) {
+        const n = el('span', 'etat')
+        const g = el('span', 'glyphe g-' + etat, GLYPHES[etat])
+        g.setAttribute('aria-hidden', 'true')
+        n.append(g, el('span', 'sr', MOTS[etat]))
+        return n
+      }
+
+      /* ---------------- en-tête ---------------- */
+      const k = D.kpi
+      $('#sousTitre').textContent = `Relevé du ${fmtHeure(D.genere)} · ${k.depots} dépôts git${D.publicsSeulement ? ' publics' : ''} · ${k.appsPwa} applications PWA · ${k.workflowsTous} workflows`
+      $('#heroChiffre').textContent = k.taux + ' %'
+      $('#heroQuoi').textContent = 'des workflows exécutés sont au vert sur leur dernier passage.'
+      $('#heroDetail').textContent = `${k.verts} verts · ${k.rouges} rouges · répartis sur ${k.depots - k.depotsRouges} dépôts sains et ${k.depotsRouges} à reprendre.`
+
+      const etats = [
+        { cle: 'vert', mot: 'succès', n: k.verts, c: 'var(--good)' },
+        { cle: 'rouge', mot: 'échec', n: k.rouges, c: 'var(--critical)' },
+        { cle: 'neutre', mot: 'neutralisé (skipped)', n: k.neutres, c: 'var(--baseline)' },
+        { cle: 'jamais', mot: 'jamais exécuté', n: k.jamais, c: 'var(--ghost2)' },
+      ]
+      const totalEtats = etats.reduce((s, e) => s + e.n, 0)
+      const barre = $('#barreEtat')
+      const lg = $('#legendeEtat')
+      for (const e of etats) {
+        if (!e.n) continue
+        const s = el('span')
+        s.style.flex = e.n
+        s.style.background = e.c
+        s.title = `${e.n} workflows — ${e.mot}`
+        barre.append(s)
+        const L = el('span')
+        const p = el('span', 'puce')
+        p.style.background = e.c
+        L.append(p, el('span', null, GLYPHES[e.cle] + ' ' + e.mot + ' '), el('b', null, String(e.n)))
+        lg.append(L)
+      }
+      barre.setAttribute('aria-label', `Répartition de ${totalEtats} workflows : ` + etats.map((e) => `${e.n} ${e.mot}`).join(', '))
+
+      const tuiles = [
+        { etiq: 'Dépôts git suivis', val: k.depots, app: D.publicsSeulement ? 'dépôts publics du compte' : `${k.publics} publics · ${k.prives} privés` },
+        { etiq: 'Applications PWA', val: k.appsPwa, app: `${D.parFamille.socle.depots} dépôts de socle · ${D.parFamille.desktop.depots} desktop` },
+        { etiq: 'Workflows actifs', val: k.workflows, app: `+ ${k.reutilisables} réutilisables du socle` },
+        { etiq: 'Workflows en échec', val: k.rouges, app: `sur ${k.depotsRouges} dépôts` },
+        { etiq: 'Sites Pages en ligne', val: `${k.sitesEnLigne}/${k.sites}`, app: 'vérifiés par requête HTTP' },
+        { etiq: 'Pull requests ouvertes', val: k.prOuvertes, app: k.prOuvertes ? 'à relire' : 'aucune revue en attente' },
+        { etiq: 'Socle publié', val: k.socleAmont || '—', app: `${k.socleEnRetard} dépôts en dessous` },
+      ]
+      if (D.avecLocal)
+        tuiles.push({
+          etiq: 'Copies de travail modifiées',
+          val: k.depotsModifies,
+          app: k.horsBrancheDefaut ? `${k.horsBrancheDefaut} hors branche par défaut` : 'toutes sur la branche par défaut',
+        })
+      for (const t of tuiles) {
+        const n = el('div', 'tuile')
+        n.append(el('div', 'etiq', t.etiq), el('div', 'val', String(t.val)), el('div', 'app', t.app))
+        $('#tuiles').append(n)
+      }
+
+      // --- petits multiples : un état par famille, sur la même échelle ---
+      // l'ordre d'affichage est celui déclaré par le relevé, pas une copie
+      const ORDRE_FAMILLES = Object.keys(D.familles)
+      const maxWfFamille = Math.max(...ORDRE_FAMILLES.map((f) => D.parFamille[f].verts + D.parFamille[f].rouges), 1)
+      for (const f of ORDRE_FAMILLES) {
+        const pf = D.parFamille[f]
+        if (!pf.depots) continue
+        const ligne = el('div', 'ligneFamille')
+        const g = el('div')
+        g.append(el('div', 'nomF', pf.titre), el('div', 'sousF', pf.sous))
+        const barre = el('div', 'barreF')
+        // largeur proportionnelle au parc entier : les familles se comparent
+        barre.style.width = Math.max(6, ((pf.verts + pf.rouges) / maxWfFamille) * 100) + '%'
+        for (const [n, c, mot] of [
+          [pf.verts, 'var(--good)', 'succès'],
+          [pf.rouges, 'var(--critical)', 'échec'],
+        ]) {
+          if (!n) continue
+          const s = el('span')
+          s.style.flex = n
+          s.style.background = c
+          s.title = `${n} workflows — ${mot}`
+          barre.append(s)
+        }
+        const porte = el('div')
+        porte.append(barre)
+        const ch = el('div', 'chiffresF')
+        const e1 = el('span')
+        e1.append(el('b', null, String(pf.depots)), document.createTextNode(pf.depots > 1 ? ' dépôts' : ' dépôt'))
+        const e2 = el('span')
+        e2.append(el('b', null, pf.taux == null ? '—' : pf.taux + ' %'), document.createTextNode(' au vert'))
+        const e3 = el('span')
+        e3.append(document.createTextNode(GLYPHES.rouge + ' '), el('b', null, String(pf.rouges)), document.createTextNode(pf.rouges > 1 ? ' rouges' : ' rouge'))
+        ch.append(e1, e2, e3)
+        barre.setAttribute('role', 'img')
+        barre.setAttribute('aria-label', `${pf.titre} : ${pf.verts} workflows en succès, ${pf.rouges} en échec`)
+        ligne.append(g, porte, ch)
+        $('#grilleFamilles').append(ligne)
+      }
+
+      /* ---------------- échecs ---------------- */
+      $('#compteurEchecs').textContent = `${D.echecs.length} workflows rouges sur ${k.workflows} actifs`
+      for (const m of D.motifsPartages) {
+        const n = el('div', 'motif')
+        n.append(el('span', null, '⚠'), el('span', null, `Même cause sur ${m.depots.length} dépôts — l'étape « ${m.etape} » : ${m.depots.join(', ')}. Un correctif, ${m.depots.length} pipelines.`))
+        $('#motifs').append(n)
+      }
+      const corpsE = $('#corpsEchecs')
+      for (const e of D.echecs) {
+        const tr = el('tr')
+        const d = D.depots.find((x) => x.nom === e.depot)
+        const c1 = el('td')
+        const a = el('a', 'depotLien', e.depot)
+        a.href = '#depot-' + e.depot
+        c1.append(a)
+        if (d && d.prive) c1.append(document.createTextNode(' '), el('span', 'badge prive', 'privé'))
+        const c2 = el('td')
+        c2.append(el('span', null, e.workflow))
+        if (e.branche && d && e.branche !== d.brancheDefaut) c2.append(el('div', 'quand', 'branche ' + e.branche))
+        const c3 = el('td')
+        const p = pastille('rouge')
+        p.append(el('span', null, e.conclusion === 'failure' ? 'échec' : e.conclusion))
+        c3.append(p)
+        const c4 = el('td')
+        c4.textContent = e.demarrage ? "n'a pas démarré (aucun job)" : e.etape || e.jobs.map((j) => j.name).join(', ')
+        if (!e.demarrage && e.jobs.length) c4.append(el('div', 'quand', 'job : ' + e.jobs.map((j) => j.name).join(' · ')))
+        const c5 = el('td', 'num', depuis(e.jours))
+        c5.title = fmtDate(e.date)
+        const c6 = el('td')
+        const lien = el('a', null, 'run ↗')
+        lien.href = e.url
+        lien.target = '_blank'
+        lien.rel = 'noopener'
+        c6.append(lien)
+        tr.append(c1, c2, c3, c4, c5, c6)
+        corpsE.append(tr)
+      }
+
+      /* ---------------- dépôts ---------------- */
+      function carteDepot(d) {
+        const n = el('article', 'depot carte' + (d.compte.rouge ? ' aEchec' : ''))
+        n.id = 'depot-' + d.nom
+        const tete = el('div', 'tete')
+        const h = el('h3')
+        const a = el('a', 'depotLien', d.nom)
+        a.href = d.url
+        a.target = '_blank'
+        a.rel = 'noopener'
+        h.append(a)
+        tete.append(h)
+        if (d.prive) tete.append(el('span', 'badge prive', 'privé'))
+        if (d.role) tete.append(el('span', 'badge', d.role))
+        if (d.paquet && d.paquet.version) tete.append(el('span', 'badge', 'v' + d.paquet.version))
+        n.append(tete)
+        if (d.description) n.append(el('p', 'desc', d.description))
+
+        const meta = el('div', 'metaLignes')
+        const l1 = el('div')
+        if (d.local) {
+          // seulement en mode --local : l'API ne connaît pas la copie de travail
+          l1.append(el('span', 'cle', 'Copie de travail · '))
+          l1.append(el('span', null, d.local.branche === d.brancheDefaut ? d.local.branche : `${d.local.branche} (défaut : ${d.brancheDefaut})`))
+          const etats = []
+          if (d.local.modifies) etats.push(`${d.local.modifies} fichier${d.local.modifies > 1 ? 's' : ''} non commité${d.local.modifies > 1 ? 's' : ''}`)
+          if (d.local.avance) etats.push(`${d.local.avance} en avance`)
+          if (d.local.retard) etats.push(`${d.local.retard} en retard`)
+          l1.append(el('span', null, etats.length ? ' — ' + etats.join(', ') : ' — propre et à jour'))
+        } else {
+          l1.append(el('span', 'cle', 'Branche · '))
+          l1.append(el('span', null, d.brancheDefaut))
+          if (d.prs.length) l1.append(el('span', null, ` — ${d.prs.length} PR ouverte${d.prs.length > 1 ? 's' : ''}`))
+        }
+        const l2 = el('div')
+        l2.append(el('span', 'cle', 'Dernier commit · '))
+        l2.append(el('span', null, `${depuis(d.commit.jours)} · `), el('code', null, d.commit.sha), el('span', null, ' ' + d.commit.sujet.slice(0, 68) + (d.commit.sujet.length > 68 ? '…' : '')))
+        l2.title = `${fmtDate(d.commit.date)} — ${d.commit.auteur} — ${d.commit.sujet}`
+        meta.append(l1, l2)
+        n.append(meta)
+
+        if (d.workflows.length) {
+          const liste = el('div', 'wfListe')
+          // un dépôt peut aligner 18 workflows : on montre tout ce qui n'est pas
+          // vert, puis on complète jusqu'à 6, le reste derrière un dépliant.
+          const PLAFOND = 6
+          const prioritaires = d.workflows.filter((w) => w.etat === 'rouge' || w.etat === 'encours')
+          const visibles = d.workflows.slice(0, Math.max(PLAFOND, prioritaires.length))
+          const caches = d.workflows.slice(visibles.length)
+          for (const w of d.workflows) {
+            const r = el('a', 'wf')
+            if (caches.includes(w)) r.hidden = true
+            r.href = w.url || d.url
+            r.target = '_blank'
+            r.rel = 'noopener'
+            r.append(pastille(w.etat))
+            const nom = el('span', 'nomWf', w.nom)
+            if (w.reutilisable) nom.append(el('span', 'quand', ' · réutilisable'))
+            else if (!w.surDefaut && w.etat !== 'jamais') nom.append(el('span', 'quand', ' · hors ' + d.brancheDefaut))
+            r.append(nom)
+            const bande = el('span', 'bande')
+            const derniers = w.derniers.slice().reverse()
+            for (let i = 0; i < 5; i++) {
+              const run = derniers[derniers.length - 5 + i]
+              const b = el('i', 'b-' + (run ? run.etat : 'vide'))
+              if (run) b.title = `#${run.num} · ${MOTS[run.etat]} · ${fmtDate(run.date)}${run.branche ? ' · ' + run.branche : ''}`
+              bande.append(b)
+            }
+            bande.setAttribute('aria-hidden', 'true')
+            r.append(bande)
+            r.append(el('span', 'quand', w.etat === 'jamais' ? 'jamais' : depuis(Math.floor((Date.now() - new Date(w.date)) / 86400000))))
+            r.title = `${w.nom} (${w.fichier}) — ${MOTS[w.etat]}${w.date ? ' le ' + fmtDate(w.date) : ''}`
+            liste.append(r)
+          }
+          if (caches.length) {
+            const plus = el('button', 'wf wfPlus')
+            plus.type = 'button'
+            const compte = caches.reduce((m, w) => ((m[w.etat] = (m[w.etat] || 0) + 1), m), {})
+            const resume = Object.entries(compte)
+              .map(([e, n]) => `${n} ${MOTS[e]}`)
+              .join(', ')
+            plus.append(el('span', null, '+'), el('span', 'nomWf', `${caches.length} autres workflows — ${resume}`))
+            plus.addEventListener('click', () => {
+              const ouvert = plus.getAttribute('aria-expanded') === 'true'
+              for (const w of caches) liste.children[d.workflows.indexOf(w)].hidden = ouvert
+              plus.setAttribute('aria-expanded', String(!ouvert))
+              plus.firstChild.textContent = ouvert ? '+' : '−'
+            })
+            plus.setAttribute('aria-expanded', 'false')
+            liste.append(plus)
+          }
+          n.append(liste)
+        } else {
+          n.append(el('div', 'metaLignes', 'Aucun workflow GitHub Actions.'))
+        }
+
+        if (d.pile.length) {
+          const pile = el('div', 'pile')
+          for (const p of d.pile) {
+            const enRetard = p.amont && p.version !== p.amont
+            const c = el('span', 'lib' + (enRetard ? ' retard' : ''))
+            c.append(el('span', null, p.nom + ' '), el('b', null, p.version))
+            c.title = `${p.paquet} ${p.version}${p.verrouille ? ' (verrouillé)' : ' (plage déclarée)'}${p.amont ? ' · amont : ' + p.amont : ''}`
+            pile.append(c)
+          }
+          n.append(pile)
+        }
+
+        const pied = el('div', 'piedDepot')
+        if (d.pages && d.pages.url) {
+          const s = el('span')
+          const g = el('span', 'glyphe g-' + (d.pages.ok ? 'vert' : 'rouge'), d.pages.ok ? '✓' : '✕')
+          g.style.display = 'inline-grid'
+          g.setAttribute('aria-hidden', 'true')
+          const lien = el('a', null, 'site' + (d.pages.ok ? ' en ligne' : ' injoignable'))
+          lien.href = d.pages.url
+          lien.target = '_blank'
+          lien.rel = 'noopener'
+          s.append(g, document.createTextNode(' '), lien)
+          if (d.pages.ms) s.title = `HTTP ${d.pages.code} en ${d.pages.ms} ms — ${d.pages.titre || d.pages.url}`
+          pied.append(s)
+        }
+        if (d.licence) pied.append(el('span', null, d.licence))
+        if (d.nbVerrouilles) pied.append(el('span', null, `${d.nbDeps} dépendances déclarées · ${d.nbVerrouilles} paquets verrouillés`))
+        else if (d.nbDeps) pied.append(el('span', null, `${d.nbDeps} dépendances déclarées · pas de package-lock`))
+        if (d.nbCrates) pied.append(el('span', null, `${d.nbCrates} crates verrouillés`))
+        if (d.tailleKo != null) pied.append(el('span', null, (d.tailleKo / 1024).toFixed(1) + ' Mo'))
+        pied.append(el('span', null, `${d.compte.vert} verts${d.compte.rouge ? ' · ' + d.compte.rouge + ' rouges' : ''}`))
+        n.append(pied)
+        return n
+      }
+
+      const filtresActifs = new Set()
+      const famillesActives = new Set()
+      function rendDepots() {
+        const q = $('#recherche').value.trim().toLowerCase()
+        const tri = $('#tri').value
+        const liste = D.depots.filter((d) => {
+          if (famillesActives.size && !famillesActives.has(d.famille)) return false
+          if (filtresActifs.has('echec') && !d.compte.rouge) return false
+          if (filtresActifs.has('modifie') && !(d.local && d.local.modifies)) return false
+          if (filtresActifs.has('prive') && !d.prive) return false
+          if (filtresActifs.has('site') && !(d.pages && d.pages.ok)) return false
+          if (!q) return true
+          const foin = [d.nom, d.description || '', d.role || '', d.brancheDefaut, ...d.pile.map((p) => p.paquet + ' ' + p.version), ...d.workflows.map((w) => w.nom)].join(' ').toLowerCase()
+          return foin.includes(q)
+        })
+        const comparateurs = {
+          echecs: (a, b) => b.compte.rouge - a.compte.rouge || a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
+          activite: (a, b) => a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
+          nom: (a, b) => a.nom.localeCompare(b.nom),
+          workflows: (a, b) => b.workflows.length - a.workflows.length || a.nom.localeCompare(b.nom),
+        }
+        const hote = $('#grilleDepots')
+        hote.textContent = ''
+        // une section par famille : les PWA ne se mélangent plus au socle
+        for (const f of ORDRE_FAMILLES) {
+          const groupe = liste.filter((d) => d.famille === f).sort(comparateurs[tri])
+          if (!groupe.length) continue
+          const pf = D.parFamille[f]
+          const bloc = el('div', 'groupeFamille')
+          const tete = el('div', 'teteGroupe')
+          tete.append(el('h3', null, pf.titre))
+          const rouges = groupe.reduce((n, d) => n + d.compte.rouge, 0)
+          tete.append(el('span', 'compteur', `${groupe.length} dépôt${groupe.length > 1 ? 's' : ''}${rouges ? ` · ${rouges} workflow${rouges > 1 ? 's' : ''} rouge${rouges > 1 ? 's' : ''}` : ' · tout au vert'}`))
+          bloc.append(tete)
+          const grille = el('div', 'grilleDepots')
+          for (const d of groupe) grille.append(carteDepot(d))
+          bloc.append(grille)
+          hote.append(bloc)
+        }
+        $('#aucunDepot').hidden = liste.length > 0
+        $('#compteurDepots').textContent = liste.length === D.depots.length ? `${D.depots.length} dépôts` : `${liste.length} sur ${D.depots.length} dépôts`
+      }
+      // chips de famille, construits d'après les données : une famille vide
+      // n'affiche pas de bouton qui ne filtrerait rien
+      for (const f of ORDRE_FAMILLES) {
+        const pf = D.parFamille[f]
+        if (!pf.depots) continue
+        const b = el('button', 'bouton')
+        b.type = 'button'
+        b.setAttribute('aria-pressed', 'false')
+        b.textContent = `${pf.titre} (${pf.depots})`
+        b.addEventListener('click', () => {
+          const on = famillesActives.has(f)
+          if (on) famillesActives.delete(f)
+          else famillesActives.add(f)
+          b.setAttribute('aria-pressed', String(!on))
+          rendDepots()
+        })
+        $('#filtresFamilles').append(b)
+      }
+      // ces deux filtres n'ont de sens que si les données les portent
+      if (D.avecLocal) $('#filtreModifs').hidden = false
+      if (D.kpi.prives) $('#filtrePrives').hidden = false
+
+      $('#recherche').addEventListener('input', rendDepots)
+      $('#tri').addEventListener('change', rendDepots)
+      for (const b of document.querySelectorAll('[data-filtre]')) {
+        b.addEventListener('click', () => {
+          const f = b.dataset.filtre
+          const on = filtresActifs.has(f)
+          if (on) filtresActifs.delete(f)
+          else filtresActifs.add(f)
+          b.setAttribute('aria-pressed', String(!on))
+          rendDepots()
+        })
+      }
+
+      /* ---------------- librairies ---------------- */
+      const ORD = ['var(--ord1)', 'var(--ord2)', 'var(--ord3)', 'var(--ord4)']
+      // L'encre d'une étiquette posée DANS un aplat se choisit sur la luminance
+      // de cet aplat : les mêmes quatre pas sont foncés en clair et clairs en
+      // sombre, donc une encre codée en dur casse dans l'un des deux thèmes.
+      function encreSurAplat(noeud) {
+        const m = getComputedStyle(noeud).backgroundColor.match(/[\d.]+/g)
+        if (!m) return
+        const l = m.slice(0, 3).map(Number).map((v) => {
+          v /= 255
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+        })
+        const lum = 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]
+        noeud.style.color = lum > 0.18 ? '#0b0b0b' : '#ffffff'
+      }
+      function rendLibs() {
+        const q = $('#rechercheLib').value.trim().toLowerCase()
+        const seulRetard = $('#filtreRetard').getAttribute('aria-pressed') === 'true'
+        const seulEclate = $('#filtreEclate').getAttribute('aria-pressed') === 'true'
+        const liste = D.libs.filter((l) => {
+          if (seulRetard && !l.enRetard) return false
+          if (seulEclate && l.nbVersions < 3) return false
+          return !q || l.paquet.toLowerCase().includes(q)
+        })
+        const tb = $('#corpsLibs')
+        tb.textContent = ''
+        for (const l of liste) {
+          const tr = el('tr', 'libLigne')
+          tr.tabIndex = 0
+          const c0 = el('td', null, '')
+          c0.append(el('span', 'flecheDetail', '▸'))
+          const c1 = el('td')
+          c1.append(el('code', null, l.paquet))
+          if (l.ecosysteme === 'cargo') c1.append(document.createTextNode(' '), el('span', 'badge', 'cargo'))
+          if (l.paquet === D.socle) c1.append(document.createTextNode(' '), el('span', 'badge', 'socle'))
+          const c2 = el('td', 'num', String(l.nbDepots))
+          const c3 = el('td')
+          const bar = el('div', 'repartition')
+          const tete = l.versions.slice(0, 4)
+          const queue = l.versions.slice(4)
+          const segs = tete.map((v, i) => ({ v: v.version, n: v.depots.length, c: ORD[i] }))
+          if (queue.length) segs.push({ v: `${queue.length} plus anciennes`, n: queue.reduce((s, v) => s + v.depots.length, 0), c: 'var(--ordFold)' })
+          for (const s of segs) {
+            const sp = el('span')
+            sp.style.flex = s.n
+            sp.style.background = s.c
+            sp.title = `${s.v} — ${s.n} dépôt${s.n > 1 ? 's' : ''}`
+            sp.append(el('span', 'etiqSeg', s.v))
+            bar.append(sp)
+          }
+          bar.setAttribute('role', 'img')
+          bar.setAttribute('aria-label', `${l.paquet} : ` + segs.map((s) => `${s.v} sur ${s.n} dépôts`).join(', '))
+          c3.append(bar)
+          const c4 = el('td', 'num', l.amont || '—')
+          const c5 = el('td', 'num')
+          if (l.enRetard == null) c5.textContent = '—'
+          else {
+            // libellé propre : « échec » ne veut rien dire pour un retard de version
+            const enRetard = l.enRetard > 0
+            const m = el('span', 'etat')
+            const g = el('span', 'glyphe ' + (enRetard ? 'g-encours' : 'g-vert'), enRetard ? '!' : '✓')
+            g.setAttribute('aria-hidden', 'true')
+            m.append(g)
+            if (enRetard) m.append(el('span', 'sr', 'en retard sur l’amont : '), el('span', null, `${l.enRetard}/${l.nbDepots}`))
+            else m.append(el('span', null, 'à jour'))
+            c5.append(m)
+          }
+          tr.append(c0, c1, c2, c3, c4, c5)
+          const detail = el('tr', 'detailLib')
+          detail.hidden = true
+          const dc = el('td')
+          dc.colSpan = 6
+          for (const v of l.versions) {
+            const b = el('div', 'versionBloc')
+            b.append(el('span', 'versionCle', v.version))
+            if (l.amont && v.version !== l.amont) b.append(el('span', 'badge', 'amont ' + l.amont))
+            for (const dep of v.depots) {
+              const ch = el('a', 'chipDepot', dep.depot)
+              ch.href = '#depot-' + dep.depot
+              ch.title = `plage déclarée : ${dep.plage}${dep.verrouille ? ' · version verrouillée' : ' · pas de lockfile, plage affichée'}`
+              b.append(ch)
+            }
+            dc.append(b)
+          }
+          detail.append(dc)
+          const bascule = () => {
+            detail.hidden = !detail.hidden
+            c0.firstChild.textContent = detail.hidden ? '▸' : '▾'
+          }
+          tr.addEventListener('click', bascule)
+          tr.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              bascule()
+            }
+          })
+          tb.append(tr, detail)
+        }
+        $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets suivis` : `${liste.length} sur ${D.libs.length} paquets`
+        // synchrone : la lecture de clientWidth force le calcul de mise en page.
+        // Passer par requestAnimationFrame laisserait les étiquettes non ajustées
+        // dans un onglet d'arrière-plan, où les frames ne sont pas servies.
+        ajusteEtiquettes()
+      }
+      // une étiquette n'est jamais rognée : si elle ne tient pas, elle disparaît
+      // (la valeur reste dans l'infobulle et dans le détail de la ligne)
+      function ajusteEtiquettes() {
+        for (const sp of document.querySelectorAll('.repartition > span')) {
+          encreSurAplat(sp)
+          const lab = sp.querySelector('.etiqSeg')
+          if (!lab) continue
+          lab.style.display = ''
+          if (lab.scrollWidth + 12 > sp.clientWidth) lab.style.display = 'none'
+        }
+      }
+      $('#rechercheLib').addEventListener('input', rendLibs)
+      for (const id of ['#filtreRetard', '#filtreEclate']) {
+        $(id).addEventListener('click', () => {
+          const b = $(id)
+          b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+          rendLibs()
+        })
+      }
+      window.addEventListener('resize', ajusteEtiquettes)
+
+      /* ---------------- activité ---------------- */
+      const maxJ = Math.max(...D.activite.map((a) => a.jours), 1)
+      const gr = $('#grapheActivite')
+      for (const a of D.activite) {
+        const nom = el('a', 'nomA', a.depot)
+        nom.href = '#depot-' + a.depot
+        const piste = el('div', 'piste')
+        const b = el('div', 'barre')
+        b.style.width = Math.max(2, (a.jours / maxJ) * 100) + '%'
+        b.style.maxWidth = 'calc(100% - 46px)'
+        piste.append(b, el('span', 'vlab', a.jours === 0 ? "aujourd'hui" : a.jours + ' j'))
+        piste.title = `${a.depot} — dernier commit le ${fmtDate(a.date)}`
+        gr.append(nom, piste)
+      }
+      $('#axeActivite').textContent = `Échelle de 0 à ${maxJ} jours. Le dépôt le plus ancien du parc a ${maxJ} jours de retard sur son dernier commit : aucun dépôt n'est en sommeil.`
+      $('#compteurActivite').textContent = `${D.activite.length} dépôts`
+      const ca = $('#corpsActivite')
+      for (const a of D.activite) {
+        const tr = el('tr')
+        const c = el('td')
+        const lien = el('a', 'depotLien', a.depot)
+        lien.href = '#depot-' + a.depot
+        c.append(lien)
+        tr.append(c, el('td', 'num', String(a.jours)), el('td', null, fmtDate(a.date)))
+        ca.append(tr)
+      }
+      $('#basculeTableauActivite').addEventListener('click', () => {
+        const b = $('#basculeTableauActivite')
+        const on = b.getAttribute('aria-pressed') !== 'true'
+        b.setAttribute('aria-pressed', String(on))
+        b.textContent = on ? 'Voir le graphique' : 'Voir en tableau'
+        $('#tableauActivite').hidden = !on
+        $('#grapheActivite').parentElement.hidden = on
+      })
+
+      /* ---------------- thème ---------------- */
+      $('#basculeTheme').addEventListener('click', () => {
+        const actuel = document.documentElement.getAttribute('data-theme')
+        const sombreParDefaut = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const prochain = actuel ? (actuel === 'dark' ? 'light' : 'dark') : sombreParDefaut ? 'light' : 'dark'
+        document.documentElement.setAttribute('data-theme', prochain)
+        // les aplats changent de luminance : leurs étiquettes changent d'encre
+        ajusteEtiquettes()
+      })
+
+      /* ---------------- pied ---------------- */
+      const pied = $('#pied')
+      pied.append(el('span', null, `Relevé du ${fmtHeure(D.genere)}.`))
+      pied.append(el('span', null, `Source : API GitHub, lockfiles lus sur la branche par défaut, registre npm${D.avecLocal ? ', copies de travail locales' : ''}.`))
+      if (D.publicsSeulement) pied.append(el('span', null, 'Les dépôts privés du compte sont exclus de ce relevé.'))
+      pied.append(el('span', null, 'Page régénérée chaque jour par GitHub Actions.'))
+
+      rendDepots()
+      rendLibs()
+    </script>
+  </body>
+</html>
