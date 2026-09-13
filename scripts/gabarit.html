@@ -907,6 +907,32 @@
         font-variant-numeric: tabular-nums;
         color: var(--ink2);
       }
+      .etiquetteFiltre {
+        font-size: 12.5px;
+        color: var(--ink2);
+        align-self: center;
+      }
+      /* La maturité est montrée À CÔTÉ du dépôt, pas seulement filtrable :
+         filtrer sur un critère invisible oblige à faire confiance au filtre. */
+      .pastilleMat {
+        margin-left: 6px;
+        padding: 1px 6px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 10.5px;
+        color: var(--ink2);
+        vertical-align: 1px;
+      }
+      .pastilleMat[data-mat='stable'] {
+        color: var(--goodInk);
+        border-color: color-mix(in srgb, var(--good) 45%, transparent);
+      }
+      .pastilleMat[data-mat='beta'] {
+        border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+      }
+      .pastilleMat[data-mat='alpha'] {
+        border-color: color-mix(in srgb, var(--serious) 55%, transparent);
+      }
       .colonnes {
         display: flex;
         flex-wrap: wrap;
@@ -1136,7 +1162,15 @@
               <option value="ecarts">Trier : plus d'écarts d'abord</option>
               <option value="nom">Trier : nom</option>
               <option value="famille">Trier : famille</option>
+              <option value="maturite">Trier : maturité</option>
             </select>
+          </div>
+          <div class="filtres" id="filtresMaturite" role="group" aria-label="Filtrer par maturité">
+            <span class="etiquetteFiltre">Maturité</span>
+            <button class="bouton" type="button" data-maturite="alpha" aria-pressed="false">Alpha</button>
+            <button class="bouton" type="button" data-maturite="beta" aria-pressed="false">Bêta</button>
+            <button class="bouton" type="button" data-maturite="stable" aria-pressed="false">Stable</button>
+            <button class="bouton" type="button" data-maturite="aucune" aria-pressed="false">Non renseignée</button>
           </div>
           <div class="carte colonnes" id="colonnes" hidden></div>
           <div class="carte matriceEnveloppe">
@@ -1772,6 +1806,9 @@
 
       const libParNom = new Map(D.libs.map((l) => [l.paquet, l]))
       const familleDe = new Map(D.depots.map((d) => [d.nom, d.famille || '—']))
+      const MAT = { alpha: 'Alpha', beta: 'Bêta', stable: 'Stable' }
+      const RANG_MAT = { alpha: 0, beta: 1, stable: 2, aucune: 3 }
+      const maturiteDe = (d) => d.maturite || 'aucune'
       const parEcarts = (a, b) => b.nbVersions - a.nbVersions || b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet)
 
       // Montrer les cent paquets noierait l'écart dans le bruit : le défaut est
@@ -1831,18 +1868,23 @@
           if (!cellules.some((c) => c.version)) continue
           const score = cellules.reduce((n, c) => n + POIDS[c.rang], 0)
           const nb = cellules.filter((c) => POIDS[c.rang] > 0).length
-          lignes.push({ depot: d.nom, famille: familleDe.get(d.nom), cellules, score, nb })
+          lignes.push({ depot: d.nom, famille: familleDe.get(d.nom), maturite: maturiteDe(d), cellules, score, nb })
         }
 
         const sansEcart = $('#matriceLignes').getAttribute('aria-pressed') === 'true'
-        const visibles = sansEcart ? lignes.filter((r) => r.nb > 0) : lignes
+        // Aucune maturité cochée = toutes. C'est l'état de repos le plus utile :
+        // sans cette règle, la page s'ouvrirait sur un tableau vide.
+        const choisies = new Set([...document.querySelectorAll('#filtresMaturite button[aria-pressed="true"]')].map((b) => b.dataset.maturite))
+        const visibles = lignes.filter((r) => (sansEcart ? r.nb > 0 : true)).filter((r) => (choisies.size ? choisies.has(r.maturite) : true))
         const tri = $('#matriceTri').value
         visibles.sort((a, b) =>
           tri === 'nom'
             ? a.depot.localeCompare(b.depot)
             : tri === 'famille'
               ? String(a.famille).localeCompare(String(b.famille)) || a.depot.localeCompare(b.depot)
-              : b.score - a.score || a.depot.localeCompare(b.depot),
+              : tri === 'maturite'
+                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || b.score - a.score || a.depot.localeCompare(b.depot)
+                : b.score - a.score || a.depot.localeCompare(b.depot),
         )
 
         const tr = el('tr')
@@ -1863,6 +1905,11 @@
           const lien = el('a', 'depotLien', r.depot)
           lien.href = '#depot-' + r.depot
           th.append(lien)
+          if (r.maturite !== 'aucune') {
+            const p = el('span', 'pastilleMat', MAT[r.maturite])
+            p.dataset.mat = r.maturite
+            th.append(p)
+          }
           l.append(th)
           for (const c of r.cellules) {
             const td = el('td', 'cellule', c.version || '·')
@@ -1899,6 +1946,12 @@
         rendMatrice()
       })
       $('#matriceTri').addEventListener('change', rendMatrice)
+      $('#filtresMaturite').addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-maturite]')
+        if (!b) return
+        b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+        rendMatrice()
+      })
 
       /* ---------------- sommaire flottant et retour en haut ---------------- */
 
