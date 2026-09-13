@@ -894,8 +894,14 @@
         background: color-mix(in srgb, var(--critical) 32%, transparent);
         font-weight: 500;
       }
+      /* `--ink2`, et non `--muted`. Mesuré sur la page publiée : le point des
+         cellules vides tombait à 3,50 de contraste en thème clair, quand tout
+         le reste du texte secondaire de la page — compteurs, chapôs, pied —
+         tient 7,53. C'était un écart introduit ici, pas le niveau maison.
+         La discrétion doit venir du glyphe, qui est un point, pas d'une encre
+         qu'on ne lit plus. */
       .cellule[data-ecart='absent'] {
-        color: var(--muted);
+        color: var(--ink2);
       }
       .matriceTotal {
         font-variant-numeric: tabular-nums;
