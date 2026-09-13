@@ -83,6 +83,15 @@
       html {
         scroll-behavior: smooth;
       }
+      /* Le sommaire flottant et le retour en haut rendent le défilement animé
+         bien plus fréquent qu'avant : sans cette garde, `scroll-behavior`
+         s'imposait à qui a demandé moins de mouvement — et il l'emporte même
+         sur un `behavior: 'auto'` passé à `scrollTo`. */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
       body {
         margin: 0;
         background: var(--page);
@@ -810,9 +819,170 @@
         display: none !important;
       }
 
+      /* ───────────────────── Matrice dépôts × librairies ─────────────────────
+         Une cellule = la version qu'un dépôt VERROUILLE. La couleur ne dit pas
+         « vieux » dans l'absolu mais l'ÉCART à la version la plus récente du
+         parc pour ce paquet : c'est le seul écart sur lequel on peut agir. */
+      .matriceEnveloppe {
+        overflow: auto;
+        max-height: 78vh;
+        padding: 0;
+      }
+      .matrice {
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+      }
+      .matrice th,
+      .matrice td {
+        border-bottom: 1px solid var(--grid);
+        padding: 5px 8px;
+        white-space: nowrap;
+      }
+      /* La colonne des dépôts et la ligne d'en-tête restent lisibles quand on
+         part loin à droite : sans elles, une cellule isolée ne dit plus de quel
+         dépôt ni de quel paquet elle parle. */
+      .matrice thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--surface);
+        border-bottom: 1px solid var(--baseline);
+        vertical-align: bottom;
+        text-align: left;
+        font-weight: 500;
+      }
+      .matrice tbody th {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: var(--surface);
+        text-align: left;
+        font-weight: 400;
+        border-right: 1px solid var(--grid);
+      }
+      .matrice thead th:first-child {
+        left: 0;
+        z-index: 3;
+      }
+      .matrice tbody tr:hover th,
+      .matrice tbody tr:hover td {
+        background: var(--ghost);
+      }
+      .matriceCol {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        max-height: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .cellule {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        font-size: 11.5px;
+      }
+      .cellule[data-ecart='0'] {
+        color: var(--goodInk);
+      }
+      .cellule[data-ecart='patch'] {
+        background: color-mix(in srgb, var(--warning) 22%, transparent);
+      }
+      .cellule[data-ecart='mineure'] {
+        background: color-mix(in srgb, var(--serious) 30%, transparent);
+      }
+      .cellule[data-ecart='majeure'] {
+        background: color-mix(in srgb, var(--critical) 32%, transparent);
+        font-weight: 500;
+      }
+      .cellule[data-ecart='absent'] {
+        color: var(--muted);
+      }
+      .matriceTotal {
+        font-variant-numeric: tabular-nums;
+        color: var(--ink2);
+      }
+      .colonnes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+      }
+      .colonnes label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12.5px;
+        color: var(--ink2);
+        cursor: pointer;
+      }
+      .colonnes .pastilleCol {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ───────────────────── Sommaire flottant et retour en haut ─────────── */
+      .flottant {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+      .sommaire {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px;
+        min-width: 176px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      }
+      .sommaire a {
+        display: block;
+        padding: 5px 9px;
+        border-radius: 7px;
+        font-size: 12.5px;
+        color: var(--ink2);
+        text-decoration: none;
+      }
+      .sommaire a:hover {
+        background: var(--ghost);
+        color: var(--ink);
+      }
+      .sommaire a[aria-current='true'] {
+        background: var(--ghost2);
+        color: var(--ink);
+      }
+      .flottant .bouton {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      }
+      /* Le retour en haut n'existe que lorsqu'il a un sens : `hidden` seul
+         perdrait contre le `display: flex` du conteneur. */
+      .flottant .bouton[hidden] {
+        display: none;
+      }
+      @media (max-width: 1040px) {
+        .sommaire {
+          display: none;
+        }
+        .sommaire[data-ouvert='true'] {
+          display: block;
+        }
+      }
+      @media (min-width: 1041px) {
+        #basculeSommaire {
+          display: none;
+        }
+      }
+
       @media print {
         .outils,
-        .filtres {
+        .filtres,
+        .flottant,
+        .colonnes {
           display: none;
         }
       }
@@ -942,6 +1112,36 @@
           </div>
         </section>
 
+        <section id="matrice">
+          <div class="titreSection">
+            <h2>Matrice des écarts</h2>
+            <span class="compteur" id="compteurMatrice"></span>
+          </div>
+          <p class="chapo">
+            La section précédente répond « qui porte quelle version » paquet par paquet ; celle-ci les met côte à côte. Une ligne est un dépôt, une colonne un paquet, une cellule la version qu'il
+            <strong>verrouille</strong>. La couleur ne dit pas « vieux » dans l'absolu mais l'<strong>écart à la version la plus récente du parc</strong> — la seule sur laquelle on peut agir, puisqu'un
+            autre dépôt la tient déjà. Par défaut, seuls les paquets réellement éclatés sont montrés ; les colonnes s'ajoutent et se retirent une à une.
+          </p>
+          <div class="filtres">
+            <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes">Choisir les colonnes</button>
+            <button class="bouton" type="button" id="matriceEclate" aria-pressed="true">Seulement les paquets éclatés</button>
+            <button class="bouton" type="button" id="matriceLignes" aria-pressed="true">Masquer les dépôts sans écart</button>
+            <select class="bouton" id="matriceTri" aria-label="Trier les lignes de la matrice">
+              <option value="ecarts">Trier : plus d'écarts d'abord</option>
+              <option value="nom">Trier : nom</option>
+              <option value="famille">Trier : famille</option>
+            </select>
+          </div>
+          <div class="carte colonnes" id="colonnes" hidden></div>
+          <div class="carte matriceEnveloppe">
+            <table class="matrice">
+              <thead id="teteMatrice"></thead>
+              <tbody id="corpsMatrice"></tbody>
+            </table>
+          </div>
+          <p class="vide" id="aucuneColonne" hidden>Aucune colonne sélectionnée.</p>
+        </section>
+
         <section id="activite">
           <div class="titreSection">
             <h2>Jours depuis le dernier commit local</h2>
@@ -971,6 +1171,12 @@
       </main>
 
       <footer id="pied"></footer>
+    </div>
+
+    <div class="flottant">
+      <button class="bouton" type="button" id="basculeSommaire" aria-expanded="false" aria-controls="sommaire">Sommaire</button>
+      <nav class="sommaire" id="sommaire" aria-label="Chapitres de la page"></nav>
+      <button class="bouton" type="button" id="retourHaut" hidden>↑ Haut de page</button>
     </div>
 
     <script type="application/json" id="donnees">
@@ -1520,8 +1726,235 @@
       if (D.soi) pied.append(el('span', null, `Le dépôt ${D.soi}, qui produit cette page, s'exclut lui-même.`))
       pied.append(el('span', null, 'Page régénérée chaque jour par GitHub Actions.'))
 
+      /* ---------------- matrice des écarts ---------------- */
+
+      const cmpV = (a, b) => {
+        const pa = String(a).split('.').map(Number)
+        const pb = String(b).split('.').map(Number)
+        for (let i = 0; i < 3; i += 1) {
+          const d = (pa[i] || 0) - (pb[i] || 0)
+          if (d) return Math.sign(d)
+        }
+        return 0
+      }
+
+      // Le RANG de l'écart, pas sa distance. Passer de 4.2 à 4.3 n'a rien de
+      // commun avec passer de 3 à 4 : un chiffre unique mélangerait les deux,
+      // et c'est précisément ce que la couleur doit séparer.
+      const rangEcart = (v, ref) => {
+        if (!v) return 'absent'
+        if (!ref || cmpV(v, ref) >= 0) return '0'
+        const a = String(v).split('.').map(Number)
+        const b = String(ref).split('.').map(Number)
+        if ((a[0] || 0) !== (b[0] || 0)) return 'majeure'
+        if ((a[1] || 0) !== (b[1] || 0)) return 'mineure'
+        return 'patch'
+      }
+
+      const POIDS = { majeure: 3, mineure: 2, patch: 1, 0: 0, absent: 0 }
+
+      // Le modèle range les versions par paquet ; la matrice a besoin de
+      // l'inverse. On retourne l'index une fois, au lieu de balayer `D.libs`
+      // pour chaque cellule.
+      const versionsParDepot = new Map()
+      for (const l of D.libs)
+        for (const v of l.versions)
+          for (const d of v.depots) {
+            if (!versionsParDepot.has(d.depot)) versionsParDepot.set(d.depot, new Map())
+            versionsParDepot.get(d.depot).set(l.paquet, v.version)
+          }
+
+      const libParNom = new Map(D.libs.map((l) => [l.paquet, l]))
+      const familleDe = new Map(D.depots.map((d) => [d.nom, d.famille || '—']))
+      const parEcarts = (a, b) => b.nbVersions - a.nbVersions || b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet)
+
+      // Montrer les cent paquets noierait l'écart dans le bruit : le défaut est
+      // les plus éclatés, et le reste s'ajoute à la main.
+      const COLONNES_DEFAUT = 14
+      const colonnes = new Set(
+        D.libs
+          .filter((l) => l.nbVersions > 1)
+          .sort(parEcarts)
+          .slice(0, COLONNES_DEFAUT)
+          .map((l) => l.paquet),
+      )
+
+      const colonnesVisibles = () =>
+        D.libs.filter((l) => colonnes.has(l.paquet)).sort(parEcarts)
+
+      function rendChoixColonnes() {
+        const zone = $('#colonnes')
+        zone.textContent = ''
+        const eclateSeul = $('#matriceEclate').getAttribute('aria-pressed') === 'true'
+        const candidats = D.libs.filter((l) => (eclateSeul ? l.nbVersions > 1 : true)).sort(parEcarts)
+        for (const l of candidats) {
+          const lab = el('label')
+          const cb = el('input')
+          cb.type = 'checkbox'
+          cb.checked = colonnes.has(l.paquet)
+          cb.addEventListener('change', () => {
+            if (cb.checked) colonnes.add(l.paquet)
+            else colonnes.delete(l.paquet)
+            rendMatrice()
+          })
+          lab.append(cb, el('span', 'mono', l.paquet), el('span', 'pastilleCol', `${l.nbVersions}v · ${l.nbDepots}d`))
+          zone.append(lab)
+        }
+      }
+
+      function rendMatrice() {
+        const cols = colonnesVisibles()
+        const tete = $('#teteMatrice')
+        const corps = $('#corpsMatrice')
+        tete.textContent = ''
+        corps.textContent = ''
+        $('#aucuneColonne').hidden = cols.length > 0
+        if (!cols.length) {
+          $('#compteurMatrice').textContent = ''
+          return
+        }
+
+        const lignes = []
+        for (const d of D.depots) {
+          const porte = versionsParDepot.get(d.nom)
+          if (!porte) continue
+          const cellules = cols.map((l) => {
+            const v = porte.get(l.paquet) || null
+            return { paquet: l.paquet, version: v, rang: rangEcart(v, l.plusRecente) }
+          })
+          if (!cellules.some((c) => c.version)) continue
+          const score = cellules.reduce((n, c) => n + POIDS[c.rang], 0)
+          const nb = cellules.filter((c) => POIDS[c.rang] > 0).length
+          lignes.push({ depot: d.nom, famille: familleDe.get(d.nom), cellules, score, nb })
+        }
+
+        const sansEcart = $('#matriceLignes').getAttribute('aria-pressed') === 'true'
+        const visibles = sansEcart ? lignes.filter((r) => r.nb > 0) : lignes
+        const tri = $('#matriceTri').value
+        visibles.sort((a, b) =>
+          tri === 'nom'
+            ? a.depot.localeCompare(b.depot)
+            : tri === 'famille'
+              ? String(a.famille).localeCompare(String(b.famille)) || a.depot.localeCompare(b.depot)
+              : b.score - a.score || a.depot.localeCompare(b.depot),
+        )
+
+        const tr = el('tr')
+        tr.append(el('th', null, 'Dépôt'))
+        for (const l of cols) {
+          const th = el('th')
+          const s = el('span', 'matriceCol', l.paquet)
+          s.title = `${l.paquet} — plus récente du parc : ${l.plusRecente}${l.amont ? `, amont : ${l.amont}` : ''}`
+          th.append(s)
+          tr.append(th)
+        }
+        tr.append(el('th', 'num', 'Écarts'))
+        tete.append(tr)
+
+        for (const r of visibles) {
+          const l = el('tr')
+          const th = el('th')
+          const lien = el('a', 'depotLien', r.depot)
+          lien.href = '#depot-' + r.depot
+          th.append(lien)
+          l.append(th)
+          for (const c of r.cellules) {
+            const td = el('td', 'cellule', c.version || '·')
+            td.dataset.ecart = c.rang
+            const ref = libParNom.get(c.paquet)
+            td.title = c.version
+              ? `${r.depot} — ${c.paquet} ${c.version}` + (c.rang === '0' ? ' (à jour dans le parc)' : ` — le parc tient déjà ${ref.plusRecente}`)
+              : `${r.depot} ne dépend pas de ${c.paquet}`
+            l.append(td)
+          }
+          l.append(el('td', 'num matriceTotal', String(r.nb)))
+          corps.append(l)
+        }
+
+        const total = lignes.reduce((n, r) => n + r.nb, 0)
+        $('#compteurMatrice').textContent = `${cols.length} paquets × ${visibles.length} dépôts — ${total} écarts`
+      }
+
+      $('#basculeColonnes').addEventListener('click', () => {
+        const b = $('#basculeColonnes')
+        const on = b.getAttribute('aria-expanded') !== 'true'
+        b.setAttribute('aria-expanded', String(on))
+        $('#colonnes').hidden = !on
+        if (on) rendChoixColonnes()
+      })
+      $('#matriceEclate').addEventListener('click', () => {
+        const b = $('#matriceEclate')
+        b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+        rendChoixColonnes()
+      })
+      $('#matriceLignes').addEventListener('click', () => {
+        const b = $('#matriceLignes')
+        b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+        rendMatrice()
+      })
+      $('#matriceTri').addEventListener('change', rendMatrice)
+
+      /* ---------------- sommaire flottant et retour en haut ---------------- */
+
+      // Les titres viennent du DOM, jamais d'une liste tenue à part : un
+      // chapitre renommé ou ajouté suit tout seul, et aucune entrée ne peut
+      // désigner une section disparue.
+      const chapitres = [...document.querySelectorAll('#familles, main section[id]')].filter((s) => s.querySelector('h2'))
+      const nav = $('#sommaire')
+      const liens = new Map()
+      for (const s of chapitres) {
+        const a = el('a', null, s.querySelector('h2').textContent.trim())
+        a.href = '#' + s.id
+        liens.set(s.id, a)
+        nav.append(a)
+      }
+
+      $('#basculeSommaire').addEventListener('click', () => {
+        const b = $('#basculeSommaire')
+        const on = b.getAttribute('aria-expanded') !== 'true'
+        b.setAttribute('aria-expanded', String(on))
+        nav.dataset.ouvert = String(on)
+      })
+
+      // Le chapitre courant est le DERNIER dont le haut est passé : un simple
+      // `isIntersecting` en marquerait deux à la fois sur une section courte.
+      if ('IntersectionObserver' in window) {
+        const vus = new Set()
+        const obs = new IntersectionObserver(
+          (entrees) => {
+            for (const e of entrees) {
+              if (e.isIntersecting) vus.add(e.target.id)
+              else vus.delete(e.target.id)
+            }
+            const courant = chapitres.map((s) => s.id).find((id) => vus.has(id))
+            for (const [id, a] of liens) a.setAttribute('aria-current', String(id === courant))
+          },
+          { rootMargin: '-10% 0px -70% 0px' },
+        )
+        for (const s of chapitres) obs.observe(s)
+      }
+
+      const haut = $('#retourHaut')
+      haut.addEventListener('click', () => {
+        // `instant` et non `auto` : `auto` veut dire « suivre la feuille de
+        // style », qui impose `smooth` — l'option ne trancherait rien.
+        const doux = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        window.scrollTo({ top: 0, behavior: doux ? 'smooth' : 'instant' })
+        // Remonter la PAGE sans remonter le FOCUS laisserait un utilisateur au
+        // clavier reprendre sa tabulation au milieu du document.
+        const titre = document.querySelector('h1')
+        titre.tabIndex = -1
+        titre.focus({ preventScroll: true })
+      })
+      const suitDefilement = () => {
+        haut.hidden = window.scrollY < 600
+      }
+      window.addEventListener('scroll', suitDefilement, { passive: true })
+      suitDefilement()
+
       rendDepots()
       rendLibs()
+      rendMatrice()
     </script>
   </body>
 </html>
