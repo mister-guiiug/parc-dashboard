@@ -49,15 +49,29 @@ une ; relâcher *Seulement les paquets éclatés* ouvre la liste aux cent paquet
 du parc. La dernière colonne compte les écarts d'une ligne, et le tri par
 défaut met les dépôts les plus en retard en tête.
 
-Les lignes se filtrent aussi par **maturité** — alpha, bêta, stable, ou non
-renseignée. Aucun bouton pressé les montre toutes ; plusieurs se cumulent. La
-maturité est **éditoriale** : aucun signal du dépôt ne la donne, et sa seule
-source de vérité est `FAMILY_APPS` dans `apps-catalog.js` du socle — le fichier
-même que les applications lisent pour s'afficher les unes aux autres. Le relevé
-l'y relit à chaque passage plutôt que de tenir une liste à côté, qui serait un
-second endroit où la même chose vieillit. Elle est affichée en pastille à côté
-du dépôt : filtrer sur un critère invisible obligerait à croire le filtre sur
-parole.
+Les lignes se filtrent par **famille** et par **maturité**. Aucun bouton pressé
+les montre toutes ; plusieurs se cumulent, et les deux axes se croisent. Le
+compteur décrit alors le tableau affiché et non le parc : sous un filtre, il
+totalise les écarts des seules lignes visibles.
+
+Les boutons de famille sont construits d'après le relevé — une famille
+qu'aucun dépôt à lockfile ne porte n'obtient pas de bouton qui ne filtrerait
+rien. Ils ne portent volontairement pas de compte : le choix des colonnes fait
+varier les lignes visibles, et un nombre écrit là finirait par contredire le
+tableau. `create-lg-pwa-app` en est l'exemple — il est du socle, mais ne
+dépend d'aucun des quatorze paquets montrés par défaut.
+
+La **maturité** — alpha, bêta, stable, ou non renseignée — est d'une autre
+nature : elle est **éditoriale**. Aucun signal du dépôt ne la donne, et sa
+seule source de vérité est `FAMILY_APPS` dans `apps-catalog.js` du socle — le
+fichier même que les applications lisent pour s'afficher les unes aux autres.
+Le relevé l'y relit à chaque passage plutôt que de tenir une liste à côté, qui
+serait un second endroit où la même chose vieillit.
+
+Famille et maturité sont toutes deux affichées en pastille à côté du dépôt :
+filtrer sur un critère invisible obligerait à croire le filtre sur parole. La
+pastille de famille reste en pointillé et sans couleur — dans cette section,
+une couleur veut dire « écart », et rien d'autre.
 
 Les huit dépôts qui n'en portent pas sont ceux qui ne sont pas des
 applications — les trois couches du socle, l'outillage, et `.github`.
