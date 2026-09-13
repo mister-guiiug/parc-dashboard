@@ -332,6 +332,39 @@ for (const nom of Object.keys(SOCLE)) {
   if (!depots.some((d) => d.nom === nom)) console.error(`  ATTENTION : ${nom} est déclaré dans le socle mais absent du relevé`)
 }
 
+/* ------------------------------------------------ maturité des applications */
+
+// La maturité est ÉDITORIALE : aucun signal du dépôt ne la donne. Sa seule
+// source de vérité est `FAMILY_APPS` du socle — le même fichier que lisent les
+// applications pour s'afficher les unes aux autres. La relire ici, plutôt que
+// tenir une liste à côté, évite un second endroit où la même chose vieillit.
+function maturitesDuCatalogue(texte) {
+  const i = texte.indexOf('FAMILY_APPS')
+  if (i < 0) return {}
+  const out = {}
+  // Découpe sur les appels `app(`, PAS sur une fenêtre de caractères : deux
+  // entrées portent de longs commentaires à l'intérieur de l'appel, qu'aucune
+  // fenêtre raisonnable ne couvrait — vérifié contre le catalogue réel.
+  for (const morceau of texte.slice(i).split(/\bapp\(/).slice(1)) {
+    const id = /^\s*'([^']+)'/.exec(morceau)
+    if (!id) continue
+    // La maturité est un argument seul sur sa ligne (le fichier est formaté
+    // par prettier) : chercher le littéral n'importe où l'attraperait dans un
+    // commentaire, où le mot « stable » revient souvent.
+    const m = /^\s*'(alpha|beta|stable)',\s*$/m.exec(morceau)
+    out[id[1]] = m ? m[1] : null
+  }
+  return out
+}
+
+const depotSocle = depots.find((d) => d.nom === 'dev-pwa-config')
+const catalogue = depotSocle ? await fichier(depotSocle.nwo, depotSocle.brancheDefaut, 'apps-catalog.js') : null
+const maturites = catalogue ? maturitesDuCatalogue(catalogue) : {}
+// Un extracteur muet ne doit pas passer pour « aucune app n'a de maturité » :
+// le filtre de la page serait là, sans rien à filtrer, et personne ne saurait.
+if (!Object.keys(maturites).length) console.error('  ATTENTION : aucune maturité lue dans apps-catalog.js — le filtre par maturité sera vide')
+for (const d of depots) d.maturite = maturites[d.nom] || null
+
 // Garde-fou : mieux vaut un relevé qui échoue bruyamment qu'une page qui
 // annonce « tout au vert » parce que le jeton n'a pas pu lire les pipelines.
 const incomplets = depots.filter((d) => d.lectureIncomplete)

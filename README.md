@@ -49,6 +49,19 @@ une ; relâcher *Seulement les paquets éclatés* ouvre la liste aux cent paquet
 du parc. La dernière colonne compte les écarts d'une ligne, et le tri par
 défaut met les dépôts les plus en retard en tête.
 
+Les lignes se filtrent aussi par **maturité** — alpha, bêta, stable, ou non
+renseignée. Aucun bouton pressé les montre toutes ; plusieurs se cumulent. La
+maturité est **éditoriale** : aucun signal du dépôt ne la donne, et sa seule
+source de vérité est `FAMILY_APPS` dans `apps-catalog.js` du socle — le fichier
+même que les applications lisent pour s'afficher les unes aux autres. Le relevé
+l'y relit à chaque passage plutôt que de tenir une liste à côté, qui serait un
+second endroit où la même chose vieillit. Elle est affichée en pastille à côté
+du dépôt : filtrer sur un critère invisible obligerait à croire le filtre sur
+parole.
+
+Les huit dépôts qui n'en portent pas sont ceux qui ne sont pas des
+applications — les trois couches du socle, l'outillage, et `.github`.
+
 ## Comment les familles sont établies
 
 Chaque règle s'appuie sur un signal lisible dans le dépôt, jamais sur son nom —
