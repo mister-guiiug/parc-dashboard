@@ -19,6 +19,35 @@ Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github
 | Quels workflows tournent, et avec quel historique ? | les cinq derniers runs, en bande, sur chaque carte |
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
 | Qui est en retard sur quelle librairie ? | section « Librairies », ligne dépliable |
+| Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
+| Où suis-je dans la page, et comment revenir en haut ? | sommaire flottant en bas à droite |
+
+## La matrice des écarts
+
+« Librairies » répond paquet par paquet ; la matrice les met côte à côte. Une
+ligne est un dépôt, une colonne un paquet, une cellule la version qu'il
+**verrouille**.
+
+La couleur ne dit pas « vieux » dans l'absolu mais l'**écart à la version la
+plus récente du parc** — pas à celle publiée en amont. C'est délibéré : la
+version que tient déjà un dépôt voisin est atteignable aujourd'hui, sans
+attendre ni arbitrer. Le rang de l'écart est montré, pas sa distance : passer
+de 4.2 à 4.3 n'a rien de commun avec passer de 3 à 4, et un chiffre unique
+mélangerait les deux.
+
+| Cellule | Ce qu'elle dit |
+| --- | --- |
+| verte | ce dépôt tient la version la plus récente du parc |
+| jaune | écart de correctif |
+| orange | écart de version mineure |
+| rouge | écart de version **majeure** |
+| `·` grisé | ce dépôt ne dépend pas de ce paquet |
+
+Par défaut, seuls les paquets réellement éclatés sont montrés — les quatorze
+qui divergent le plus. *Choisir les colonnes* les ajoute et les retire une à
+une ; relâcher *Seulement les paquets éclatés* ouvre la liste aux cent paquets
+du parc. La dernière colonne compte les écarts d'une ligne, et le tri par
+défaut met les dépôts les plus en retard en tête.
 
 ## Comment les familles sont établies
 
