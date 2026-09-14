@@ -529,6 +529,16 @@
         border-color: var(--warning);
         color: var(--ink2);
       }
+      /* Dormance : le rouge n'est PAS pour « pas de version depuis un an » — il
+         est réservé aux librairies dont le dépôt amont s'est tu lui aussi. */
+      .badge.arret {
+        border-color: var(--critical);
+        color: var(--critical);
+      }
+      .badge.sansVersion {
+        border-color: var(--warning);
+        color: var(--ink2);
+      }
       .depot .desc {
         color: var(--ink2);
         font-size: 13px;
@@ -1155,6 +1165,35 @@
           </div>
         </section>
 
+        <section id="dormance">
+          <div class="titreSection">
+            <h2>Librairies dormantes</h2>
+            <span class="compteur" id="compteurDormance"></span>
+          </div>
+          <p class="chapo">
+            Librairies dont la dernière version publiée a <strong>plus d'un an</strong>. La date de publication seule ne dit pas grand-chose : une bibliothèque peut être stable et finie, ou
+            simplement abandonnée. Ce tableau montre donc <strong>deux dates</strong> — la dernière version parue au registre, et le dernier commit reçu par le dépôt amont. Quand les deux se sont
+            tues, la question d'un remplacement se pose ; quand seul le registre se tait, c'est une version qui manque, pas un projet mort.
+          </p>
+          <div class="carte tableEnveloppe">
+            <table>
+              <thead>
+                <tr>
+                  <th>Paquet</th>
+                  <th class="num">Dépôts</th>
+                  <th>Dernière version</th>
+                  <th class="num">Publiée il y a</th>
+                  <th>Dépôt amont</th>
+                  <th class="num">Dernier commit</th>
+                  <th>Lecture</th>
+                </tr>
+              </thead>
+              <tbody id="corpsDormance"></tbody>
+            </table>
+          </div>
+          <p class="vide" id="aucuneDormante" hidden>Aucune librairie du parc n'est restée plus d'un an sans publication.</p>
+        </section>
+
         <section id="matrice">
           <div class="titreSection">
             <h2>Matrice des écarts</h2>
@@ -1775,6 +1814,71 @@
         // les aplats changent de luminance : leurs étiquettes changent d'encre
         ajusteEtiquettes()
       })
+
+      /* ---------------- librairies dormantes ---------------- */
+
+      // Les âges se RECALCULENT ici, à partir des deux dates conservées dans le
+      // relevé. Les stocker déjà convertis en jours aurait fait mentir la page
+      // dès le lendemain — et, pire, aurait rendu le modèle différent chaque
+      // nuit : la garde « le fond a-t-il bougé ? » n'aurait plus jamais pu être
+      // fausse, et le dépôt aurait reçu un commit par jour pour rien.
+      {
+        const age = (iso) => (iso ? Math.floor((Date.parse(D.genere) - Date.parse(iso)) / 86400000) : null)
+        const LECTURES = {
+          arretee: { texte: 'à l’arrêt', classe: 'arret', aide: 'Ni version publiée ni commit depuis plus d’un an : prévoir un remplacement.' },
+          archivee: { texte: 'archivée', classe: 'arret', aide: 'Le dépôt amont est archivé : il ne recevra plus rien.' },
+          'sans-version': { texte: 'développée, pas publiée', classe: 'sansVersion', aide: 'Le dépôt bouge encore ; c’est la publication qui manque.' },
+          inconnue: { texte: 'dépôt introuvable', classe: '', aide: 'Le paquet ne déclare pas de dépôt GitHub exploitable.' },
+        }
+        const dormantes = D.libs.filter((l) => l.dormance).sort((a, b) => (a.publieLe || '').localeCompare(b.publieLe || ''))
+        const arretees = dormantes.filter((l) => l.dormance === 'arretee' || l.dormance === 'archivee').length
+        const ans = Math.round(D.seuilDormanceJours / 365)
+        const seuilMot = ans <= 1 ? 'plus d’un an' : `plus de ${ans} ans`
+        $('#compteurDormance').textContent = dormantes.length
+          ? `${dormantes.length} sur ${D.kpi.librairiesDatees} sans version depuis ${seuilMot} — ${arretees} dont le dépôt amont s’est tu aussi`
+          : `aucune sur ${D.kpi.librairiesDatees} librairies datées`
+        const tb = $('#corpsDormance')
+        for (const l of dormantes) {
+          const lect = LECTURES[l.dormance] || LECTURES.inconnue
+          const tr = el('tr')
+
+          const c1 = el('td')
+          c1.append(el('span', 'mono', l.paquet))
+          if (l.ecosysteme !== 'npm') c1.append(document.createTextNode(' '), el('span', 'badge', l.ecosysteme))
+
+          const c2 = el('td', 'num', String(l.nbDepots))
+
+          const c3 = el('td')
+          c3.append(el('span', 'mono', l.amont || l.plusRecente))
+          c3.append(el('div', 'quand', fmtDate(l.publieLe)))
+
+          const c4 = el('td', 'num', depuis(age(l.publieLe)))
+          c4.title = fmtDate(l.publieLe)
+
+          const c5 = el('td')
+          if (l.depotAmont) {
+            const a = el('a', 'depotLien', l.depotAmont)
+            a.href = 'https://github.com/' + l.depotAmont
+            a.target = '_blank'
+            a.rel = 'noopener'
+            c5.append(a)
+            if (l.amontArchive) c5.append(document.createTextNode(' '), el('span', 'badge arret', 'archivé'))
+            if (l.amontIssues != null) c5.append(el('div', 'quand', `${l.amontIssues} tickets ouverts`))
+          } else c5.textContent = '—'
+
+          const c6 = el('td', 'num', depuis(age(l.amontPousseLe)))
+          c6.title = fmtDate(l.amontPousseLe)
+
+          const c7 = el('td')
+          const b = el('span', 'badge ' + lect.classe, lect.texte)
+          b.title = lect.aide
+          c7.append(b)
+
+          tr.append(c1, c2, c3, c4, c5, c6, c7)
+          tb.append(tr)
+        }
+        if (!dormantes.length) $('#aucuneDormante').hidden = false
+      }
 
       /* ---------------- pied ---------------- */
       const pied = $('#pied')
