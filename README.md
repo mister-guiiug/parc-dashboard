@@ -19,6 +19,7 @@ Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github
 | Quels workflows tournent, et avec quel historique ? | les cinq derniers runs, en bande, sur chaque carte |
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
 | Qui est en retard sur quelle librairie ? | section « Librairies », ligne dépliable |
+| Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
 | Où suis-je dans la page, et comment revenir en haut ? | sommaire flottant en bas à droite |
 
@@ -104,6 +105,13 @@ laisser glisser en silence dans une autre famille.
   qui est installé. Pour les deux dépôts Cargo, la source est `Cargo.lock`.
 - L'API GitHub nomme un workflow **supprimé** par son chemin de fichier ; ces
   entrées sont écartées, sinon d'anciens échecs seraient comptés comme actuels.
+- Une librairie est dite **dormante** quand sa dernière version publiée a plus
+  d'un an. Ce chiffre seul ne conclut rien : le tableau montre aussi le
+  **dernier commit du dépôt amont**, et n'appelle « à l'arrêt » que les
+  librairies dont les deux dates se sont tues. `leaflet` n'a rien publié depuis
+  mai 2023 mais reçoit des commits le jour même ; `react-qr-reader` en est à
+  une préversion de 2022 et son dépôt n'a pas bougé depuis 2023. Le même
+  « plus d'un an » recouvrait les deux.
 - Les **dépôts privés du compte sont exclus** de cette page.
 
 ## Régénérer

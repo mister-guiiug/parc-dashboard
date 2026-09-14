@@ -433,17 +433,47 @@ const SUIVIES = new Set()
 for (const d of depots) for (const p of Object.keys(d.declarees)) SUIVIES.add(p)
 const NOM_SOCLE = '@mister-guiiug/dev-pwa-config'
 const amont = {}
-await enLot([...SUIVIES], 10, async (p) => {
+const publieLe = {}
+const depotAmont = {}
+
+// ON LIT LE DOCUMENT COMPLET, ET NON `/latest`. Il coûte plus cher — 232 Mo
+// décompressés pour les 83 paquets du parc, mais il arrive en gzip et
+// l'ensemble tient en QUATRE SECONDES à six requêtes de front. En échange il
+// porte les deux choses que `/latest` n'a pas : `time[<latest>]`, date exacte
+// de la dernière publication, et l'URL du dépôt amont.
+//
+// La recherche npm (`/-/v1/search`) rendait la même date en 1 Ko, et a été
+// écartée sur mesure : elle répond 429 dès la deuxième requête — dix réponses
+// utiles sur quinze en série, deux sur quinze à deux de front — et sa
+// correspondance est FLOUE. Interrogée sur `@mister-guiiug/dev-pwa-config`,
+// elle rend la fiche de `vite-plugin-pwa`.
+//
+// `time.modified` du document abrégé n'est pas une réponse non plus : il bouge
+// pour une dépréciation ou un changement de mainteneur. `lodash.escaperegexp`
+// s'y donne modifié en 2022 alors que sa dernière version date de 2016.
+await enLot([...SUIVIES], 6, async (p) => {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${p}/latest`)
-    if (res.ok) amont[p] = (await res.json()).version
+    const res = await fetch(`https://registry.npmjs.org/${p.replace('/', '%2f')}`)
+    if (!res.ok) return
+    const doc = await res.json()
+    const derniere = doc['dist-tags']?.latest
+    if (!derniere) return
+    amont[p] = derniere
+    if (doc.time?.[derniere]) publieLe[p] = doc.time[derniere]
+    const url = doc.repository?.url || doc.versions?.[derniere]?.repository?.url || ''
+    const m = /github\.com[:/]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[#?].*)?$/.exec(url)
+    if (m) depotAmont[p] = `${m[1]}/${m[2]}`
   } catch {
-    /* hors ligne : la colonne amont reste vide, ce n'est pas bloquant */
+    /* hors ligne : les colonnes amont et dormance restent vides, ce n'est pas bloquant */
   }
 })
 // le socle n'est pas sur npm public : sa référence est la version de son dépôt
 const socle = depots.find((d) => d.nom === 'dev-pwa-config')
 if (socle?.paquet?.version) amont[NOM_SOCLE] = socle.paquet.version
+// et sa « dernière publication » est son dernier push : il paraît plusieurs
+// fois par jour, l'interroger sur npm public rendrait un 404.
+if (socle?.pushGitHub) publieLe[NOM_SOCLE] = socle.pushGitHub
+if (socle) depotAmont[NOM_SOCLE] = `${COMPTE}/dev-pwa-config`
 
 /* ------------------------------------------------------------- modèle */
 
@@ -461,7 +491,7 @@ for (const paquet of SUIVIES) {
   const nbDepots = versions.reduce((n, v) => n + v.depots.length, 0)
   const a = amont[paquet] || null
   const enRetard = a ? versions.filter((v) => cmpVersion(v.version, a) < 0).reduce((n, v) => n + v.depots.length, 0) : null
-  libs.push({ paquet, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, plusRecente: versions[0].version })
+  libs.push({ paquet, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, plusRecente: versions[0].version, publieLe: publieLe[paquet] || null, depotAmont: depotAmont[paquet] || null })
 }
 const cratesMap = new Map()
 const NOTABLES = ['tauri', 'tokio', 'serde', 'serde_json', 'clap', 'anyhow', 'thiserror', 'chrono', 'uuid', 'reqwest', 'tracing', 'rusqlite', 'git2', 'axum', 'regex']
@@ -474,11 +504,71 @@ for (const d of depots) {
     m.get(d.crates[c]).push({ depot: d.nom, plage: d.crates[c], verrouille: true })
   }
 }
+// crates.io : même question, autre registre. `versions[]` y vient du plus
+// récent au plus ancien ; on écarte les versions retirées (`yanked`) et les
+// préversions, qui ne disent rien de la vitalité d'une crate.
+await enLot([...cratesMap.keys()], 3, async (c) => {
+  try {
+    const res = await fetch(`https://crates.io/api/v1/crates/${c}`, { headers: { 'user-agent': 'parc-dashboard (https://github.com/mister-guiiug/parc-dashboard)' } })
+    if (!res.ok) return
+    const doc = await res.json()
+    const v = doc.versions?.find((x) => !x.yanked && !x.num.includes('-'))
+    if (!v) return
+    amont[c] = v.num
+    publieLe[c] = v.created_at
+    const url = doc.crate?.repository || ''
+    const m = /github\.com[:/]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[#?].*)?$/.exec(url)
+    if (m) depotAmont[c] = `${m[1]}/${m[2]}`
+  } catch {
+    /* hors ligne : même traitement que npm */
+  }
+})
 for (const [crate, m] of cratesMap) {
   const versions = [...m].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps }))
-  libs.push({ paquet: crate, ecosysteme: 'cargo', nbDepots: versions.reduce((n, v) => n + v.depots.length, 0), nbVersions: versions.length, versions, amont: null, enRetard: null, plusRecente: versions[0].version })
+  const a = amont[crate] || null
+  libs.push({
+    paquet: crate,
+    ecosysteme: 'cargo',
+    nbDepots: versions.reduce((n, v) => n + v.depots.length, 0),
+    nbVersions: versions.length,
+    versions,
+    amont: a,
+    enRetard: a ? versions.filter((v) => cmpVersion(v.version, a) < 0).reduce((n, v) => n + v.depots.length, 0) : null,
+    plusRecente: versions[0].version,
+    publieLe: publieLe[crate] || null,
+    depotAmont: depotAmont[crate] || null,
+  })
 }
 libs.sort((a, b) => b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet))
+
+/* --------------------------------------------------------- dormance */
+
+// UNE LIBRAIRIE SANS PUBLICATION DEPUIS UN AN N'EST PAS FORCÉMENT ABANDONNÉE,
+// et c'est tout l'objet de ce relevé. Mesuré le 14/09/2026 sur les dix
+// dormantes du parc : `leaflet` n'a rien publié depuis mai 2023 mais son dépôt
+// a reçu un commit LE JOUR MÊME ; `react-qr-reader` en est à une `3.0.0-beta-1`
+// de février 2022 et son dépôt n'a pas bougé depuis novembre 2023. Le même
+// chiffre — « plus d'un an sans version » — recouvre une bibliothèque vivante
+// qui ne publie pas et une autre qu'il faut remplacer.
+//
+// La date npm seule ne peut donc pas trancher. On va chercher le dernier
+// commit du dépôt amont, mais SEULEMENT pour les dormantes : dix appels au
+// lieu de quatre-vingts, et la question ne se pose que là.
+const SEUIL_DORMANCE_JOURS = 365
+const estDormante = (l) => l.publieLe && (MAINTENANT - new Date(l.publieLe)) / 86400000 > SEUIL_DORMANCE_JOURS
+const dormantes = libs.filter(estDormante)
+await enLot(dormantes, 5, async (l) => {
+  if (!l.depotAmont) return
+  const g = await api(`/repos/${l.depotAmont}`, { silence404: true })
+  if (!g) return
+  l.amontPousseLe = g.pushed_at || null
+  l.amontArchive = !!g.archived
+  l.amontIssues = g.open_issues_count ?? null
+})
+for (const l of dormantes) {
+  const pousse = l.amontPousseLe ? (MAINTENANT - new Date(l.amontPousseLe)) / 86400000 : null
+  l.dormance = l.amontArchive ? 'archivee' : pousse == null ? 'inconnue' : pousse > SEUIL_DORMANCE_JOURS ? 'arretee' : 'sans-version'
+}
 
 // la pile montrée sur chaque carte
 for (const d of depots) {
@@ -546,6 +636,10 @@ const kpi = {
   socleAmont: amont[NOM_SOCLE] || null,
   socleEnRetard: libs.find((l) => l.paquet === NOM_SOCLE)?.enRetard ?? null,
   appsPwa: parFamille.pwa.depots,
+  librairiesDatees: libs.filter((l) => l.publieLe).length,
+  dormantes: dormantes.length,
+  // Celles dont le DÉPÔT aussi s'est tu : les seules qui appellent une décision.
+  dormantesArretees: dormantes.filter((l) => l.dormance === 'arretee' || l.dormance === 'archivee').length,
 }
 kpi.taux = kpi.verts + kpi.rouges ? Math.round((kpi.verts / (kpi.verts + kpi.rouges)) * 100) : null
 
@@ -569,6 +663,7 @@ const modele = {
   motifsPartages,
   activite,
   socle: NOM_SOCLE,
+  seuilDormanceJours: SEUIL_DORMANCE_JOURS,
 }
 
 /* ------------------------------------------------------------- rendu */
