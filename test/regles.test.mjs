@@ -8,7 +8,7 @@
 // des compteurs que rien ne recoupe.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, nettoie } from '../scripts/regles.mjs'
+import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, nettoie } from '../scripts/regles.mjs'
 
 test('nettoie retire la plage et la préversion', () => {
   assert.equal(nettoie('^4.7.0'), '4.7.0')
@@ -171,6 +171,33 @@ test('changementsDepuis ne compare les alertes que si les DEUX relevés ont su l
   assert.deepEqual(changementsDepuis(lu, illisible), [])
   const c = changementsDepuis(lu, avec([], [], { alertesLisibles: true, alertes: 0 }))
   assert.deepEqual(c, [{ type: 'alertes', de: 12, a: 0 }])
+})
+
+/* ------------------------------------------------------ fusionnePoint */
+
+test('fusionnePoint : une mesure absente n’efface pas une mesure réelle', () => {
+  // Le cas mesuré le 14/09 : le relevé de CI, avec le seul GITHUB_TOKEN, ne
+  // sait pas lire les alertes et écrit `null`. Il ne doit pas écraser le 0 relevé
+  // le matin par un passage mieux doté.
+  const matin = { jour: '2026-09-14', taux: 96, alertes: 0, alertesGraves: 0, dormantes: 10 }
+  const soir = { jour: '2026-09-14', taux: 94, alertes: null, alertesGraves: null, dormantes: 11 }
+  assert.deepEqual(fusionnePoint(matin, soir), {
+    jour: '2026-09-14',
+    taux: 94,
+    alertes: 0,
+    alertesGraves: 0,
+    dormantes: 11,
+  })
+})
+
+test('fusionnePoint : une valeur fraîche l’emporte, même à zéro', () => {
+  // `0` n’est pas `null` : un compte retombé à zéro est une vraie mesure.
+  assert.deepEqual(fusionnePoint({ jour: 'j', alertes: 12 }, { jour: 'j', alertes: 0 }), { jour: 'j', alertes: 0 })
+})
+
+test('fusionnePoint sans point antérieur rend le nouveau', () => {
+  const p = { jour: 'j', taux: 96 }
+  assert.equal(fusionnePoint(null, p), p)
 })
 
 test('changementsDepuis borne la liste', () => {
