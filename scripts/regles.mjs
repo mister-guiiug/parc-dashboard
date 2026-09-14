@@ -84,6 +84,29 @@ export function fond(modele) {
   return JSON.stringify(o)
 }
 
+/**
+ * Remplace le point du jour sans PERDRE ce qu'un passage précédent avait su
+ * mesurer.
+ *
+ * Mesuré le 14/09/2026, et pas supposé : un relevé lancé en CI avec le seul
+ * `GITHUB_TOKEN` ne sait pas lire les alertes de vulnérabilité — il écrit donc
+ * `alertes: null`. Sans cette fusion, ce passage-là écrasait le `alertes: 0`
+ * qu'un relevé mieux doté avait relevé le matin même, et la courbe perdait son
+ * point. Une mesure absente n'est pas une mesure à zéro, et elle n'a surtout
+ * pas à effacer une mesure réelle.
+ *
+ * L'inverse est vrai aussi : une valeur fraîche l'emporte toujours sur
+ * l'ancienne. On ne garde l'ancienne que là où la nouvelle est `null`.
+ */
+export function fusionnePoint(ancien, nouveau) {
+  if (!ancien) return nouveau
+  const out = { ...nouveau }
+  for (const [k, v] of Object.entries(ancien)) {
+    if (out[k] == null && v != null) out[k] = v
+  }
+  return out
+}
+
 // LE RELEVÉ PRÉCÉDENT ÉTAIT DÉJÀ LU, PUIS JETÉ. Il servait uniquement à décider
 // s'il fallait réécrire le fichier. Le comparer coûte donc zéro appel réseau, et
 // répond à la question qu'on se pose vraiment en ouvrant la page : qu'est-ce qui

@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
 // ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
-import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, nettoie } from './regles.mjs'
+import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, nettoie } from './regles.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
 const COMPTE = process.env.PARC_COMPTE || 'mister-guiiug'
@@ -773,7 +773,7 @@ if (!inchange) {
     socleEnRetard: kpi.socleEnRetard,
   }
   const i = histo.findIndex((p) => p.jour === jour)
-  if (i >= 0) histo[i] = point
+  if (i >= 0) histo[i] = fusionnePoint(histo[i], point)
   else histo.push(point)
   histo = histo.slice(-MAX_HISTORIQUE)
   if (ALIMENTE_HISTORIQUE) {

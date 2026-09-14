@@ -8,6 +8,14 @@ on:
   workflow_dispatch:
   push:
     # le gabarit ou le collecteur changent => on régénère tout de suite
+    #
+    # SUR `main` SEULEMENT. Sans ce filtre, toute branche qui touche à
+    # `scripts/` déclenche le relevé — et comme le job commite, le robot dépose
+    # un « chore(releve) » sur la branche de travail. C'est arrivé le 14/09 sur
+    # une PR, et le commit a en prime ÉCRASÉ un point d'historique : le
+    # `GITHUB_TOKEN` ne sait pas lire les alertes de vulnérabilité, la valeur
+    # relevée avec un PAT est repassée à `null`.
+    branches: [main]
     paths:
       - 'scripts/**'
       - '.github/workflows/releve.yml'
