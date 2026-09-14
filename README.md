@@ -139,6 +139,11 @@ laisser glisser en silence dans une autre famille.
 npm test
 ```
 
+La version de Node est dans [`.nvmrc`](.nvmrc) — **un seul endroit**, que les
+trois jobs lisent par `node-version-file`. Elle y est entrée le 14/09/2026
+parce qu'elle était écrite en dur trois fois, et qu'une des trois avait dérivé :
+le relevé tournait sur Node 24 quand le reste du parc était en 26.2.0.
+
 Les règles pures du relevé — `cmpVersion`, `classe`, `etatDe`, `fond`,
 `changementsDepuis` — vivent dans [`scripts/regles.mjs`](scripts/regles.mjs),
 séparées du script qui les applique : `releve.mjs` s'exécute à l'import et part
