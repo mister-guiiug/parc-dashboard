@@ -20,7 +20,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Les règles pures d'abord, et sans réseau : si `fond()` a une régression, le
+  # dépôt se met à commiter chaque nuit pour rien. Autant le savoir avant de
+  # publier, pas trois semaines plus tard.
+  regles:
+    name: Règles du relevé
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.2.0'
+      - run: npm test
+
   relever:
+    needs: regles
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -44,7 +61,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
+          git add index.html historique.json
           git commit -m "chore(releve): etat du parc au $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
 

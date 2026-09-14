@@ -529,6 +529,56 @@
         border-color: var(--warning);
         color: var(--ink2);
       }
+      .bandeauChangements {
+        padding: 14px 18px;
+        margin: 18px 0 0;
+      }
+      .titreBandeau {
+        font-size: 17px;
+        margin: 0;
+      }
+      .listeChangements {
+        list-style: none;
+        margin: 10px 0 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+      }
+      .listeChangements li {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+      }
+      .listeChangements .puce {
+        flex: none;
+        width: 1.1em;
+        text-align: center;
+        font-weight: 700;
+      }
+      .courbe {
+        display: block;
+        width: 100%;
+        height: 26px;
+        margin: 6px 0 2px;
+        overflow: visible;
+      }
+      .tuileAlerte {
+        border-left: 3px solid var(--warning);
+        border-radius: 0;
+        padding-left: 13px;
+      }
+      /* Lecture incomplète : ce n'est pas un échec, c'est un aveu. Elle mérite
+         d'être vue sur la carte du dépôt, pas seulement dans le journal de CI. */
+      .malLu {
+        border-left: 3px solid var(--warning);
+        border-radius: 0;
+        background: var(--ghost);
+        padding: 8px 12px;
+        margin: 10px 0;
+        font-size: 13px;
+        color: var(--ink2);
+      }
       /* Dormance : le rouge n'est PAS pour « pas de version depuis un an » — il
          est réservé aux librairies dont le dépôt amont s'est tu lui aussi. */
       .badge.arret {
@@ -1071,6 +1121,14 @@
 
         <div class="tuiles" id="tuiles"></div>
 
+        <div class="carte bandeauChangements" id="bandeauChangements" hidden>
+          <div class="titreSection">
+            <h2 class="titreBandeau">Ce qui a bougé</h2>
+            <span class="compteur" id="compteurChangements"></span>
+          </div>
+          <ul class="listeChangements" id="listeChangements"></ul>
+        </div>
+
         <div class="familles" id="familles">
           <h2 class="titreFamilles">Par famille</h2>
           <p class="chapo">
@@ -1081,6 +1139,12 @@
         </div>
       </header>
 
+      <noscript>
+        <p class="chapo" style="margin: 0 0 1rem">
+          Cette page se construit dans le navigateur, à partir d'un relevé déposé juste au-dessus dans le document — aucune requête réseau, mais du JavaScript. Sans lui, rien ne s'affiche. Les données
+          brutes restent lisibles dans la source, sous <code>&lt;script id="donnees"&gt;</code>.
+        </p>
+      </noscript>
       <main>
         <section id="echecs">
           <div class="titreSection">
@@ -1093,14 +1157,15 @@
           <div id="motifs"></div>
           <div class="carte tableEnveloppe">
             <table>
-              <thead>
+              <caption class="sr">Workflows en échec : dépôt, workflow, état, étape fautive, ancienneté, lien vers le run.</caption>
+              <th scope="col"ead>
                 <tr>
-                  <th>Dépôt</th>
-                  <th>Workflow</th>
-                  <th>État</th>
-                  <th>Où ça casse</th>
-                  <th class="num">Depuis</th>
-                  <th></th>
+                  <th scope="col">Dépôt</th>
+                  <th scope="col">Workflow</th>
+                  <th scope="col">État</th>
+                  <th scope="col">Où ça casse</th>
+                  <th scope="col" class="num">Depuis</th>
+                  <th scope="col"></th>
                 </tr>
               </thead>
               <tbody id="corpsEchecs"></tbody>
@@ -1150,14 +1215,15 @@
           </div>
           <div class="carte tableEnveloppe">
             <table>
-              <thead>
+              <caption class="sr">Librairies du parc : paquet, nombre de dépôts, répartition des versions, version amont, dépôts en retard.</caption>
+              <th scope="col"ead>
                 <tr>
-                  <th></th>
-                  <th>Paquet</th>
-                  <th class="num">Dépôts</th>
-                  <th>Répartition des versions <span class="sr">(du plus récent au plus ancien)</span></th>
-                  <th class="num">Amont</th>
-                  <th class="num">En retard</th>
+                  <th scope="col"></th>
+                  <th scope="col">Paquet</th>
+                  <th scope="col" class="num">Dépôts</th>
+                  <th scope="col">Répartition des versions <span class="sr">(du plus récent au plus ancien)</span></th>
+                  <th scope="col" class="num">Amont</th>
+                  <th scope="col" class="num">En retard</th>
                 </tr>
               </thead>
               <tbody id="corpsLibs"></tbody>
@@ -1177,15 +1243,16 @@
           </p>
           <div class="carte tableEnveloppe">
             <table>
-              <thead>
+              <caption class="sr">Librairies sans publication depuis plus d’un an : paquet, dépôts, dernière version, âge, dépôt amont, dernier commit, lecture.</caption>
+              <th scope="col"ead>
                 <tr>
-                  <th>Paquet</th>
-                  <th class="num">Dépôts</th>
-                  <th>Dernière version</th>
-                  <th class="num">Publiée il y a</th>
-                  <th>Dépôt amont</th>
-                  <th class="num">Dernier commit</th>
-                  <th>Lecture</th>
+                  <th scope="col">Paquet</th>
+                  <th scope="col" class="num">Dépôts</th>
+                  <th scope="col">Dernière version</th>
+                  <th scope="col" class="num">Publiée il y a</th>
+                  <th scope="col">Dépôt amont</th>
+                  <th scope="col" class="num">Dernier commit</th>
+                  <th scope="col">Lecture</th>
                 </tr>
               </thead>
               <tbody id="corpsDormance"></tbody>
@@ -1231,7 +1298,8 @@
           <div class="carte colonnes" id="colonnes" hidden></div>
           <div class="carte matriceEnveloppe">
             <table class="matrice">
-              <thead id="teteMatrice"></thead>
+              <caption class="sr">Matrice des écarts : une ligne par dépôt, une colonne par paquet, la cellule donne la version verrouillée.</caption>
+              <th scope="col"ead id="teteMatrice"></thead>
               <tbody id="corpsMatrice"></tbody>
             </table>
           </div>
@@ -1254,11 +1322,11 @@
           </div>
           <div class="carte tableEnveloppe" id="tableauActivite" hidden>
             <table>
-              <thead>
+              <th scope="col"ead>
                 <tr>
-                  <th>Dépôt</th>
-                  <th class="num">Jours</th>
-                  <th>Date du commit</th>
+                  <th scope="col">Dépôt</th>
+                  <th scope="col" class="num">Jours</th>
+                  <th scope="col">Date du commit</th>
                 </tr>
               </thead>
               <tbody id="corpsActivite"></tbody>
@@ -1340,18 +1408,120 @@
         { etiq: 'Workflows en échec', val: k.rouges, app: `sur ${k.depotsRouges} dépôts` },
         { etiq: 'Sites Pages en ligne', val: `${k.sitesEnLigne}/${k.sites}`, app: 'vérifiés par requête HTTP' },
         { etiq: 'Pull requests ouvertes', val: k.prOuvertes, app: k.prOuvertes ? 'à relire' : 'aucune revue en attente' },
-        { etiq: 'Socle publié', val: k.socleAmont || '—', app: `${k.socleEnRetard} dépôts en dessous` },
+        // La courbe porte le nombre de dépôts EN DESSOUS, pas le numéro de
+        // version : sans ce libellé, « −2 » se lirait comme un recul du socle.
+        { etiq: 'Socle publié', val: k.socleAmont || '—', app: `${k.socleEnRetard} dépôts en dessous`, serie: 'socleEnRetard', serieNom: 'dépôts en dessous', sens: -1 },
+        // Trois états, jamais deux : un compte, ou l'aveu qu'on n'a pas pu lire.
+        k.alertesLisibles
+          ? {
+              etiq: 'Alertes de vulnérabilité',
+              val: k.alertes,
+              app: k.alertes ? `dont ${k.alertesGraves} graves · ${k.alertesProduction} en production` : `aucune sur ${k.depots - k.depotsSansAlertes} dépôts interrogés`,
+              serie: 'alertes',
+              sens: -1,
+            }
+          : { etiq: 'Alertes de vulnérabilité', val: '—', app: `illisibles sur ${k.depotsAlertesIllisibles} dépôts — PARC_TOKEN sans le droit « Dependabot alerts »` },
       ]
+      // La tuile des workflows au vert porte la courbe : c'est le chiffre du hero.
+      tuiles.splice(3, 0, { etiq: 'Workflows au vert', val: k.taux == null ? '—' : k.taux + ' %', app: `${k.verts} verts · ${k.rouges} rouges`, serie: 'taux', sens: 1 })
+      if (k.lecturesIncompletes) tuiles.push({ etiq: 'Dépôts mal lus', val: k.lecturesIncompletes, app: "workflows illisibles — l'état affiché n'est pas concluant", alerte: true })
       if (D.avecLocal)
         tuiles.push({
           etiq: 'Copies de travail modifiées',
           val: k.depotsModifies,
           app: k.horsBrancheDefaut ? `${k.horsBrancheDefaut} hors branche par défaut` : 'toutes sur la branche par défaut',
         })
+      // Une courbe n'est tracée qu'à partir de DEUX points : une ligne d'un
+      // seul point ne dit rien et laisse croire à une tendance plate.
+      const HISTO = (D.historique || []).filter((p) => p && p.jour)
+      function courbe(serie, sens) {
+        const pts = HISTO.map((p) => p[serie]).filter((v) => typeof v === 'number')
+        if (pts.length < 2) return null
+        const min = Math.min(...pts)
+        const max = Math.max(...pts)
+        const etendue = max - min || 1
+        const x = (i) => (pts.length === 1 ? 0 : (i / (pts.length - 1)) * 120)
+        const y = (v) => 24 - ((v - min) / etendue) * 22
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('viewBox', '0 0 120 26')
+        svg.setAttribute('class', 'courbe')
+        svg.setAttribute('role', 'img')
+        const delta = pts[pts.length - 1] - pts[0]
+        const mieux = delta * sens > 0
+        svg.setAttribute('aria-label', `${pts.length} relevés, de ${pts[0]} à ${pts[pts.length - 1]}`)
+        const l = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+        l.setAttribute('points', pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '))
+        l.setAttribute('fill', 'none')
+        l.setAttribute('stroke-width', '1.5')
+        l.setAttribute('stroke-linejoin', 'round')
+        l.setAttribute('stroke-linecap', 'round')
+        l.setAttribute('stroke', delta === 0 ? 'var(--muted)' : mieux ? 'var(--good)' : 'var(--critical)')
+        svg.append(l)
+        return { svg, delta, mieux }
+      }
       for (const t of tuiles) {
-        const n = el('div', 'tuile')
-        n.append(el('div', 'etiq', t.etiq), el('div', 'val', String(t.val)), el('div', 'app', t.app))
+        const n = el('div', 'tuile' + (t.alerte ? ' tuileAlerte' : ''))
+        n.append(el('div', 'etiq', t.etiq), el('div', 'val', String(t.val)))
+        const c = t.serie ? courbe(t.serie, t.sens) : null
+        if (c) {
+          n.append(c.svg)
+          const signe = c.delta > 0 ? '+' : ''
+          const quoi = t.serieNom ? t.serieNom + ' : ' : ''
+          const d = el('div', 'app', c.delta === 0 ? `${quoi}stable sur ${HISTO.length} relevés` : `${quoi}${signe}${c.delta} sur ${HISTO.length} relevés`)
+          d.style.color = c.delta === 0 ? 'var(--muted)' : c.mieux ? 'var(--goodInk)' : 'var(--critical)'
+          n.append(d)
+        }
+        n.append(el('div', 'app', t.app))
         $('#tuiles').append(n)
+      }
+
+      /* ---------------- ce qui a bougé ---------------- */
+
+      // Le relevé précédent était DÉJÀ lu pour décider s'il fallait republier ;
+      // le comparer ne coûte aucun appel réseau. Le bandeau dit explicitement à
+      // quel relevé il se compare : `changements` est hors du « fond », donc la
+      // page n'est pas republiée pour le seul plaisir de vider cette liste, et
+      // le bandeau décrit toujours le dernier vrai changement.
+      {
+        const ch = D.changements || []
+        if (ch.length) {
+          const PUCES = {
+            'ci-rouge': { p: '✕', c: 'var(--critical)' },
+            'ci-vert': { p: '✓', c: 'var(--goodInk)' },
+            alertes: { p: '!', c: 'var(--critical)' },
+            dormante: { p: '·', c: 'var(--warning)' },
+            reveillee: { p: '·', c: 'var(--goodInk)' },
+            amont: { p: '↑', c: 'var(--ink2)' },
+            'depot-entre': { p: '+', c: 'var(--goodInk)' },
+            'depot-sorti': { p: '−', c: 'var(--critical)' },
+          }
+          const phrase = (c) => {
+            if (c.type === 'ci-rouge' || c.type === 'ci-vert') return [c.depot, ' · ', c.workflow, c.type === 'ci-rouge' ? ' devient rouge' : ' repasse au vert']
+            if (c.type === 'amont') return [c.paquet, ` publie ${c.a}`, c.de ? ` (était ${c.de})` : '', c.nbDepots ? ` — ${c.nbDepots} dépôts concernés` : '']
+            if (c.type === 'dormante') return [c.paquet, ' entre dans les dormantes']
+            if (c.type === 'reveillee') return [c.paquet, ' publie à nouveau']
+            if (c.type === 'alertes') return ['alertes de vulnérabilité : ', `${c.de} → ${c.a}`]
+            if (c.type === 'depot-entre') return [c.depot, ' entre au relevé']
+            return [c.depot, ' sort du relevé']
+          }
+          const ul = $('#listeChangements')
+          for (const c of ch) {
+            const li = el('li')
+            const puce = PUCES[c.type] || { p: '·', c: 'var(--muted)' }
+            const sp = el('span', 'puce', puce.p)
+            sp.style.color = puce.c
+            sp.setAttribute('aria-hidden', 'true')
+            li.append(sp)
+            const txt = el('span')
+            const bouts = phrase(c)
+            // Le premier bout est un nom propre — dépôt ou paquet : en mono.
+            txt.append(el('span', 'mono', bouts[0]), document.createTextNode(bouts.slice(1).join('')))
+            li.append(txt)
+            ul.append(li)
+          }
+          $('#compteurChangements').textContent = `${ch.length} depuis le relevé du ${fmtHeure(D.compareA)}`
+          $('#bandeauChangements').hidden = false
+        }
       }
 
       // --- petits multiples : un état par famille, sur la même échelle ---
@@ -1449,6 +1619,25 @@
         if (d.paquet && d.paquet.version) tete.append(el('span', 'badge', 'v' + d.paquet.version))
         n.append(tete)
         if (d.description) n.append(el('p', 'desc', d.description))
+
+        // CE DÉPÔT N'EST PAS « SANS PIPELINE », IL N'A PAS PU ÊTRE LU. Le relevé
+        // le sait depuis toujours — le champ voyage dans le modèle — mais la
+        // page n'en disait rien : un dépôt mal lu s'affichait exactement comme
+        // un dépôt sain et vide. Le script, lui, n'abandonne qu'au-delà de 10 %
+        // de lectures refusées ; en dessous, deux dépôts pouvaient passer en
+        // silence.
+        if (d.lectureIncomplete) {
+          n.append(el('div', 'malLu', "Workflows illisibles — le jeton n'a pas pu lire l'API Actions de ce dépôt. Ce qui suit n'est pas concluant."))
+        }
+        if (d.alertes?.etat === 'lu' && d.alertes.total) {
+          const al = el('div', 'malLu')
+          al.style.borderLeftColor = d.alertes.graves ? 'var(--critical)' : 'var(--warning)'
+          al.textContent =
+            `${d.alertes.total} alerte${d.alertes.total > 1 ? 's' : ''} de vulnérabilité` +
+            (d.alertes.graves ? `, dont ${d.alertes.graves} grave${d.alertes.graves > 1 ? 's' : ''}` : '') +
+            (d.alertes.production ? ` · ${d.alertes.production} en dépendance de production` : '')
+          n.append(al)
+        }
 
         const meta = el('div', 'metaLignes')
         const l1 = el('div')
