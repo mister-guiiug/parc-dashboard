@@ -26,7 +26,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '26.2.0'
+          node-version-file: .nvmrc
 
       # Aucune dépendance à installer : `node:test` et `node:assert` suffisent.
       - run: npm test

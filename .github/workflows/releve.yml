@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
-          node-version: '26.2.0'
+          node-version-file: .nvmrc
       - run: npm test
 
   relever:
@@ -53,7 +53,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
 
       - name: Relever l'état du parc
         id: releve
