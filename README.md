@@ -20,6 +20,9 @@ Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
 | Qui est en retard sur quelle librairie ? | section « Librairies », ligne dépliable |
 | Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
+| Qu'est-ce qui a changé depuis hier ? | bandeau « Ce qui a bougé », sous les tuiles |
+| Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
+| Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
 | Où suis-je dans la page, et comment revenir en haut ? | sommaire flottant en bas à droite |
 
@@ -112,7 +115,39 @@ laisser glisser en silence dans une autre famille.
   mai 2023 mais reçoit des commits le jour même ; `react-qr-reader` en est à
   une préversion de 2022 et son dépôt n'a pas bougé depuis 2023. Le même
   « plus d'un an » recouvrait les deux.
+- **« Ce qui a bougé » compare au relevé précédent**, pas à hier au sens strict :
+  le bandeau nomme la date à laquelle il se compare. Cette liste décrit une
+  transition, pas un état — elle est donc exclue de la comparaison « le fond
+  a-t-il changé ? », sinon un jour de changement serait suivi d'un second commit
+  le lendemain, celui qui remet la liste à vide.
+- Les **courbes** ne se tracent qu'à partir de **deux points** : une ligne d'un
+  seul point laisserait croire à une tendance plate. `historique.json` reçoit un
+  point par jour au maximum, et seulement quand le fond a bougé.
+- Les **alertes de vulnérabilité** ont trois états, jamais deux : un compte,
+  « désactivées sur ce dépôt », ou **illisibles**. Les lire sur un AUTRE dépôt
+  demande un jeton portant « Dependabot alerts : read » — le `GITHUB_TOKEN` du
+  dépôt ne l'a pas, même sur des dépôts publics. Sans ce droit la tuile affiche
+  `—` et dit pourquoi : « 0 alerte » se lirait comme une bonne nouvelle.
+- Un dépôt dont les **workflows n'ont pas pu être lus** le dit sur sa carte. Le
+  relevé abandonne au-delà de 10 % de lectures refusées ; en dessous, sans ce
+  bandeau, un dépôt mal lu s'afficherait comme un dépôt sain et vide.
 - Les **dépôts privés du compte sont exclus** de cette page.
+
+## Vérifier
+
+```bash
+npm test
+```
+
+Les règles pures du relevé — `cmpVersion`, `classe`, `etatDe`, `fond`,
+`changementsDepuis` — vivent dans [`scripts/regles.mjs`](scripts/regles.mjs),
+séparées du script qui les applique : `releve.mjs` s'exécute à l'import et part
+chercher l'API, rien n'y serait testable autrement. Aucune dépendance, aucun
+jeton, `node:test` suffit.
+
+C'est `fond()` qui justifie surtout ces tests : elle décide si la CI commite. Une
+régression y ferait réécrire `index.html` toutes les nuits sans que rien n'ait
+bougé, et personne ne le verrait avant des semaines de commits vides.
 
 ## Régénérer
 
@@ -141,6 +176,13 @@ lui-même.
 
 Le fichier n'est réécrit que si le **fond** a bougé : sans cette comparaison, la
 CI commiterait chaque jour un diff d'une ligne où seul l'horodatage change.
+
+`historique.json` reçoit son point dans le même mouvement, et seulement pour le
+relevé publié : ni `--local` ni `--sortie` n'y touchent, une sonde n'a rien à
+laisser dans une série qui se lit sur un an. S'il est perdu,
+[`scripts/historique-depuis-git.mjs`](scripts/historique-depuis-git.mjs) le
+reconstruit depuis les révisions de `index.html`, qui portent chacune leurs
+propres compteurs.
 
 Si le `GITHUB_TOKEN` du dépôt ne suffit pas à lire l'API Actions des autres
 dépôts, le relevé s'arrête avec un message explicite plutôt que de publier une

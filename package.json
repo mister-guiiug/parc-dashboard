@@ -1,0 +1,12 @@
+{
+  "name": "parc-dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Relevé quotidien de l'état des dépôts publics du compte mister-guiiug.",
+  "license": "MIT",
+  "scripts": {
+    "releve": "node scripts/releve.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

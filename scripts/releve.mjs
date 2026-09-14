@@ -13,6 +13,9 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+// Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
+// ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
+import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, nettoie } from './regles.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
 const COMPTE = process.env.PARC_COMPTE || 'mister-guiiug'
@@ -25,6 +28,10 @@ const AVEC_PRIVES = args.includes('--prives')
 // En mode --local la page porte l'état de la copie de travail : elle ne doit
 // pas atterrir dans le fichier publié, que la CI réécrirait au relevé suivant.
 const SORTIE = args.includes('--sortie') ? args[args.indexOf('--sortie') + 1] : join(ICI, '..', RACINE_LOCALE ? 'index.local.html' : 'index.html')
+// L'historique publié n'est alimenté QUE par le relevé publié. Ni `--local`, qui
+// porte l'état d'une copie de travail, ni `--sortie`, qui sert aux essais, n'ont
+// à laisser un point dans une série qui se lit sur un an.
+const ALIMENTE_HISTORIQUE = !RACINE_LOCALE && !args.includes('--sortie')
 
 if (!JETON) {
   console.error('GITHUB_TOKEN absent : les quotas anonymes (60 req/h) ne suffiront pas.')
@@ -108,42 +115,14 @@ const json = (t) => {
     return null
   }
 }
-const nettoie = (v) => String(v || '').replace(/^[\^~>=<\s]*/, '').split('-')[0]
-function cmpVersion(a, b) {
-  const pa = nettoie(a).split('.').map((n) => parseInt(n, 10) || 0)
-  const pb = nettoie(b).split('.').map((n) => parseInt(n, 10) || 0)
-  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0)
-  return 0
-}
 
 /* ------------------------------------------------- classement des dépôts */
 
-// Les trois couches du socle ne se devinent pas : `pwa-starter-kit` EST une PWA
-// (il en est le squelette), un signal seul le rangerait avec les applications.
-// Voir la note d'architecture du parc : bibliothèque, squelette, générateur.
-const SOCLE = {
-  'dev-pwa-config': 'bibliothèque partagée',
-  'pwa-starter-kit': "squelette d'application",
-  'create-lg-pwa-app': 'générateur',
-}
 const FAMILLES = {
   pwa: { titre: 'Applications PWA', sous: 'Applications web installables, déployées sur GitHub Pages.' },
   desktop: { titre: 'Applications desktop', sous: 'Empaquetées avec Electron, Tauri ou .NET — hors chaîne Pages.' },
   socle: { titre: 'Socle', sous: 'La bibliothèque, le squelette et le générateur dont vivent les applications.' },
   autre: { titre: 'Outillage et divers', sous: 'Extensions, compétences, configuration du compte.' },
-}
-
-// Chaque règle repose sur un signal LISIBLE dans le dépôt, pas sur son nom —
-// sauf le socle et `.github`, qui n'en portent aucun.
-function classe(nom, deps, crates, pkg, langage) {
-  if (SOCLE[nom]) return { famille: 'socle', role: SOCLE[nom] }
-  if (nom === '.github') return { famille: 'autre', role: 'configuration du compte' }
-  if (pkg?.engines?.vscode || pkg?.contributes) return { famille: 'autre', role: 'extension VS Code' }
-  if (deps.electron) return { famille: 'desktop', role: 'Electron' }
-  if (crates.tauri || deps['@tauri-apps/api']) return { famille: 'desktop', role: 'Tauri' }
-  if (langage === 'C#') return { famille: 'desktop', role: '.NET' }
-  if (deps['vite-plugin-pwa']) return { famille: 'pwa', role: null }
-  return { famille: 'autre', role: langage || null }
 }
 
 /* --------------------------------------------------------- enrichissement local */
@@ -179,13 +158,6 @@ async function etatLocal(nom) {
 const MAINTENANT = new Date()
 const jours = (iso) => (iso ? Math.floor((MAINTENANT - new Date(iso)) / 86400000) : null)
 
-function etatDe(run) {
-  if (!run) return 'jamais'
-  if (run.status !== 'completed') return 'encours'
-  if (run.conclusion === 'success') return 'vert'
-  if (['skipped', 'cancelled', 'neutral'].includes(run.conclusion)) return 'neutre'
-  return 'rouge'
-}
 const allege = (r) => ({
   etat: etatDe(r),
   conclusion: r.conclusion,
@@ -377,6 +349,61 @@ if (incomplets.length) {
     console.error(`Poser un PAT (scope public_repo) dans le secret PARC_TOKEN du dépôt.`)
     process.exit(2)
   }
+}
+
+/* --------------------------------------- alertes de vulnérabilité */
+
+// LE JETON DU DÉPÔT NE SUFFIT PROBABLEMENT PAS ICI, et le relevé doit le dire
+// plutôt que d'afficher « 0 alerte » — qui se lirait comme une bonne nouvelle.
+// Lire `/dependabot/alerts` d'un AUTRE dépôt demande le droit « Dependabot
+// alerts : read », que le `GITHUB_TOKEN` d'un dépôt ne porte pas, même sur des
+// dépôts publics du même compte. C'est le même besoin que `PARC_TOKEN`.
+//
+// On distingue donc trois états, et jamais deux : un compte, « illisible », ou
+// « désactivé sur ce dépôt » (403 au message explicite). `api()` n'en dirait
+// rien — il rend `null` pour un 403 comme pour un 404 — d'où la requête directe.
+let alertesLisibles = false
+let alertesRefusees = 0
+await enLot(depots, 5, async (d) => {
+  d.alertes = null
+  try {
+    appels++
+    const res = await fetch(`${API}/repos/${d.nwo}/dependabot/alerts?state=open&per_page=100`, {
+      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' },
+    })
+    if (res.status === 403 || res.status === 404) {
+      const msg = await res.text()
+      // « Dependabot alerts are disabled for this repository » est une réponse
+      // exacte, pas un refus : le dépôt ne les a tout simplement pas activées.
+      d.alertes = /disabled for this repository/i.test(msg) ? { etat: 'desactivees' } : { etat: 'illisible' }
+      if (d.alertes.etat === 'illisible') alertesRefusees++
+      return
+    }
+    if (!res.ok) {
+      d.alertes = { etat: 'illisible' }
+      alertesRefusees++
+      return
+    }
+    const liste = await res.json()
+    const grave = (a) => ['high', 'critical'].includes(a.security_advisory?.severity)
+    d.alertes = {
+      etat: 'lu',
+      total: liste.length,
+      graves: liste.filter(grave).length,
+      // Une alerte en dépendance de PRODUCTION part chez l'utilisateur ; une
+      // alerte de chaîne de développement compromet ce qu'on publie. Les deux
+      // comptent, pas de la même façon.
+      production: liste.filter((a) => a.dependency?.scope === 'runtime').length,
+    }
+    alertesLisibles = true
+  } catch {
+    d.alertes = { etat: 'illisible' }
+    alertesRefusees++
+  }
+})
+if (!alertesLisibles) {
+  console.error(`\nAlertes de vulnérabilité illisibles sur ${alertesRefusees}/${depots.length} dépôts — la section restera muette.`)
+  console.error(`Il faut un PAT portant « Dependabot alerts : read » dans le secret PARC_TOKEN ; le GITHUB_TOKEN du dépôt ne suffit pas.`)
 }
 
 /* ------------------------------------------------ détail des échecs */
@@ -636,6 +663,15 @@ const kpi = {
   socleAmont: amont[NOM_SOCLE] || null,
   socleEnRetard: libs.find((l) => l.paquet === NOM_SOCLE)?.enRetard ?? null,
   appsPwa: parFamille.pwa.depots,
+  // Trois états possibles, jamais deux : « 0 alerte » et « je n'ai pas pu lire »
+  // ne se ressemblent que pour qui ne regarde pas.
+  alertesLisibles,
+  alertes: alertesLisibles ? depots.reduce((n, d) => n + (d.alertes?.total || 0), 0) : null,
+  alertesGraves: alertesLisibles ? depots.reduce((n, d) => n + (d.alertes?.graves || 0), 0) : null,
+  alertesProduction: alertesLisibles ? depots.reduce((n, d) => n + (d.alertes?.production || 0), 0) : null,
+  depotsSansAlertes: depots.filter((d) => d.alertes?.etat === 'desactivees').length,
+  depotsAlertesIllisibles: depots.filter((d) => d.alertes?.etat === 'illisible').length,
+  lecturesIncompletes: depots.filter((d) => d.lectureIncomplete).length,
   librairiesDatees: libs.filter((l) => l.publieLe).length,
   dormantes: dormantes.length,
   // Celles dont le DÉPÔT aussi s'est tu : les seules qui appellent une décision.
@@ -666,30 +702,8 @@ const modele = {
   seuilDormanceJours: SEUIL_DORMANCE_JOURS,
 }
 
-/* ------------------------------------------------------------- rendu */
+/* ------------------------------------------- ce qui a bougé, et depuis quand */
 
-const gabarit = readFileSync(join(ICI, 'gabarit.html'), 'utf8')
-if (!gabarit.includes('__DONNEES__')) throw new Error('placeholder __DONNEES__ absent du gabarit')
-// L'empreinte du gabarit entre dans le modèle : sans elle, la comparaison ne
-// porterait que sur les données et une refonte de la page ne serait JAMAIS
-// republiée — le relevé répondrait « rien n'a bougé » sur un gabarit réécrit.
-modele.gabarit = createHash('sha256').update(gabarit).digest('hex').slice(0, 12)
-const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16))
-const page = gabarit.replace('__DONNEES__', charge)
-
-// Ne réécrire que si le FOND a bougé. Le fond exclut ce qui se mesure à
-// nouveau sans rien dire de l'état : l'horodatage du relevé, et le temps de
-// réponse de chaque site — sans ça, deux relevés consécutifs identiques
-// produiraient quand même un commit par jour.
-function fond(modele) {
-  if (!modele) return null
-  const o = JSON.parse(JSON.stringify(modele))
-  delete o.genere
-  for (const d of o.depots || []) {
-    if (d.pages) delete d.pages.ms
-  }
-  return JSON.stringify(o)
-}
 const modeleDe = (t) => {
   const m = /<script type="application\/json" id="donnees">([\s\S]*?)<\/script>/.exec(t || '')
   if (!m) return null
@@ -700,7 +714,79 @@ const modeleDe = (t) => {
   }
 }
 const ancienne = existsSync(SORTIE) ? readFileSync(SORTIE, 'utf8') : ''
-const inchange = ancienne && fond(modeleDe(ancienne)) === fond(modele)
+const avant = modeleDe(ancienne)
+
+modele.changements = changementsDepuis(avant, modele)
+modele.compareA = avant?.genere || null
+
+/* ------------------------------------------------------------- rendu */
+
+const gabarit = readFileSync(join(ICI, 'gabarit.html'), 'utf8')
+if (!gabarit.includes('__DONNEES__')) throw new Error('placeholder __DONNEES__ absent du gabarit')
+// L'empreinte du gabarit entre dans le modèle : sans elle, la comparaison ne
+// porterait que sur les données et une refonte de la page ne serait JAMAIS
+// republiée — le relevé répondrait « rien n'a bougé » sur un gabarit réécrit.
+modele.gabarit = createHash('sha256').update(gabarit).digest('hex').slice(0, 12)
+
+// La décision se prend AVANT d'assembler la page : l'historique qui y sera
+// embarqué dépend d'elle.
+const inchange = ancienne && fond(avant) === fond(modele)
+
+/* ------------------------------------------------------------ historique */
+
+// UNE PAGE QUI NE GARDE RIEN NE PEUT PAS DIRE SI ÇA S'AMÉLIORE. Le taux de vert
+// est passé de 93 à 96 % en une journée sans que rien ne l'ait jamais montré.
+//
+// Un point par jour au maximum, et SEULEMENT quand le fond a bougé : un relevé
+// identique n'apporte pas de point, il prolonge le précédent. Le dernier point
+// du jour remplace celui du matin, sinon une journée agitée pèserait dix fois
+// plus qu'une journée calme dans la courbe.
+//
+// L'historique est aussi EMBARQUÉ dans la page, comme tout le reste : la
+// promesse du showroom vaut ici — aucune requête réseau, la page s'ouvre en
+// `file://`. Un `fetch('historique.json')` la casserait.
+//
+// Plafonné à 400 entrées, un peu plus d'un an.
+const CHEMIN_HISTORIQUE = join(ICI, '..', 'historique.json')
+const MAX_HISTORIQUE = 400
+let histo = []
+try {
+  if (existsSync(CHEMIN_HISTORIQUE)) histo = JSON.parse(readFileSync(CHEMIN_HISTORIQUE, 'utf8'))
+  if (!Array.isArray(histo)) histo = []
+} catch {
+  // un historique illisible ne doit pas emporter le relevé : on repart de zéro
+  console.error(`  historique.json illisible — un nouveau est écrit`)
+  histo = []
+}
+if (!inchange) {
+  const jour = MAINTENANT.toISOString().slice(0, 10)
+  const point = {
+    jour,
+    taux: kpi.taux,
+    verts: kpi.verts,
+    rouges: kpi.rouges,
+    depots: kpi.depots,
+    dormantes: kpi.dormantes,
+    dormantesArretees: kpi.dormantesArretees,
+    alertes: kpi.alertes,
+    alertesGraves: kpi.alertesGraves,
+    socleEnRetard: kpi.socleEnRetard,
+  }
+  const i = histo.findIndex((p) => p.jour === jour)
+  if (i >= 0) histo[i] = point
+  else histo.push(point)
+  histo = histo.slice(-MAX_HISTORIQUE)
+  if (ALIMENTE_HISTORIQUE) {
+    writeFileSync(CHEMIN_HISTORIQUE, JSON.stringify(histo) + '\n')
+    console.error(`historique.json : ${histo.length} point(s), dont celui du ${jour}.`)
+  }
+}
+modele.historique = histo
+
+/* ------------------------------------------------------------- page */
+
+const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16))
+const page = gabarit.replace('__DONNEES__', charge)
 
 if (inchange) {
   console.error(`Rien n'a bougé depuis le relevé précédent (${appels} appels d'API). Fichier laissé tel quel.`)

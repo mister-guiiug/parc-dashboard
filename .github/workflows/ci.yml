@@ -1,0 +1,32 @@
+# Les règles pures du relevé, sur chaque PR.
+#
+# Le relevé complet ne peut pas tourner ici : il lui faut un jeton et trois
+# cent quarante appels d'API. Ce qui se vérifie sans réseau se vérifie donc à
+# part — et c'est justement la partie dont une régression met le plus longtemps
+# à se voir (`fond()` décide si la CI commite).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Règles du relevé
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.2.0'
+
+      # Aucune dépendance à installer : `node:test` et `node:assert` suffisent.
+      - run: npm test

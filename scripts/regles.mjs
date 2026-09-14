@@ -1,0 +1,131 @@
+// Les règles pures du relevé, séparées du script qui les applique.
+//
+// POURQUOI UN FICHIER À PART. `releve.mjs` s'exécute à l'import : il a du
+// `await` au niveau racine et fait trois cents appels réseau. Rien de ce qu'il
+// contient n'était donc testable sans partir chercher l'API GitHub. Ces
+// cinq fonctions-là ne dépendent de rien — même entrée, même sortie — et ce
+// sont exactement celles dont une régression se voit le plus tard :
+// `fond()` en particulier décide si la CI commite, et une erreur y ferait
+// réécrire `index.html` toutes les nuits sans que rien ait bougé.
+
+/** Retire le préfixe de plage (`^`, `~`, `>=`) et la préversion. */
+export const nettoie = (v) =>
+  String(v || '')
+    .replace(/^[\^~>=<\s]*/, '')
+    .split('-')[0]
+
+/** Compare deux versions sur leurs trois premiers segments. < 0 si a est plus ancienne. */
+export function cmpVersion(a, b) {
+  const pa = nettoie(a).split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = nettoie(b).split('.').map((n) => parseInt(n, 10) || 0)
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0)
+  return 0
+}
+
+// Les trois couches du socle ne se devinent pas : `pwa-starter-kit` EST une PWA
+// (il en est le squelette), un signal seul le rangerait avec les applications.
+export const SOCLE = {
+  'dev-pwa-config': 'bibliothèque partagée',
+  'pwa-starter-kit': "squelette d'application",
+  'create-lg-pwa-app': 'générateur',
+}
+
+/** Chaque règle repose sur un signal LISIBLE dans le dépôt, pas sur son nom —
+ *  sauf le socle et `.github`, qui n'en portent aucun. */
+export function classe(nom, deps, crates, pkg, langage) {
+  if (SOCLE[nom]) return { famille: 'socle', role: SOCLE[nom] }
+  if (nom === '.github') return { famille: 'autre', role: 'configuration du compte' }
+  if (pkg?.engines?.vscode || pkg?.contributes) return { famille: 'autre', role: 'extension VS Code' }
+  if (deps.electron) return { famille: 'desktop', role: 'Electron' }
+  if (crates.tauri || deps['@tauri-apps/api']) return { famille: 'desktop', role: 'Tauri' }
+  if (langage === 'C#') return { famille: 'desktop', role: '.NET' }
+  if (deps['vite-plugin-pwa']) return { famille: 'pwa', role: null }
+  return { famille: 'autre', role: langage || null }
+}
+
+/** L'état d'un run : un run non terminé n'est NI vert ni rouge. */
+export function etatDe(run) {
+  if (!run) return 'jamais'
+  if (run.status !== 'completed') return 'encours'
+  if (run.conclusion === 'success') return 'vert'
+  if (['skipped', 'cancelled', 'neutral'].includes(run.conclusion)) return 'neutre'
+  return 'rouge'
+}
+
+/**
+ * Le FOND d'un relevé : ce qui doit déclencher une réécriture du fichier.
+ *
+ * En sont retirées les mesures qui changent d'un passage à l'autre sans rien
+ * dire de l'état du parc — l'horodatage, et le temps de réponse HTTP de chaque
+ * site. Sans ça, deux relevés identiques produiraient quand même un commit par
+ * jour. C'est aussi pour cette raison que le relevé stocke des DATES et jamais
+ * des âges en jours : un âge vieillit tout seul, et rendrait cette comparaison
+ * éternellement fausse.
+ *
+ * `changements` en est retiré POUR UNE AUTRE RAISON, et elle mérite d'être
+ * écrite. Cette liste décrit une TRANSITION, pas un état. Si on la comptait
+ * dans le fond, un jour de changement serait suivi d'un second commit le
+ * lendemain — celui qui remet la liste à vide — alors que rien n'aurait bougé.
+ * Le bandeau de la page dit donc « depuis le relevé du … », et reste juste :
+ * il décrit le dernier vrai changement, sur la page née de ce changement.
+ */
+export function fond(modele) {
+  if (!modele) return null
+  const o = JSON.parse(JSON.stringify(modele))
+  delete o.genere
+  delete o.changements
+  delete o.compareA
+  // L'historique est un JOURNAL : il grandit à chaque publication, donc le
+  // compter reviendrait à publier une fois de plus chaque fois qu'on publie.
+  delete o.historique
+  for (const d of o.depots || []) {
+    if (d.pages) delete d.pages.ms
+  }
+  return JSON.stringify(o)
+}
+
+// LE RELEVÉ PRÉCÉDENT ÉTAIT DÉJÀ LU, PUIS JETÉ. Il servait uniquement à décider
+// s'il fallait réécrire le fichier. Le comparer coûte donc zéro appel réseau, et
+// répond à la question qu'on se pose vraiment en ouvrant la page : qu'est-ce qui
+// a changé depuis la dernière fois ?
+export function changementsDepuis(av, ap) {
+  if (!av) return []
+  const out = []
+  const parNom = (m) => new Map((m.depots || []).map((d) => [d.nom, d]))
+  const A = parNom(av)
+  const B = parNom(ap)
+
+  for (const nom of B.keys()) if (!A.has(nom)) out.push({ type: 'depot-entre', depot: nom })
+  for (const nom of A.keys()) if (!B.has(nom)) out.push({ type: 'depot-sorti', depot: nom })
+
+  for (const [nom, d] of B) {
+    const a = A.get(nom)
+    if (!a) continue
+    const wA = new Map((a.workflows || []).map((w) => [w.nom, w]))
+    for (const w of d.workflows || []) {
+      const p = wA.get(w.nom)
+      // Un passage PAR « en cours » n'est pas un événement : le job tournait,
+      // voilà tout. Seuls les états conclusifs se comparent.
+      const conclusif = (e) => e === 'vert' || e === 'rouge'
+      if (!p || !conclusif(p.etat) || !conclusif(w.etat) || p.etat === w.etat) continue
+      out.push({ type: w.etat === 'rouge' ? 'ci-rouge' : 'ci-vert', depot: nom, workflow: w.nom, url: w.url })
+    }
+  }
+
+  const lA = new Map((av.libs || []).map((l) => [l.paquet, l]))
+  for (const l of ap.libs || []) {
+    const p = lA.get(l.paquet)
+    if (!p) continue
+    if (p.amont && l.amont && p.amont !== l.amont) out.push({ type: 'amont', paquet: l.paquet, de: p.amont, a: l.amont, nbDepots: l.nbDepots })
+    if (!p.dormance && l.dormance) out.push({ type: 'dormante', paquet: l.paquet, depuis: l.publieLe })
+    if (p.dormance && !l.dormance) out.push({ type: 'reveillee', paquet: l.paquet })
+  }
+
+  const ka = av.kpi || {}
+  const kb = ap.kpi || {}
+  if (ka.alertesLisibles && kb.alertesLisibles && ka.alertes !== kb.alertes) out.push({ type: 'alertes', de: ka.alertes, a: kb.alertes })
+
+  // Le plus parlant d'abord : ce qui casse, puis ce qui se répare.
+  const rang = { 'ci-rouge': 0, alertes: 1, dormante: 2, 'depot-sorti': 3, 'ci-vert': 4, reveillee: 5, amont: 6, 'depot-entre': 7 }
+  return out.sort((x, y) => (rang[x.type] ?? 9) - (rang[y.type] ?? 9)).slice(0, 40)
+}
