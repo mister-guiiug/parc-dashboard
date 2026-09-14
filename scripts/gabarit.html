@@ -936,6 +936,41 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* Le bouton de tri N'EST PAS tourné : seul le nom du paquet l'est. Sans
+         cette séparation, la flèche partirait sur le flanc avec le texte. */
+      .triCol {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
+        background: none;
+        border: 0;
+        padding: 2px 0;
+        margin: 0;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .triCol:hover {
+        background: var(--ghost);
+      }
+      .triCol:focus-visible {
+        outline: 2px solid var(--series1);
+        outline-offset: 1px;
+      }
+      .triCol .fleche {
+        font-size: 10px;
+        line-height: 1;
+        color: var(--muted);
+      }
+      .triCol.triActif {
+        background: var(--ghost2);
+      }
+      .triCol.triActif .fleche {
+        color: var(--ink);
+      }
       .cellule {
         text-align: center;
         font-variant-numeric: tabular-nums;
@@ -1158,7 +1193,7 @@
           <div class="carte tableEnveloppe">
             <table>
               <caption class="sr">Workflows en échec : dépôt, workflow, état, étape fautive, ancienneté, lien vers le run.</caption>
-              <th scope="col"ead>
+              <thead>
                 <tr>
                   <th scope="col">Dépôt</th>
                   <th scope="col">Workflow</th>
@@ -1216,7 +1251,7 @@
           <div class="carte tableEnveloppe">
             <table>
               <caption class="sr">Librairies du parc : paquet, nombre de dépôts, répartition des versions, version amont, dépôts en retard.</caption>
-              <th scope="col"ead>
+              <thead>
                 <tr>
                   <th scope="col"></th>
                   <th scope="col">Paquet</th>
@@ -1244,7 +1279,7 @@
           <div class="carte tableEnveloppe">
             <table>
               <caption class="sr">Librairies sans publication depuis plus d’un an : paquet, dépôts, dernière version, âge, dépôt amont, dernier commit, lecture.</caption>
-              <th scope="col"ead>
+              <thead>
                 <tr>
                   <th scope="col">Paquet</th>
                   <th scope="col" class="num">Dépôts</th>
@@ -1273,6 +1308,8 @@
             La section précédente répond « qui porte quelle version » paquet par paquet ; celle-ci les met côte à côte. Une ligne est un dépôt, une colonne un paquet, une cellule la version qu'il
             <strong>verrouille</strong>. La couleur ne dit pas « vieux » dans l'absolu mais l'<strong>écart à la version la plus récente du parc</strong> — la seule sur laquelle on peut agir, puisqu'un
             autre dépôt la tient déjà. Par défaut, seuls les paquets réellement éclatés sont montrés ; les colonnes s'ajoutent et se retirent une à une.
+            <strong>Cliquez un nom de paquet</strong> pour classer les dépôts sur la version qu'ils en portent — décroissant, puis croissant, puis retour au tri courant. La comparaison est
+            <strong>sémantique</strong> : <code>1.9.0</code> précède <code>1.10.0</code>. Un dépôt qui ne dépend pas du paquet n'a pas de version à comparer, il reste en bas dans les deux sens.
           </p>
           <div class="filtres">
             <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes">Choisir les colonnes</button>
@@ -1299,7 +1336,7 @@
           <div class="carte matriceEnveloppe">
             <table class="matrice">
               <caption class="sr">Matrice des écarts : une ligne par dépôt, une colonne par paquet, la cellule donne la version verrouillée.</caption>
-              <th scope="col"ead id="teteMatrice"></thead>
+              <thead id="teteMatrice"></thead>
               <tbody id="corpsMatrice"></tbody>
             </table>
           </div>
@@ -1322,7 +1359,7 @@
           </div>
           <div class="carte tableEnveloppe" id="tableauActivite" hidden>
             <table>
-              <th scope="col"ead>
+              <thead>
                 <tr>
                   <th scope="col">Dépôt</th>
                   <th scope="col" class="num">Jours</th>
@@ -2141,6 +2178,23 @@
       const colonnesVisibles = () =>
         D.libs.filter((l) => colonnes.has(l.paquet)).sort(parEcarts)
 
+      // TRI PAR COLONNE : classer les dépôts sur la version qu'ils portent d'un
+      // paquet donné. Le cycle est à TROIS temps — décroissant, croissant, puis
+      // retour au tri de la liste déroulante — pour qu'on puisse toujours
+      // revenir à la vue de départ sans recharger la page.
+      //
+      // Le décroissant vient en premier : la question qu'on se pose en cliquant
+      // une colonne est « qui est le plus en retard ? », et la réponse est plus
+      // lisible quand les dépôts à jour ouvrent la liste et que le retard se lit
+      // en descendant.
+      let triColonne = null
+      function cyclerTriColonne(paquet) {
+        if (!triColonne || triColonne.paquet !== paquet) triColonne = { paquet, sens: -1 }
+        else if (triColonne.sens === -1) triColonne.sens = 1
+        else triColonne = null
+        rendMatrice()
+      }
+
       function rendChoixColonnes() {
         const zone = $('#colonnes')
         zone.textContent = ''
@@ -2208,16 +2262,57 @@
                 : b.score - a.score || a.depot.localeCompare(b.depot),
         )
 
+        // Le tri par colonne passe DEVANT celui de la liste déroulante, qui
+        // reste le départage à versions égales — deux dépôts sur la même version
+        // gardent l'ordre choisi juste au-dessus, au lieu d'un ordre arbitraire.
+        if (triColonne && cols.some((l) => l.paquet === triColonne.paquet)) {
+          const i = cols.findIndex((l) => l.paquet === triColonne.paquet)
+          const stable = new Map(visibles.map((r, n) => [r.depot, n]))
+          visibles.sort((a, b) => {
+            const va = a.cellules[i].version
+            const vb = b.cellules[i].version
+            // UN DÉPÔT QUI NE DÉPEND PAS DU PAQUET N'A PAS DE VERSION, et n'est
+            // donc ni en avance ni en retard : il va au bout dans les DEUX sens.
+            // L'inverse ferait ouvrir le tri croissant sur une colonne de « · ».
+            if (!va && !vb) return stable.get(a.depot) - stable.get(b.depot)
+            if (!va) return 1
+            if (!vb) return -1
+            return cmpV(va, vb) * triColonne.sens || stable.get(a.depot) - stable.get(b.depot)
+          })
+        }
+
         const tr = el('tr')
-        tr.append(el('th', null, 'Dépôt'))
+        const thDepot = el('th', null, 'Dépôt')
+        thDepot.scope = 'col'
+        tr.append(thDepot)
         for (const l of cols) {
           const th = el('th')
+          th.scope = 'col'
+          const actif = triColonne && triColonne.paquet === l.paquet
+          // `aria-sort` est le seul signal que lit un lecteur d'écran : la
+          // flèche, elle, est décorative et masquée.
+          th.setAttribute('aria-sort', actif ? (triColonne.sens === 1 ? 'ascending' : 'descending') : 'none')
+          const b = el('button', 'triCol' + (actif ? ' triActif' : ''))
+          b.type = 'button'
           const s = el('span', 'matriceCol', l.paquet)
-          s.title = `${l.paquet} — plus récente du parc : ${l.plusRecente}${l.amont ? `, amont : ${l.amont}` : ''}`
-          th.append(s)
+          b.append(s, el('span', 'fleche', actif ? (triColonne.sens === 1 ? '▲' : '▼') : '↕'))
+          b.lastChild.setAttribute('aria-hidden', 'true')
+          b.title = `${l.paquet} — plus récente du parc : ${l.plusRecente}${l.amont ? `, amont : ${l.amont}` : ''}`
+          b.setAttribute(
+            'aria-label',
+            actif
+              ? triColonne.sens === 1
+                ? `${l.paquet} : trié du plus ancien au plus récent. Cliquer pour revenir au tri par défaut.`
+                : `${l.paquet} : trié du plus récent au plus ancien. Cliquer pour inverser.`
+              : `Trier les dépôts sur la version de ${l.paquet}`,
+          )
+          b.addEventListener('click', () => cyclerTriColonne(l.paquet))
+          th.append(b)
           tr.append(th)
         }
-        tr.append(el('th', 'num', 'Écarts'))
+        const thEcarts = el('th', 'num', 'Écarts')
+        thEcarts.scope = 'col'
+        tr.append(thEcarts)
         tete.append(tr)
 
         for (const r of visibles) {
