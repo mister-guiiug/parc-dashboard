@@ -126,6 +126,7 @@
               <option value="nom">Trier : nom</option>
               <option value="workflows">Trier : nombre de workflows</option>
             </select>
+            <button class="bouton" type="button" id="cartesDepliees" aria-pressed="false">Cartes dépliées</button>
             <button class="bouton raz" type="button" id="raz-depots" hidden>Tout réafficher</button>
           </div>
           <div id="grilleDepots"></div>
@@ -573,22 +574,89 @@
       }
 
       /* ---------------- dépôts ---------------- */
+
+      /**
+       * LES CARTES SONT REPLIÉES AU CHARGEMENT, et c'est ce qui rend la section
+       * lisible. Mesuré sur la page publiée, en 1 440 px de large : la section
+       * « Dépôts » occupait 5 616 px sur les 13 350 du document — deux
+       * cinquièmes de la page pour vingt-huit cartes qu'on ne lit pas, on les
+       * fait défiler. Repliée, elle en occupe 1 141.
+       *
+       * Ce qui reste visible plié n'est pas décoratif : le nom, les badges, LE
+       * COMPTE DE ROUGES et l'âge du dernier commit. Un dépôt en échec se
+       * reconnaît sans l'ouvrir — sinon replier reviendrait à cacher les
+       * problèmes, ce qui est le contraire du métier de cette page.
+       */
+      const ouverts = new Set()
+
       function carteDepot(d) {
         const n = el('article', 'depot carte' + (d.compte.rouge ? ' aEchec' : ''))
         n.id = 'depot-' + d.nom
+        n.dataset.depot = d.nom
         const tete = el('div', 'tete')
         const h = el('h3')
-        const a = el('a', 'depotLien', d.nom)
+        // Le NOM déplie, la flèche mène à GitHub. L'inverse — le nom en lien et
+        // un chevron à part — donnerait une cible de 12 px pour le geste
+        // courant et toute la largeur pour celui qui quitte la page.
+        const bascule = el('button', 'plier')
+        bascule.type = 'button'
+        bascule.setAttribute('aria-controls', 'corps-' + d.nom)
+        const chevron = el('span', 'chevron', '▸')
+        chevron.setAttribute('aria-hidden', 'true')
+        bascule.append(chevron, el('span', 'nomDepot', d.nom))
+        bascule.addEventListener('click', () => basculeDepot(d.nom))
+        h.append(bascule)
+        tete.append(h)
+        const a = el('a', 'depotLien', '↗')
         a.href = d.url
         a.target = '_blank'
         a.rel = 'noopener'
-        h.append(a)
-        tete.append(h)
+        a.title = `Ouvrir ${d.nom} sur GitHub`
+        a.setAttribute('aria-label', a.title)
+        tete.append(a)
         if (d.prive) tete.append(el('span', 'badge prive', 'privé'))
         if (d.role) tete.append(el('span', 'badge', d.role))
         if (d.paquet && d.paquet.version) tete.append(el('span', 'badge', 'v' + d.paquet.version))
+        // Les deux avertissements de la carte se replient avec elle : ils
+        // laissent chacun un badge dans la tête, sans quoi plier ferait
+        // disparaître une alerte de vulnérabilité de la page entière.
+        if (d.alertes?.etat === 'lu' && d.alertes.total) {
+          const b = el('span', 'badge alerte' + (d.alertes.graves ? ' grave' : ''), `⚠ ${d.alertes.total}`)
+          b.title = `${d.alertes.total} alerte${d.alertes.total > 1 ? 's' : ''} de vulnérabilité`
+          tete.append(b)
+        }
+        if (d.lectureIncomplete) {
+          const b = el('span', 'badge alerte', '⚠ lecture partielle')
+          b.title = "Workflows illisibles — le jeton n'a pas pu lire l'API Actions de ce dépôt."
+          tete.append(b)
+        }
+        tete.append(resumeDepot(d))
+        // Toute la tête déplie, pas seulement le bouton : à la souris, viser un
+        // nom de dix caractères serait une cible étroite pour le geste le plus
+        // fréquent de la section. Le bouton reste là pour le clavier et les
+        // technologies d'assistance — c'est lui qui porte `aria-expanded`.
+        tete.addEventListener('click', (e) => {
+          if (e.target.closest('a, .plier')) return
+          if (String(getSelection?.() ?? '')) return // on ne replie pas sous une sélection de texte
+          basculeDepot(d.nom)
+        })
         n.append(tete)
-        if (d.description) n.append(el('p', 'desc', d.description))
+
+        const corps = el('div', 'corps')
+        corps.id = 'corps-' + d.nom
+        // `until-found` et non `hidden` nu : le Ctrl+F du navigateur ouvre alors
+        // la carte qui porte le mot cherché. C'est la réponse à la seule
+        // objection sérieuse au pli — « je ne peux plus chercher dans la page ».
+        // Un navigateur qui ne connaît pas la valeur la lit comme « caché » :
+        // la dégradation est celle qu'on veut.
+        corps.setAttribute('hidden', 'until-found')
+        corps.addEventListener('beforematch', () => {
+          ouverts.add(d.nom)
+          appliquePli(n)
+          majPliGlobal()
+        })
+        n.append(corps)
+        if (d.description) corps.append(el('p', 'desc', d.description))
 
         // CE DÉPÔT N'EST PAS « SANS PIPELINE », IL N'A PAS PU ÊTRE LU. Le relevé
         // le sait depuis toujours — le champ voyage dans le modèle — mais la
@@ -597,7 +665,7 @@
         // de lectures refusées ; en dessous, deux dépôts pouvaient passer en
         // silence.
         if (d.lectureIncomplete) {
-          n.append(el('div', 'malLu', "Workflows illisibles — le jeton n'a pas pu lire l'API Actions de ce dépôt. Ce qui suit n'est pas concluant."))
+          corps.append(el('div', 'malLu', "Workflows illisibles — le jeton n'a pas pu lire l'API Actions de ce dépôt. Ce qui suit n'est pas concluant."))
         }
         if (d.alertes?.etat === 'lu' && d.alertes.total) {
           const al = el('div', 'malLu')
@@ -606,7 +674,7 @@
             `${d.alertes.total} alerte${d.alertes.total > 1 ? 's' : ''} de vulnérabilité` +
             (d.alertes.graves ? `, dont ${d.alertes.graves} grave${d.alertes.graves > 1 ? 's' : ''}` : '') +
             (d.alertes.production ? ` · ${d.alertes.production} en dépendance de production` : '')
-          n.append(al)
+          corps.append(al)
         }
 
         const meta = el('div', 'metaLignes')
@@ -630,7 +698,7 @@
         l2.append(el('span', null, `${depuis(d.commit.jours)} · `), el('code', null, d.commit.sha), el('span', null, ' ' + d.commit.sujet.slice(0, 68) + (d.commit.sujet.length > 68 ? '…' : '')))
         l2.title = `${fmtDate(d.commit.date)} — ${d.commit.auteur} — ${d.commit.sujet}`
         meta.append(l1, l2)
-        n.append(meta)
+        corps.append(meta)
 
         if (d.workflows.length) {
           const liste = el('div', 'wfListe')
@@ -682,9 +750,9 @@
             plus.setAttribute('aria-expanded', 'false')
             liste.append(plus)
           }
-          n.append(liste)
+          corps.append(liste)
         } else {
-          n.append(el('div', 'metaLignes', 'Aucun workflow GitHub Actions.'))
+          corps.append(el('div', 'metaLignes', 'Aucun workflow GitHub Actions.'))
         }
 
         if (d.pile.length) {
@@ -696,7 +764,7 @@
             c.title = `${p.paquet} ${p.version}${p.verrouille ? ' (verrouillé)' : ' (plage déclarée)'}${p.amont ? ' · amont : ' + p.amont : ''}`
             pile.append(c)
           }
-          n.append(pile)
+          corps.append(pile)
         }
 
         const pied = el('div', 'piedDepot')
@@ -719,16 +787,63 @@
         if (d.nbCrates) pied.append(el('span', null, `${d.nbCrates} crates verrouillés`))
         if (d.tailleKo != null) pied.append(el('span', null, (d.tailleKo / 1024).toFixed(1) + ' Mo'))
         pied.append(el('span', null, `${d.compte.vert} verts${d.compte.rouge ? ' · ' + d.compte.rouge + ' rouges' : ''}`))
-        n.append(pied)
+        corps.append(pied)
+        appliquePli(n)
         return n
+      }
+
+      /**
+       * Ce qu'une carte pliée montre d'elle-même : son état de CI et son âge.
+       *
+       * Les rouges d'abord et en toutes lettres pour le lecteur d'écran — une
+       * carte en échec doit s'entendre, pas seulement se voir à sa bordure.
+       */
+      function resumeDepot(d) {
+        const r = el('span', 'resumeDepot')
+        if (d.compte.rouge) {
+          const g = el('span', 'glyphe g-rouge', '✕')
+          g.setAttribute('aria-hidden', 'true')
+          r.append(g, el('span', 'sr', `${d.compte.rouge} workflow${d.compte.rouge > 1 ? 's' : ''} en échec, `), el('span', 'nb', String(d.compte.rouge)))
+        }
+        const g = el('span', 'glyphe g-vert', '✓')
+        g.setAttribute('aria-hidden', 'true')
+        r.append(g, el('span', 'sr', `${d.compte.vert} au vert, `), el('span', 'nb', String(d.compte.vert)))
+        r.append(el('span', 'quand', depuis(d.commit.jours)))
+        r.title = `${d.compte.vert} workflows au vert${d.compte.rouge ? ` · ${d.compte.rouge} en échec` : ''} · dernier commit ${fmtDate(d.commit.date)}`
+        return r
+      }
+
+      /** Met la carte en accord avec l'ensemble `ouverts`. */
+      function appliquePli(article) {
+        const ouvert = ouverts.has(article.dataset.depot)
+        article.dataset.ouvert = String(ouvert)
+        article.querySelector('.plier').setAttribute('aria-expanded', String(ouvert))
+        const corps = article.querySelector('.corps')
+        if (ouvert) corps.removeAttribute('hidden')
+        else corps.setAttribute('hidden', 'until-found')
+      }
+
+      // On ne rejoue PAS `rendDepots` : plier une carte n'est pas un filtrage,
+      // et re-rendre la grille ferait perdre le focus du bouton qu'on vient
+      // d'actionner — au clavier, on se retrouverait au début du document.
+      function basculeDepot(nom) {
+        if (ouverts.has(nom)) ouverts.delete(nom)
+        else ouverts.add(nom)
+        const article = document.getElementById('depot-' + nom)
+        if (article) appliquePli(article)
+        majPliGlobal()
+        ecritUrl()
+        majRaz()
       }
 
       const filtresActifs = new Set()
       const famillesActives = new Set()
+      let visiblesDepots = []
       function rendDepots() {
         const q = $('#recherche').value.trim().toLowerCase()
         const tri = $('#tri').value
         const liste = D.depots.filter((d) => correspondDepot(d, { q, familles: famillesActives, drapeaux: filtresActifs }))
+        visiblesDepots = liste
         const comparateurs = TRIS_DEPOT
         const hote = $('#grilleDepots')
         hote.textContent = ''
@@ -749,10 +864,51 @@
           hote.append(bloc)
         }
         $('#aucunDepot').hidden = liste.length > 0
-        $('#compteurDepots').textContent = liste.length === D.depots.length ? `${D.depots.length} dépôts` : `${liste.length} sur ${D.depots.length} dépôts`
+        const nbOuverts = liste.filter((d) => ouverts.has(d.nom)).length
+        $('#compteurDepots').textContent =
+          (liste.length === D.depots.length ? `${D.depots.length} dépôts` : `${liste.length} sur ${D.depots.length} dépôts`) + (nbOuverts ? ` · ${nbOuverts} dépliée${nbOuverts > 1 ? 's' : ''}` : '')
+        majPliGlobal()
         ecritUrl()
         majRaz()
       }
+
+      /**
+       * L'interrupteur global dit l'ÉTAT de la section, pas le geste : il est
+       * enfoncé quand tout ce qui est affiché est déplié. Il ne porte donc que
+       * sur les dépôts que les filtres laissent voir — déplier « tout » en
+       * n'ayant que trois cartes à l'écran ne doit pas en ouvrir vingt-huit
+       * qu'on ne verra qu'en relâchant un filtre.
+       */
+      function majPliGlobal() {
+        const b = $('#cartesDepliees')
+        const tout = visiblesDepots.length > 0 && visiblesDepots.every((d) => ouverts.has(d.nom))
+        b.setAttribute('aria-pressed', String(tout))
+        b.disabled = visiblesDepots.length === 0
+      }
+
+      $('#cartesDepliees').addEventListener('click', () => {
+        if ($('#cartesDepliees').getAttribute('aria-pressed') === 'true') for (const d of visiblesDepots) ouverts.delete(d.nom)
+        else for (const d of visiblesDepots) ouverts.add(d.nom)
+        for (const article of document.querySelectorAll('#grilleDepots .depot')) appliquePli(article)
+        rendDepots()
+      })
+
+      /**
+       * UN LIEN VERS UNE CARTE DOIT L'OUVRIR. Cinq endroits de la page pointent
+       * `#depot-x` — le tableau des échecs, les lignes de librairie, l'activité,
+       * la matrice, le journal des changements. Replier sans traiter l'ancre
+       * aurait fait atterrir chacun de ces liens sur un titre muet.
+       */
+      function ouvreDepuisAncre() {
+        const m = /^#depot-(.+)$/.exec(decodeURIComponent(location.hash))
+        if (!m) return
+        if (!ouverts.has(m[1])) {
+          ouverts.add(m[1])
+          rendDepots()
+        }
+        document.getElementById('depot-' + m[1])?.scrollIntoView({ block: 'start' })
+      }
+      window.addEventListener('hashchange', ouvreDepuisAncre)
       // chips de famille, construits d'après les données : une famille vide
       // n'affiche pas de bouton qui ne filtrerait rien
       for (const f of ORDRE_FAMILLES) {
@@ -1698,11 +1854,12 @@
 
       const razDepots = brancheRaz(
         'depots',
-        () => !$('#recherche').value && !presse('#filtresFamilles button, [data-filtre]') && $('#tri').value === 'echecs',
+        () => !$('#recherche').value && !presse('#filtresFamilles button, [data-filtre]') && $('#tri').value === 'echecs' && ouverts.size === 0,
         () => {
           $('#recherche').value = ''
           relache('#filtresFamilles button, [data-filtre]')
           $('#tri').value = 'echecs'
+          ouverts.clear()
         },
         () => rendDepots(),
       )
@@ -1821,6 +1978,17 @@
       ]
 
       etatUrl('q', () => $('#recherche').value, (v) => ($('#recherche').value = v))
+      // Les cartes ouvertes voyagent NOMMÉES et non comptées : « ?d.ouv=miss-uwh »
+      // rouvre la bonne, alors qu'un simple drapeau « tout déplié » perdrait
+      // justement ce qu'on voulait montrer.
+      etatUrl(
+        'd.ouv',
+        () => [...ouverts].join(','),
+        (v) => {
+          ouverts.clear()
+          for (const nom of v.split(',').filter(Boolean)) ouverts.add(nom)
+        },
+      )
       etatUrl('tri', () => ($('#tri').value === 'echecs' ? null : $('#tri').value), (v) => ($('#tri').value = v))
       etatUrl('lq', () => $('#rechercheLib').value, (v) => ($('#rechercheLib').value = v))
       etatUrl('m.tri', () => ($('#matriceTri').value === 'ecarts' ? null : $('#matriceTri').value), (v) => ($('#matriceTri').value = v))
@@ -1861,6 +2029,9 @@
       rendLibs()
       rendMatrice()
       rendElements()
-    </script>
+      // APRÈS le premier rendu : au chargement, le navigateur cherche l'ancre
+      // avant que la grille n'existe, et n'a donc rien à atteindre.
+      ouvreDepuisAncre()
+</script>
   </body>
 </html>

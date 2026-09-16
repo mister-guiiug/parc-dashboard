@@ -497,6 +497,10 @@ code,
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
   gap: 14px;
+  /* Sans cela, une carte dépliée étire toute sa rangée et laisse ses deux
+     voisines pliées flotter dans une hauteur vide. Chaque carte prend
+     désormais la sienne. */
+  align-items: start;
 }
 @media (max-width: 520px) {
   .grilleDepots {
@@ -508,6 +512,12 @@ code,
   display: flex;
   flex-direction: column;
   gap: 11px;
+  /* les cinq liens internes en `#depot-x` ne doivent pas coller la carte
+     au bord haut de la fenêtre */
+  scroll-margin-top: 16px;
+}
+.depot[data-ouvert='false'] {
+  padding-bottom: 12px;
 }
 .depot.aEchec {
   border-left: 3px solid var(--critical);
@@ -517,9 +527,90 @@ code,
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
+  cursor: pointer;
 }
 .depot .tete h3 {
   font-size: 15.5px;
+}
+.depot .corps {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+/* ---------- le pli d'une carte ---------- */
+.plier {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  border-radius: 4px;
+  text-align: left;
+}
+.plier:hover .nomDepot {
+  text-decoration: underline;
+}
+.plier:focus-visible {
+  outline: 2px solid var(--series1);
+  outline-offset: 2px;
+}
+/* `--muted` ici et NULLE PART AILLEURS dans le pli : mesuré en thème clair,
+   ce gris tient 3,5:1 — assez pour un glyphe (3:1 en AA non textuel), pas
+   pour du texte. Le reste de la tête est en `--ink2`. */
+.chevron {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+  display: inline-block;
+}
+.depot[data-ouvert='true'] .chevron {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+/* La flèche vers GitHub : secondaire depuis que le nom sert à déplier, mais
+   elle garde une cible tactile honnête. */
+.depot .depotLien {
+  font-size: 12px;
+  color: var(--ink2);
+  padding: 0 2px;
+}
+.depot .depotLien:hover {
+  color: var(--ink);
+}
+/* Ce qu'une carte pliée dit d'elle-même, calé à droite de sa tête. */
+.resumeDepot {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.resumeDepot .nb {
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+}
+.resumeDepot .quand {
+  color: var(--ink2);
+}
+.badge.alerte {
+  border-color: var(--warning);
+  color: var(--ink2);
+}
+.badge.alerte.grave {
+  border-color: var(--critical);
+  color: var(--critical);
 }
 .badge {
   font-size: 11px;
