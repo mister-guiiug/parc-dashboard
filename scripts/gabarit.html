@@ -1846,6 +1846,7 @@
         }
         $('#aucunDepot').hidden = liste.length > 0
         $('#compteurDepots').textContent = liste.length === D.depots.length ? `${D.depots.length} dépôts` : `${liste.length} sur ${D.depots.length} dépôts`
+        ecritUrl()
       }
       // chips de famille, construits d'après les données : une famille vide
       // n'affiche pas de bouton qui ne filtrerait rien
@@ -2042,6 +2043,7 @@
           tb.append(tr, detail)
         }
         $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets` : `${liste.length} sur ${D.libs.length} paquets`
+        ecritUrl()
         // synchrone : la lecture de clientWidth force le calcul de mise en page.
         // Passer par requestAnimationFrame laisserait les étiquettes non ajustées
         // dans un onglet d'arrière-plan, où les frames ne sont pas servies.
@@ -2262,8 +2264,15 @@
       // Elles rejoignent donc le MÊME mécanisme, sous deux clés réservées, au
       // lieu d'un second système parallèle : un seul état, un seul cycle, une
       // seule façon de revenir au tri de la liste déroulante.
-      const TRI_DEPOT = ' depot'
-      const TRI_ECARTS = ' ecarts'
+      //
+      // `#` EN TÊTE, et pas un espace. La première écriture réservait ces clés
+      // par une espace initiale, qu'aucun nom de paquet ne porte — et un octet
+      // NUL s'y est glissé à l'édition, invisible à la relecture : `grep`
+      // déclarait le fichier binaire, et l'URL de partage sortait un
+      // `%EF%BF%BD`. Un caractère qui se VOIT vaut mieux qu'un caractère qui se
+      // devine, et `#` n'ouvre aucun nom de paquet npm.
+      const TRI_DEPOT = '#depot'
+      const TRI_ECARTS = '#ecarts'
 
       // LE PREMIER SENS N'EST PAS LE MÊME PARTOUT, parce que la question ne
       // l'est pas. Sur une version ou sur des écarts, on demande « qui est le
@@ -2488,6 +2497,7 @@
         const pl = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`
         $('#aucuneLigne').hidden = visibles.length > 0
         $('#compteurMatrice').textContent = `${pl(cols.length, 'paquet')} × ${pl(visibles.length, 'dépôt')} — ${pl(total, 'écart')}`
+        ecritUrl()
       }
 
       $('#basculeColonnes').addEventListener('click', () => {
@@ -2606,6 +2616,112 @@
         },
         () => rendLibs(),
       )
+
+      /* ---------------- l'état de la vue, dans l'URL ---------------- */
+
+      // CE QU'ON REGARDE DOIT POUVOIR SE TRANSMETTRE. La page savait lier une
+      // SECTION (`#matrice`) et un DÉPÔT (`#depot-miss-uwh`), mais pas une vue :
+      // « la matrice, colonne dev-pwa-config triée, famille PWA seulement » ne
+      // se donnait à personne. Sur un tableau de bord dont le métier est de
+      // pointer un problème, c'était le verbe qui manquait.
+      //
+      // DANS LA REQUÊTE, PAS DANS L'ANCRE. Le fragment sert déjà aux ancres, et
+      // GitHub Pages sert la même page quelle que soit la requête : les deux
+      // cohabitent, et `?f=pwa#matrice` dit à la fois quoi montrer et où aller.
+      //
+      // `replaceState` et non `pushState` : cocher une case n'est pas une
+      // navigation, et remplir l'historique de trente états rendrait le bouton
+      // « retour » inutilisable.
+      const ETAT_URL = []
+      const etatUrl = (cle, lire, ecrire) => ETAT_URL.push({ cle, lire, ecrire })
+
+      let restaurationEnCours = false
+      function ecritUrl() {
+        if (restaurationEnCours) return
+        const p = new URLSearchParams()
+        for (const e of ETAT_URL) {
+          const v = e.lire()
+          if (v !== null && v !== undefined && v !== '') p.set(e.cle, v)
+        }
+        const q = p.toString()
+        history.replaceState(null, '', (q ? '?' + q : location.pathname) + location.hash)
+      }
+
+      function litUrl() {
+        const p = new URLSearchParams(location.search)
+        if (![...p.keys()].length) return
+        // Pendant la restauration, les rendus déclenchés par chaque écriture ne
+        // doivent PAS réécrire l'URL : ils la réduiraient à l'état déjà appliqué
+        // et perdraient le reste des paramètres.
+        restaurationEnCours = true
+        for (const e of ETAT_URL) {
+          const v = p.get(e.cle)
+          if (v !== null) {
+            try {
+              e.ecrire(v)
+            } catch {
+              // Une URL bricolée à la main ne doit pas rendre la page blanche :
+              // le paramètre illisible est ignoré, les autres s'appliquent.
+            }
+          }
+        }
+        restaurationEnCours = false
+      }
+
+      const bascules = (selecteur, valeurs) => {
+        const boutons = () => [...document.querySelectorAll(selecteur)]
+        return [
+          () =>
+            boutons()
+              .filter((b) => b.getAttribute('aria-pressed') === 'true')
+              .map((b) => b.dataset[valeurs])
+              .join(','),
+          (v) => {
+            const voulus = new Set(v.split(',').filter(Boolean))
+            for (const b of boutons()) b.setAttribute('aria-pressed', String(voulus.has(b.dataset[valeurs])))
+          },
+        ]
+      }
+
+      const interrupteur = (id) => [
+        () => ($(id).getAttribute('aria-pressed') === 'true' ? null : '0'),
+        (v) => $(id).setAttribute('aria-pressed', String(v !== '0')),
+      ]
+
+      etatUrl('q', () => $('#recherche').value, (v) => ($('#recherche').value = v))
+      etatUrl('tri', () => ($('#tri').value === 'echecs' ? null : $('#tri').value), (v) => ($('#tri').value = v))
+      etatUrl('lq', () => $('#rechercheLib').value, (v) => ($('#rechercheLib').value = v))
+      etatUrl('m.tri', () => ($('#matriceTri').value === 'ecarts' ? null : $('#matriceTri').value), (v) => ($('#matriceTri').value = v))
+      // LE DÉFAUT NE S'ÉCRIT PAS. Une visite neuve doit garder une URL propre :
+      // sans cette comparaison, la page s'ouvrait sur une adresse de trois cents
+      // caractères listant les dix colonnes qu'on n'avait pas choisies. Chaque
+      // paramètre écrit doit être une DÉCISION de l'utilisateur.
+      const COLONNES_INITIALES = [...colonnes].join(',')
+      etatUrl(
+        'm.col',
+        () => {
+          const v = [...colonnes].join(',')
+          return v === COLONNES_INITIALES ? null : v
+        },
+        (v) => {
+          colonnes.clear()
+          for (const c of v.split(',').filter(Boolean)) colonnes.add(c)
+        },
+      )
+      etatUrl(
+        'm.sur',
+        () => (triColonne ? triColonne.cle + ':' + triColonne.sens : null),
+        (v) => {
+          const [cle, sens] = v.split(':')
+          triColonne = { cle, sens: Number(sens) === 1 ? 1 : -1 }
+        },
+      )
+      etatUrl('m.fam', ...bascules('#filtresFamilleMatrice button', 'famille'))
+      etatUrl('m.mat', ...bascules('#filtresMaturite button', 'maturite'))
+      etatUrl('m.eclate', ...interrupteur('#matriceEclate'))
+      etatUrl('m.lignes', ...interrupteur('#matriceLignes'))
+
+      litUrl()
 
       rendDepots()
       rendLibs()
