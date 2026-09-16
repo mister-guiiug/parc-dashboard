@@ -1,0 +1,1267 @@
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+  --ghost: rgba(11, 11, 11, 0.035);
+  --ghost2: rgba(11, 11, 11, 0.07);
+  --series1: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --goodInk: #006300;
+  /* rampe ordinale claire : les pas 650/500/400/250. Le pas 450 (#2a78d6)
+     est écarté volontairement — sa luminance tombe au point de bascule
+     blanc/noir, où AUCUNE encre ne dépasse 4,5:1 pour l'étiquette posée
+     dessus. Les quatre pas retenus passent le validateur --ordinal. */
+  --ord1: #104281;
+  --ord2: #256abf;
+  --ord3: #3987e5;
+  --ord4: #86b6ef;
+  --ordFold: #c3c2b7;
+  /* Teintes des groupes de la table des éléments — des pas MÉDIANS de
+     rampe, lisibles sur fond clair comme sur fond sombre, donc déclarés
+     une seule fois. Voir `.element`, qui les mélange au fond. */
+  --g-lang: #7f77dd;
+  --g-build: #378add;
+  --g-ui: #1d9e75;
+  --g-data: #639922;
+  --g-dos: #ba7517;
+  --g-test: #d85a30;
+  --g-qual: #d4537e;
+  --g-obs: #e24b4a;
+  --g-infra: #888780;
+  --g-autre: #b4b2a9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --ghost: rgba(255, 255, 255, 0.04);
+    --ghost2: rgba(255, 255, 255, 0.08);
+    --series1: #3987e5;
+    --goodInk: #0ca30c;
+    --ord1: #b7d3f6;
+    --ord2: #86b6ef;
+    --ord3: #3987e5;
+    --ord4: #184f95;
+    --ordFold: #383835;
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #ffffff;
+  --ink2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --ghost: rgba(255, 255, 255, 0.04);
+  --ghost2: rgba(255, 255, 255, 0.08);
+  --series1: #3987e5;
+  --goodInk: #0ca30c;
+  --ord1: #b7d3f6;
+  --ord2: #86b6ef;
+  --ord3: #3987e5;
+  --ord4: #184f95;
+  --ordFold: #383835;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+/* Le sommaire flottant et le retour en haut rendent le défilement animé
+   bien plus fréquent qu'avant : sans cette garde, `scroll-behavior`
+   s'imposait à qui a demandé moins de mouvement — et il l'emporte même
+   sur un `behavior: 'auto'` passé à `scrollTo`. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 400 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.enveloppe {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 28px 24px 72px;
+}
+a {
+  color: inherit;
+}
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* ---------- en-tête ---------- */
+.chapeau {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.chapeau h1 {
+  font-size: 21px;
+}
+.chapeau .sous {
+  color: var(--ink2);
+  font-size: 13px;
+  margin-top: 5px;
+}
+.outils {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bouton {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink2);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bouton:hover {
+  background: var(--ghost2);
+}
+.bouton[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
+}
+
+/* ---------- hero + tuiles ---------- */
+.bandeau {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 28px;
+  align-items: center;
+  margin: 26px 0 12px;
+}
+@media (max-width: 860px) {
+  .bandeau {
+    grid-template-columns: 1fr;
+  }
+}
+.hero .chiffre {
+  font-size: 64px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.hero .quoi {
+  color: var(--ink2);
+  font-size: 14px;
+  margin-top: 8px;
+  max-width: 30ch;
+}
+.hero .detail {
+  color: var(--ink2);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.barreEtat {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+  margin-bottom: 12px;
+}
+.barreEtat > span {
+  display: block;
+  border-radius: 2px;
+}
+.barreEtat > span:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+.barreEtat > span:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: 13px;
+  color: var(--ink2);
+}
+.legende span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.puce {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.legende b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tuiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 22px 0 34px;
+}
+.tuile {
+  background: var(--surface);
+  padding: 14px 16px 15px;
+}
+.tuile .etiq {
+  color: var(--ink2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.tuile .val {
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-top: 5px;
+  letter-spacing: -0.02em;
+}
+.tuile .app {
+  font-size: 12px;
+  color: var(--ink2);
+  margin-top: 3px;
+}
+
+/* ---------- familles ---------- */
+.familles {
+  margin-bottom: 38px;
+}
+.titreFamilles {
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+.grilleFamilles {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ligneFamille {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(120px, 1fr) auto;
+  gap: 8px 16px;
+  align-items: center;
+  background: var(--surface);
+  padding: 11px 16px;
+}
+@media (max-width: 700px) {
+  .ligneFamille {
+    grid-template-columns: 1fr;
+  }
+}
+.ligneFamille .nomF {
+  font-weight: 600;
+  font-size: 14px;
+}
+.ligneFamille .sousF {
+  color: var(--ink2);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.barreF {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+.barreF > span {
+  border-radius: 2px;
+}
+.barreF > span:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+.barreF > span:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+.chiffresF {
+  font-size: 12.5px;
+  color: var(--ink2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  display: flex;
+  gap: 14px;
+}
+.chiffresF b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---------- sections ---------- */
+section {
+  margin-top: 42px;
+}
+.groupeFamille {
+  margin-bottom: 30px;
+}
+.teteGroupe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 0 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--grid);
+}
+.teteGroupe h3 {
+  font-size: 15px;
+}
+.teteGroupe .compteur {
+  color: var(--ink2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.titreSection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.titreSection h2 {
+  font-size: 17px;
+}
+.titreSection .compteur {
+  color: var(--ink2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.chapo {
+  color: var(--ink2);
+  font-size: 13.5px;
+  margin: 0 0 16px;
+  max-width: 92ch;
+}
+.carte {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ---------- échecs ---------- */
+.motif {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13.5px;
+  color: var(--ink2);
+  margin-bottom: 14px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+thead th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink2);
+  font-size: 12px;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--grid);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: top;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+td.num,
+th.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.tableEnveloppe {
+  overflow-x: auto;
+  padding: 14px 4px 6px;
+}
+code,
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+.depotLien {
+  font-weight: 600;
+  text-decoration: none;
+}
+.depotLien:hover {
+  text-decoration: underline;
+}
+
+/* ---------- pastilles d'état ---------- */
+.etat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.glyphe {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  color: #fff;
+}
+/* l'encre du glyphe suit la luminance de l'aplat : blanc sur #0ca30c ne
+   donne que 3,35:1, l'encre sombre y monte à 6,3:1 */
+.g-vert {
+  background: var(--good);
+  color: #0b0b0b;
+}
+.g-rouge {
+  background: var(--critical);
+  color: #fff;
+}
+.g-encours {
+  background: var(--warning);
+  color: #0b0b0b;
+}
+.g-neutre {
+  background: transparent;
+  border: 1.5px solid var(--baseline);
+  color: var(--ink2);
+}
+.g-jamais {
+  background: transparent;
+  border: 1.5px dashed var(--baseline);
+  color: var(--ink2);
+}
+
+/* ---------- grille de dépôts ---------- */
+.grilleDepots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+  gap: 14px;
+}
+@media (max-width: 520px) {
+  .grilleDepots {
+    grid-template-columns: 1fr;
+  }
+}
+.depot {
+  padding: 15px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.depot.aEchec {
+  border-left: 3px solid var(--critical);
+}
+.depot .tete {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.depot .tete h3 {
+  font-size: 15.5px;
+}
+.badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--ink2);
+  background: var(--ghost);
+  white-space: nowrap;
+}
+.badge.prive {
+  border-color: var(--warning);
+  color: var(--ink2);
+}
+.bandeauChangements {
+  padding: 14px 18px;
+  margin: 18px 0 0;
+}
+.titreBandeau {
+  font-size: 17px;
+  margin: 0;
+}
+.listeChangements {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.listeChangements li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.listeChangements .puce {
+  flex: none;
+  width: 1.1em;
+  text-align: center;
+  font-weight: 700;
+}
+.courbe {
+  display: block;
+  width: 100%;
+  height: 26px;
+  margin: 6px 0 2px;
+  overflow: visible;
+}
+.tuileAlerte {
+  border-left: 3px solid var(--warning);
+  border-radius: 0;
+  padding-left: 13px;
+}
+/* Lecture incomplète : ce n'est pas un échec, c'est un aveu. Elle mérite
+   d'être vue sur la carte du dépôt, pas seulement dans le journal de CI. */
+.malLu {
+  border-left: 3px solid var(--warning);
+  border-radius: 0;
+  background: var(--ghost);
+  padding: 8px 12px;
+  margin: 10px 0;
+  font-size: 13px;
+  color: var(--ink2);
+}
+/* Dormance : le rouge n'est PAS pour « pas de version depuis un an » — il
+   est réservé aux librairies dont le dépôt amont s'est tu lui aussi. */
+.badge.arret {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+.badge.sansVersion {
+  border-color: var(--warning);
+  color: var(--ink2);
+}
+.depot .desc {
+  color: var(--ink2);
+  font-size: 13px;
+  margin: -3px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.metaLignes {
+  font-size: 12.5px;
+  color: var(--ink2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.metaLignes .cle {
+  color: var(--ink2);
+}
+.wfListe {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.wf {
+  display: grid;
+  grid-template-columns: 15px 1fr auto auto;
+  gap: 9px;
+  align-items: center;
+  background: var(--surface);
+  padding: 6px 10px;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.wf:hover {
+  background: var(--ghost2);
+}
+.wfPlus {
+  grid-template-columns: 15px 1fr;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.wfPlus > span:first-child {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.wf .nomWf {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wf .quand {
+  color: var(--ink2);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bande {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.bande i {
+  display: block;
+  width: 7px;
+  height: 15px;
+  border-radius: 2px;
+}
+.b-vert {
+  background: var(--good);
+}
+.b-rouge {
+  background: var(--critical);
+}
+.b-neutre {
+  background: var(--baseline);
+}
+.b-encours {
+  background: var(--warning);
+}
+.b-vide {
+  background: var(--ghost2);
+}
+.pile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.lib {
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  color: var(--ink2);
+  background: var(--ghost);
+  white-space: nowrap;
+}
+.lib b {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.lib.retard {
+  border-color: var(--serious);
+}
+.piedDepot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  font-size: 12px;
+  color: var(--ink2);
+  border-top: 1px solid var(--grid);
+  padding-top: 9px;
+  margin-top: auto;
+}
+.piedDepot a {
+  color: var(--ink2);
+}
+
+/* ---------- filtres ---------- */
+.filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.champ {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 340px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 13.5px;
+}
+.champ::placeholder {
+  color: var(--muted);
+}
+select.bouton {
+  border-radius: 999px;
+}
+
+/* ---------- librairies ---------- */
+.repartition {
+  display: flex;
+  gap: 2px;
+  height: 18px;
+  min-width: 170px;
+}
+.repartition > span {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 2px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+  white-space: nowrap;
+}
+.repartition > span:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+.repartition > span:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+tr.libLigne {
+  cursor: pointer;
+}
+tr.libLigne:hover td {
+  background: var(--ghost);
+}
+tr.detailLib td {
+  background: var(--ghost);
+  font-size: 12.5px;
+}
+.versionBloc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.versionBloc:last-child {
+  margin-bottom: 0;
+}
+.versionCle {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 86px;
+}
+.chipDepot {
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 7px;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--ink2);
+}
+.chipDepot:hover {
+  background: var(--ghost2);
+}
+.flecheDetail {
+  color: var(--muted);
+  font-size: 10px;
+  width: 10px;
+  display: inline-block;
+}
+
+/* ---------- activité ---------- */
+.activite {
+  display: grid;
+  grid-template-columns: minmax(120px, 168px) 1fr;
+  gap: 3px 12px;
+  align-items: center;
+  padding: 16px 18px;
+}
+.activite .nomA {
+  font-size: 12.5px;
+  text-align: right;
+  color: var(--ink2);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activite .nomA:hover {
+  text-decoration: underline;
+  color: var(--ink);
+}
+.piste {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+}
+.piste .barre {
+  height: 14px;
+  background: var(--series1);
+  border-radius: 0 4px 4px 0;
+  min-width: 2px;
+}
+.piste .vlab {
+  font-size: 11.5px;
+  color: var(--ink2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.axeNote {
+  color: var(--ink2);
+  font-size: 11.5px;
+  padding: 4px 18px 14px;
+  border-top: 1px solid var(--grid);
+  margin-top: 8px;
+}
+
+footer {
+  margin-top: 52px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--ink2);
+  font-size: 12.5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+}
+.vide {
+  color: var(--ink2);
+  font-size: 13.5px;
+  padding: 18px;
+}
+[hidden] {
+  display: none !important;
+}
+
+/* ───────────────────── Matrice dépôts × librairies ─────────────────────
+   Une cellule = la version qu'un dépôt VERROUILLE. La couleur ne dit pas
+   « vieux » dans l'absolu mais l'ÉCART à la version la plus récente du
+   parc pour ce paquet : c'est le seul écart sur lequel on peut agir. */
+.matriceEnveloppe {
+  overflow: auto;
+  max-height: 78vh;
+  padding: 0;
+}
+.matrice {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+.matrice th,
+.matrice td {
+  border-bottom: 1px solid var(--grid);
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+/* La colonne des dépôts et la ligne d'en-tête restent lisibles quand on
+   part loin à droite : sans elles, une cellule isolée ne dit plus de quel
+   dépôt ni de quel paquet elle parle. */
+.matrice thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  border-bottom: 1px solid var(--baseline);
+  vertical-align: bottom;
+  text-align: left;
+  font-weight: 500;
+}
+.matrice tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  text-align: left;
+  font-weight: 400;
+  border-right: 1px solid var(--grid);
+}
+.matrice thead th:first-child {
+  left: 0;
+  z-index: 3;
+}
+.matrice tbody tr:hover th,
+.matrice tbody tr:hover td {
+  background: var(--ghost);
+}
+.matriceCol {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  max-height: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Le bouton de tri N'EST PAS tourné : seul le nom du paquet l'est. Sans
+   cette séparation, la flèche partirait sur le flanc avec le texte. */
+.triCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.triCol:hover {
+  background: var(--ghost);
+}
+.triCol:focus-visible {
+  outline: 2px solid var(--series1);
+  outline-offset: 1px;
+}
+.triCol .fleche {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+}
+.triCol.triActif {
+  background: var(--ghost2);
+}
+.triCol.triActif .fleche {
+  color: var(--ink);
+}
+.cellule {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}
+.cellule[data-ecart='0'] {
+  color: var(--goodInk);
+}
+.cellule[data-ecart='patch'] {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+}
+.cellule[data-ecart='mineure'] {
+  background: color-mix(in srgb, var(--serious) 30%, transparent);
+}
+.cellule[data-ecart='majeure'] {
+  background: color-mix(in srgb, var(--critical) 32%, transparent);
+  font-weight: 500;
+}
+/* `--ink2`, et non `--muted`. Mesuré sur la page publiée : le point des
+   cellules vides tombait à 3,50 de contraste en thème clair, quand tout
+   le reste du texte secondaire de la page — compteurs, chapôs, pied —
+   tient 7,53. C'était un écart introduit ici, pas le niveau maison.
+   La discrétion doit venir du glyphe, qui est un point, pas d'une encre
+   qu'on ne lit plus. */
+.cellule[data-ecart='absent'] {
+  color: var(--ink2);
+}
+.matriceTotal {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink2);
+}
+/* ── Table des éléments ─────────────────────────────────────────────
+   UNE SEULE TEINTE PAR GROUPE, mélangée au fond de la page plutôt que
+   posée en dur. `color-mix` avec `--surface` et `--border` fait suivre
+   les trois thèmes (clair, sombre auto, sombre choisi) sans tripler les
+   déclarations — et l'encre reste `--ink`, qui tient son contraste sur un
+   aplat à 14 % quel que soit le thème. Les teintes sont des pas MÉDIANS
+   de rampe : elles ne basculent ni au blanc ni au noir. */
+.periode {
+  margin-bottom: 18px;
+}
+.tetePeriode {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.rangPeriode {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 96px;
+}
+.nomPeriode {
+  font-size: 13px;
+  color: var(--ink2);
+}
+.elements {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 6px;
+}
+.element {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 7px 6px 6px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--teinte) 45%, var(--border));
+  background: color-mix(in srgb, var(--teinte) 14%, var(--surface));
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+}
+.element[data-socle='true'] {
+  border-width: 2px;
+}
+.elementN {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 10px;
+  color: var(--ink2);
+  font-variant-numeric: tabular-nums;
+}
+.elementSym {
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.elementNom {
+  font-size: 9.5px;
+  line-height: 1.25;
+  color: var(--ink2);
+  overflow-wrap: anywhere;
+}
+/* `--ink2` et non `--muted` : le gris atténué tient son 4,5:1 sur
+   `--surface`, pas sur l'aplat TEINTÉ que `color-mix` fabrique ici.
+   Mesuré dans la page : 2,93 en clair, 4,04 en sombre — sous AA des deux
+   côtés, pour la seule ligne qui porte un numéro de version. Le piège est
+   connu du parc : un jeton se valide contre un fond, pas contre une
+   couleur composée. */
+.elementVer {
+  font-size: 9px;
+  color: var(--ink2);
+  font-variant-numeric: tabular-nums;
+}
+.pastilleGroupe {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: -1px;
+  background: var(--teinte);
+}
+/* ── LE VOCABULAIRE DES FILTRES, ÉCRIT UNE FOIS ──────────────────────
+ *
+ * UN INTERRUPTEUR NOMME L'ÉTAT, JAMAIS LE GESTE. Un bouton
+ * `aria-pressed="true"` intitulé « Masquer les dépôts sans écart » ne dit
+ * pas s'ils SONT masqués ou si cliquer VA les masquer — et un lecteur
+ * d'écran annonce « Masquer les dépôts sans écart, activé », ce qui ne
+ * tranche rien. Il s'appelle désormais « Seulement les dépôts en écart » :
+ * enfoncé, c'est ce qu'on voit ; relâché, on voit tout.
+ *
+ * La règle ne vaut PAS pour les boutons d'action — « Tout réafficher »,
+ * « Choisir les colonnes », « Sommaire » — qui ne portent pas d'état et
+ * dont le verbe est juste.
+ *
+ * LES ÉTATS VIDES DISENT LA MÊME PHRASE : « Aucun X ne répond à ces
+ * filtres. » Ils en disaient trois. Seul celui des librairies dormantes
+ * garde la sienne, parce qu'il annonce une BONNE nouvelle et non un
+ * résultat vide.
+ */
+.etiquetteFiltre {
+  font-size: 12.5px;
+  color: var(--ink2);
+  align-self: center;
+}
+/* La maturité est montrée À CÔTÉ du dépôt, pas seulement filtrable :
+   filtrer sur un critère invisible oblige à faire confiance au filtre. */
+.pastilleMat {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--ink2);
+  vertical-align: 1px;
+}
+.pastilleMat[data-mat='stable'] {
+  color: var(--goodInk);
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+}
+.pastilleMat[data-mat='beta'] {
+  border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+}
+.pastilleMat[data-mat='alpha'] {
+  border-color: color-mix(in srgb, var(--serious) 55%, transparent);
+}
+/* Même raison pour la famille — mais sans couleur : dans cette section,
+   une couleur veut dire « écart », et rien d'autre. */
+.pastilleFam {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--ink2);
+  vertical-align: 1px;
+}
+.colonnes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.colonnes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.colonnes .pastilleCol {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────────────── Sommaire flottant et retour en haut ─────────── */
+/* Le lien d'évitement ne se voit qu'au focus — mais il est bien DANS le
+   document, pas masqué par `display: none`, qui le retirerait aussi du
+   parcours de tabulation qu'il sert à raccourcir. */
+.evitement {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 60;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+}
+/* `:focus` ET PAS `:focus-visible`. Le second est une heuristique du
+   navigateur — il ne se déclenche pas sur un focus posé par programme, et
+   c'est exactement ce que fait un lecteur d'écran qui traverse la page.
+   Un lien d'évitement ne s'atteint qu'au clavier : la distinction qui
+   évite d'éclairer un bouton cliqué à la souris n'a ici aucun objet. */
+.evitement:focus {
+  left: 8px;
+  outline: 2px solid var(--series1);
+  outline-offset: 2px;
+}
+/* La cible du lien reçoit le focus par programme : sans `outline: none`,
+   le navigateur cerne toute la zone de contenu d'un liseré. */
+#contenu:focus {
+  outline: none;
+}
+.flottant {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sommaire {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 176px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+.sommaire a {
+  display: block;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  text-decoration: none;
+}
+.sommaire a:hover {
+  background: var(--ghost);
+  color: var(--ink);
+}
+.sommaire a[aria-current='true'] {
+  background: var(--ghost2);
+  color: var(--ink);
+}
+.flottant .bouton {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+/* Le retour en haut n'existe que lorsqu'il a un sens : `hidden` seul
+   perdrait contre le `display: flex` du conteneur. */
+.flottant .bouton[hidden] {
+  display: none;
+}
+@media (max-width: 1040px) {
+  .sommaire {
+    display: none;
+  }
+  .sommaire[data-ouvert='true'] {
+    display: block;
+  }
+}
+@media (min-width: 1041px) {
+  #basculeSommaire {
+    display: none;
+  }
+}
+
+@media print {
+  .outils,
+  .filtres,
+  .flottant,
+  .colonnes {
+    display: none;
+  }
+}

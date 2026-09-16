@@ -680,6 +680,7 @@ modele.compareA = avant?.genere || null
 const gabarit = readFileSync(join(ICI, 'gabarit.html'), 'utf8')
 if (!gabarit.includes('__DONNEES__')) throw new Error('placeholder __DONNEES__ absent du gabarit')
 if (!gabarit.includes('__VUE__')) throw new Error('placeholder __VUE__ absent du gabarit')
+if (!gabarit.includes('__STYLE__')) throw new Error('placeholder __STYLE__ absent du gabarit')
 
 // LES RÈGLES DE LA VUE, INSÉRÉES PLUTÔT QU'ÉCRITES DANS LE HTML.
 //
@@ -706,6 +707,14 @@ const sansModule = (src, nom) => {
 const regles = readFileSync(join(ICI, 'regles.mjs'), 'utf8')
 const vue = readFileSync(join(ICI, 'vue.mjs'), 'utf8')
 
+// LA FEUILLE DE STYLE, SORTIE DU GABARIT POUR LA MÊME RAISON QUE LES RÈGLES.
+// `gabarit.html` faisait 2 986 lignes, dont 1 220 de CSS et 1 478 de
+// JavaScript : dix pour cent du fichier était ce que son nom annonce. Un
+// éditeur ouvre désormais du CSS quand il ouvre du CSS, et la page servie ne
+// change pas d'un octet — hors l'indentation, qui n'avait de sens que dans le
+// HTML.
+const style = readFileSync(join(ICI, 'style.css'), 'utf8')
+
 // L'empreinte entre dans le modèle : sans elle, la comparaison ne porterait que
 // sur les données et une refonte de la page ne serait JAMAIS republiée — le
 // relevé répondrait « rien n'a bougé » sur un gabarit réécrit. Les DEUX modules
@@ -715,6 +724,7 @@ modele.gabarit = createHash('sha256')
   .update(gabarit)
   .update(regles)
   .update(vue)
+  .update(style)
   .digest('hex')
   .slice(0, 12)
 
@@ -780,6 +790,9 @@ const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\
 // données, elles, sont du JSON arbitraire — remplacer dans l'autre sens ferait
 // dépendre le résultat de ce qu'un dépôt a mis dans sa description.
 const page = gabarit
+  // Le saut de ligne final du fichier est retiré ici : il est de rigueur dans un
+  // fichier source, et poserait une ligne vide de plus avant `</style>`.
+  .replace('__STYLE__', () => style.replace(/\n$/, ''))
   .replace('__VUE__', () => `${sansModule(regles, 'regles.mjs')}\n${sansModule(vue, 'vue.mjs')}`)
   .replace('__DONNEES__', () => charge)
 
