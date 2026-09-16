@@ -1374,6 +1374,7 @@
               <option value="nom">Trier : nom</option>
               <option value="workflows">Trier : nombre de workflows</option>
             </select>
+            <button class="bouton raz" type="button" id="raz-depots" hidden>Tout réafficher</button>
           </div>
           <div id="grilleDepots"></div>
           <p class="vide" id="aucunDepot" hidden>Aucun dépôt ne correspond à ce filtre.</p>
@@ -1394,6 +1395,7 @@
             <button class="bouton" type="button" id="filtreRetard" aria-pressed="false">Avec du retard</button>
             <button class="bouton" type="button" id="filtreEclate" aria-pressed="false">Versions éclatées</button>
             <button class="bouton" type="button" id="filtreToutes" aria-pressed="false">Montrer aussi les mono-dépôt</button>
+            <button class="bouton raz" type="button" id="raz-librairies" hidden>Tout réafficher</button>
           </div>
           <div class="carte tableEnveloppe">
             <table>
@@ -1469,6 +1471,7 @@
               <option value="famille">Trier : famille</option>
               <option value="maturite">Trier : maturité</option>
             </select>
+            <button class="bouton raz" type="button" id="raz-matrice" hidden>Tout réafficher</button>
           </div>
           <div class="filtres" id="filtresFamilleMatrice" role="group" aria-label="Filtrer par famille">
             <span class="etiquetteFiltre">Famille</span>
@@ -1505,6 +1508,7 @@
           </p>
           <div class="filtres">
             <button class="bouton" type="button" id="elementsPartages" aria-pressed="true">Seulement ce qui est partagé</button>
+            <button class="bouton raz" type="button" id="raz-elements" hidden>Tout réafficher</button>
           </div>
           <div class="filtres" id="legendeGroupes" role="group" aria-label="Filtrer par groupe"></div>
           <div id="periodes"></div>
@@ -2008,6 +2012,7 @@
         $('#aucunDepot').hidden = liste.length > 0
         $('#compteurDepots').textContent = liste.length === D.depots.length ? `${D.depots.length} dépôts` : `${liste.length} sur ${D.depots.length} dépôts`
         ecritUrl()
+        majRaz()
       }
       // chips de famille, construits d'après les données : une famille vide
       // n'affiche pas de bouton qui ne filtrerait rien
@@ -2205,6 +2210,7 @@
         }
         $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets` : `${liste.length} sur ${D.libs.length} paquets`
         ecritUrl()
+        majRaz()
         // synchrone : la lecture de clientWidth force le calcul de mise en page.
         // Passer par requestAnimationFrame laisserait les étiquettes non ajustées
         // dans un onglet d'arrière-plan, où les frames ne sont pas servies.
@@ -2657,8 +2663,16 @@
         const total = visibles.reduce((n, r) => n + r.nb, 0)
         const pl = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`
         $('#aucuneLigne').hidden = visibles.length > 0
-        $('#compteurMatrice').textContent = `${pl(cols.length, 'paquet')} × ${pl(visibles.length, 'dépôt')} — ${pl(total, 'écart')}`
+        // DIRE CE QU'ON CACHE. « 10 paquets × 23 dépôts » laissait croire que le
+        // parc en compte dix : trois filtres sont actifs AU CHARGEMENT, et sur
+        // dix-huit écrans on s'éloigne vite de celui qu'on a posé. La section
+        // « librairies » disait déjà « 54 sur 92 » ; il s'agissait de
+        // généraliser la forme, pas de l'inventer.
+        const surN = (n, t, mot) => (n === t ? pl(n, mot) : `${n} sur ${pl(t, mot)}`)
+        $('#compteurMatrice').textContent =
+          `${surN(cols.length, D.libs.length, 'paquet')} × ${surN(visibles.length, lignes.length, 'dépôt')} — ${pl(total, 'écart')}`
         ecritUrl()
+        majRaz()
       }
 
       $('#basculeColonnes').addEventListener('click', () => {
@@ -2885,8 +2899,13 @@
 
         $('#aucunElement').hidden = montres > 0
         const pl = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`
-        $('#compteurElements').textContent = `${pl(montres, 'élément')} · ${pl(total, 'dépôt')}`
+        // `catalogue` compte TOUT ce que la table pourrait montrer, filtres
+        // levés : c'est le dénominateur honnête.
+        const catalogue = D.libs.length + synthese.length
+        $('#compteurElements').textContent =
+          (montres === catalogue ? pl(montres, 'élément') : `${montres} sur ${pl(catalogue, 'élément')}`) + ` · ${pl(total, 'dépôt')}`
         ecritUrl()
+        majRaz()
       }
 
       // La légende EST le filtre : une pastille qu'on peut cliquer économise une
@@ -2905,6 +2924,121 @@
         })
         $('#legendeGroupes').append(b)
       }
+
+      // LA SÉLECTION DE COLONNES DU DÉPART, retenue une fois : elle sert à deux
+      // endroits — savoir si la matrice est à son état initial (bouton « Tout
+      // réafficher »), et ne PAS écrire dans l'URL un défaut que personne n'a
+      // choisi. Déclarée ici parce que les deux la lisent, et qu'un `const` ne
+      // se lit pas avant sa ligne.
+      const COLONNES_INITIALES = [...colonnes].join(',')
+
+      /**
+       * Rafraîchit les boutons « Tout réafficher ».
+       *
+       * Une FONCTION et non un appel direct : les rendus tournent une première
+       * fois pendant l'initialisation, avant que les `const raz*` ne soient
+       * évaluées. Une déclaration de fonction est hissée, la garde fait le
+       * reste — et rien ne lève au chargement.
+       */
+      function majRaz() {
+        try {
+          razDepots?.()
+          razLibrairies?.()
+          razMatrice?.()
+          razElements?.()
+        } catch {
+          // Zone morte temporelle : on est encore dans l'initialisation, les
+          // boutons seront posés au rendu suivant.
+        }
+      }
+
+      /* ---------------- remettre une section à zéro ---------------- */
+
+      /**
+       * UN BOUTON QUI N'APPARAÎT QUE S'IL A QUELQUE CHOSE À FAIRE.
+       *
+       * La page porte trente-trois interrupteurs, deux listes déroulantes et
+       * deux champs de recherche — et aucun moyen de revenir à l'état de départ.
+       * Sur dix-huit écrans, on s'éloigne d'un filtre posé et on l'oublie ;
+       * trois sont d'ailleurs actifs AU CHARGEMENT et cachent des données.
+       *
+       * Le bouton reste masqué tant que la section est à son défaut : un
+       * « Tout réafficher » toujours visible serait un contrôle de plus à lire
+       * dans une rangée qui en compte déjà six.
+       *
+       * @param {string} id Suffixe du bouton (`raz-<id>`).
+       * @param {() => boolean} auDefaut La section est-elle dans son état initial ?
+       * @param {() => void} remettre Le geste qui l'y ramène.
+       * @param {() => void} rerendre
+       */
+      function brancheRaz(id, auDefaut, remettre, rerendre) {
+        const b = $('#raz-' + id)
+        b.addEventListener('click', () => {
+          remettre()
+          rerendre()
+        })
+        return () => {
+          b.hidden = auDefaut()
+        }
+      }
+
+      const presse = (sel) => [...document.querySelectorAll(sel)].some((b) => b.getAttribute('aria-pressed') === 'true')
+      const relache = (sel) => {
+        for (const b of document.querySelectorAll(sel)) b.setAttribute('aria-pressed', 'false')
+      }
+
+      const razDepots = brancheRaz(
+        'depots',
+        () => !$('#recherche').value && !presse('#filtresFamilles button, [data-filtre]') && $('#tri').value === 'echecs',
+        () => {
+          $('#recherche').value = ''
+          relache('#filtresFamilles button, [data-filtre]')
+          $('#tri').value = 'echecs'
+        },
+        () => rendDepots(),
+      )
+
+      const razLibrairies = brancheRaz(
+        'librairies',
+        () => !$('#rechercheLib').value && !presse('#filtreRetard, #filtreEclate, #filtreToutes'),
+        () => {
+          $('#rechercheLib').value = ''
+          relache('#filtreRetard, #filtreEclate, #filtreToutes')
+        },
+        () => rendLibs(),
+      )
+
+      const razMatrice = brancheRaz(
+        'matrice',
+        () =>
+          $('#matriceTri').value === 'ecarts' &&
+          !triColonne &&
+          !presse('#filtresFamilleMatrice button, #filtresMaturite button') &&
+          $('#matriceEclate').getAttribute('aria-pressed') === 'true' &&
+          $('#matriceLignes').getAttribute('aria-pressed') === 'true' &&
+          [...colonnes].join(',') === COLONNES_INITIALES,
+        () => {
+          $('#matriceTri').value = 'ecarts'
+          triColonne = null
+          relache('#filtresFamilleMatrice button, #filtresMaturite button')
+          $('#matriceEclate').setAttribute('aria-pressed', 'true')
+          $('#matriceLignes').setAttribute('aria-pressed', 'true')
+          colonnes.clear()
+          for (const c of COLONNES_INITIALES.split(',').filter(Boolean)) colonnes.add(c)
+          rendChoixColonnes()
+        },
+        () => rendMatrice(),
+      )
+
+      const razElements = brancheRaz(
+        'elements',
+        () => $('#elementsPartages').getAttribute('aria-pressed') === 'true' && !presse('#legendeGroupes button'),
+        () => {
+          $('#elementsPartages').setAttribute('aria-pressed', 'true')
+          relache('#legendeGroupes button')
+        },
+        () => rendElements(),
+      )
 
       /* ---------------- l'état de la vue, dans l'URL ---------------- */
 
@@ -2981,11 +3115,6 @@
       etatUrl('tri', () => ($('#tri').value === 'echecs' ? null : $('#tri').value), (v) => ($('#tri').value = v))
       etatUrl('lq', () => $('#rechercheLib').value, (v) => ($('#rechercheLib').value = v))
       etatUrl('m.tri', () => ($('#matriceTri').value === 'ecarts' ? null : $('#matriceTri').value), (v) => ($('#matriceTri').value = v))
-      // LE DÉFAUT NE S'ÉCRIT PAS. Une visite neuve doit garder une URL propre :
-      // sans cette comparaison, la page s'ouvrait sur une adresse de trois cents
-      // caractères listant les dix colonnes qu'on n'avait pas choisies. Chaque
-      // paramètre écrit doit être une DÉCISION de l'utilisateur.
-      const COLONNES_INITIALES = [...colonnes].join(',')
       etatUrl(
         'm.col',
         () => {
