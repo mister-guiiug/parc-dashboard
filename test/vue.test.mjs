@@ -14,10 +14,13 @@ import {
   POIDS,
   compteEcarts,
   graviteEcarts,
+  parChamp,
   parNombreEcarts,
+  parTexte,
   parVersion,
   rangEcart,
 } from '../scripts/vue.mjs'
+import { cmpVersion } from '../scripts/regles.mjs'
 
 test('rangEcart nomme le RANG, pas la distance', () => {
   // Passer de 4.2 à 4.3 n'a rien de commun avec passer de 3 à 4 : c'est ce que
@@ -131,4 +134,37 @@ test('parVersion : à versions égales, l’ordre d’avant est CONSERVÉ', () =
     { depot: 'premier', cellules: [{ version: '4.0.0' }] },
   ]
   assert.deepEqual([...lignes].sort(parVersion(0, -1, rang)).map((l) => l.depot), ['premier', 'second'])
+})
+
+test('parChamp met les valeurs ABSENTES en bas, dans les deux sens', () => {
+  // Comme un dépôt qui ne dépend pas d'un paquet : une version amont manquante
+  // n'est ni la plus grande ni la plus petite. Sans ça, le tri croissant
+  // d'« Amont » ouvrirait sur une colonne de tirets.
+  const lignes = [
+    { p: 'a', amont: '2.0.0' },
+    { p: 'sans', amont: null },
+    { p: 'b', amont: '10.0.0' },
+    { p: 'vide', amont: '' },
+  ]
+  const noms = (sens) => [...lignes].sort(parChamp((l) => l.amont, sens, cmpVersion)).map((l) => l.p)
+  assert.deepEqual(noms(-1), ['b', 'a', 'sans', 'vide'])
+  assert.deepEqual(noms(1), ['a', 'b', 'sans', 'vide'])
+})
+
+test('parChamp ordonne les nombres en nombres, pas en chaînes', () => {
+  const lignes = [{ n: 9 }, { n: 10 }, { n: 2 }]
+  assert.deepEqual([...lignes].sort(parChamp((l) => l.n, -1)).map((l) => l.n), [10, 9, 2])
+  assert.deepEqual([...lignes].sort(parChamp((l) => l.n, 1)).map((l) => l.n), [2, 9, 10])
+})
+
+test('parChamp : zéro n’est pas une absence', () => {
+  // `enRetard: 0` veut dire « à jour », pas « on ne sait pas » — que `null`
+  // exprime. Les confondre enverrait les paquets à jour en bas de liste.
+  const lignes = [{ n: 0 }, { n: null }, { n: 3 }]
+  assert.deepEqual([...lignes].sort(parChamp((l) => l.n, 1)).map((l) => l.n), [0, 3, null])
+})
+
+test('parTexte ignore la casse et les accents', () => {
+  const noms = ['Zod', 'éslint', 'axe']
+  assert.deepEqual([...noms].sort(parTexte), ['axe', 'éslint', 'Zod'])
 })
