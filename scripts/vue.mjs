@@ -102,6 +102,156 @@ export const parChamp =
 /** Comparaison de textes, insensible à la casse et aux accents. */
 export const parTexte = (a, b) => String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' })
 
+/* ── La table des éléments ────────────────────────────────────────────────
+ *
+ * Le parc porte une centaine de paquets. La section « librairies » les liste,
+ * la matrice les croise avec les dépôts — mais aucune des deux ne répond à
+ * « de quoi cette famille d'applications est-elle FAITE ? ». La table des
+ * éléments range chaque technologie par ce à quoi elle sert (le GROUPE) et par
+ * le nombre de dépôts qui la portent (la PÉRIODE).
+ *
+ * TOUT EST MESURÉ, rien n'est écrit à la main : les comptes viennent du relevé,
+ * les symboles se dérivent des noms, et un paquet qui apparaîtra demain trouvera
+ * sa place sans qu'on touche à ce fichier.
+ */
+
+/** Les groupes, dans l'ordre de la chaîne : de la source au regard porté dessus. */
+export const GROUPES = [
+  ['lang', 'Langage & types'],
+  ['build', 'Construction'],
+  ['ui', 'Interface'],
+  ['data', 'État & données'],
+  ['dos', 'Dorsale'],
+  ['test', 'Tests'],
+  ['qual', 'Qualité & style'],
+  ['obs', 'Observabilité'],
+  ['infra', 'Socle & infrastructure'],
+  ['autre', 'Non classé'],
+]
+
+/**
+ * LE GROUPE D'UN PAQUET, par motifs ordonnés — le premier qui accroche gagne.
+ *
+ * L'ordre compte et n'est pas alphabétique : `@testing-library/*` doit être vu
+ * comme un test AVANT que `react` ne l'attire vers l'interface, et
+ * `@sentry/vite-plugin` comme de l'observabilité avant que `vite-plugin` ne
+ * l'envoie à la construction.
+ *
+ * `autre` est une RÉPONSE, pas un échec : un paquet qu'aucun motif ne reconnaît
+ * s'affiche en gris et se voit. L'alternative — le ranger d'office quelque part
+ * — cacherait l'arrivée d'une technologie nouvelle dans une case qui ment.
+ */
+const MOTIFS = [
+  [/^@types\//, 'lang'],
+  [/^(typescript|globals|serde|serde_json)$/, 'lang'],
+  [/^@mister-guiiug\//, 'infra'],
+  [/^@sentry\/|^web-vitals$|^tracing$/, 'obs'],
+  [/^@testing-library\/|^@playwright\/|playwright|^axe-core$|^jsdom$|^fake-indexeddb$|coverage|rules-unit-testing/, 'test'],
+  [/eslint|prettier|husky|lint-staged|commitlint|changesets/, 'qual'],
+  [/^@tailwindcss\/|^vite$|^@vitejs\/|vite-plugin|^esbuild$|^rollup-|^sharp$|^cross-env$|^concurrently$|^wait-on$|^electron/, 'build'],
+  [/^vitest$|^@vitest\//, 'test'],
+  [/^react$|^react-dom$|^react-router|^tailwindcss$|^lucide-react$|^framer-motion$|^@rive-app\/|^leaflet$|^maplibre-gl$|^recharts$/, 'ui'],
+  [/^zustand$|^zod$|^@tanstack\/|date-fns|^uqr$|^qr-scanner$|^jszip$|^uuid$|^yaml$|^jsonc-parser$|^sql\.js$|^rusqlite$|^chrono$|^regex$/, 'data'],
+  [/^@supabase\/|^firebase$|^@firebase\/|^fastify$|^@fastify\/|^tokio$|^reqwest$|^anyhow$|^thiserror$|^git2$/, 'dos'],
+  [/^tauri$|^@vscode\/|^vsce$/, 'infra'],
+]
+
+/** @returns {string} La clé du groupe, `'autre'` si aucun motif n'accroche. */
+export const groupeDe = (paquet) => MOTIFS.find(([re]) => re.test(paquet))?.[1] ?? 'autre'
+
+/**
+ * LES SYMBOLES, DÉRIVÉS — jamais une liste tenue à la main.
+ *
+ * Une liste écrite serait juste le jour où on l'écrit : le paquet suivant
+ * arriverait sans symbole, ou pire, avec celui d'un autre. La règle :
+ *
+ *   1. le nom est découpé sur tout ce qui n'est pas une lettre ou un chiffre —
+ *      la portée `@scope/` compte comme un segment, sans quoi `@types/react` et
+ *      `react` porteraient le même symbole ;
+ *   2. un seul segment → ses deux premières lettres ; plusieurs → l'initiale de
+ *      chacun, jusqu'à trois ;
+ *   3. en cas de COLLISION, on prend d'abord une initiale de PLUS — les deux
+ *      `eslint-plugin-react-*` donnent ainsi `Eprh` et `Eprr`, là où allonger
+ *      sur les lettres rendait `Epr` et `Esli`, qui ne se répondent pas ;
+ *   4. à court de segments, on allonge sur les lettres, puis on numérote.
+ *
+ * L'ordre d'entrée décide donc qui garde le symbole court — on passe les
+ * paquets les plus portés d'abord, pour que le noyau ait les symboles les plus
+ * nets. `vite` (22 dépôts) garde `Vi`, `vitest` devient `Vit`.
+ *
+ * @param {string[]} paquets Dans l'ordre de priorité.
+ * @returns {Map<string, string>}
+ */
+export function symboles(paquets) {
+  const pris = new Set()
+  const out = new Map()
+  for (const p of paquets) {
+    const seg = String(p)
+      .split(/[^A-Za-z0-9]+/)
+      .filter(Boolean)
+    const initiales = (n) => seg.slice(0, n).map((s) => s[0]).join('')
+    const base = seg.length === 1 ? seg[0].slice(0, 2) : initiales(3)
+    let sym = base
+    // 3. Une initiale de plus, tant qu'il reste un segment à prendre.
+    for (let n = 4; pris.has(sym.toLowerCase()) && n <= seg.length; n += 1) sym = initiales(n)
+    // 4. Puis les lettres du nom sans séparateurs : `vite`/`vitest` se
+    // départagent à la quatrième lettre, là où aucune initiale n'existe.
+    const nu = String(p).replace(/[^A-Za-z0-9]/g, '')
+    for (let n = sym.length; pris.has(sym.toLowerCase()) && n < nu.length; n += 1) sym = nu.slice(0, n + 1)
+    // Dernier recours : un chiffre, pour que la fonction rende TOUJOURS des
+    // symboles uniques — deux noms identiques aux séparateurs près existeront.
+    let suffixe = 2
+    while (pris.has(sym.toLowerCase())) sym = base + suffixe++
+    pris.add(sym.toLowerCase())
+    out.set(p, sym[0].toUpperCase() + sym.slice(1).toLowerCase())
+  }
+  return out
+}
+
+/**
+ * L'ÉTIQUETTE D'UNE CASE — le nom raccourci, sauf quand raccourcir ment.
+ *
+ * Une case de 82 px ne tient pas `@testing-library/jest-dom`. Retirer la portée
+ * règle le problème dans la plupart des cas — mais pas pour `@types/react` et
+ * `react`, qui se retrouvaient TOUS DEUX affichés « react », côte à côte, avec
+ * deux symboles différents et deux comptes différents. Vu à l'écran le
+ * 17/09/2026.
+ *
+ * La règle : on raccourcit, et si deux noms raccourcis se rejoignent, ceux-là
+ * gardent leur nom entier. Le doute ne coûte alors qu'à ceux qu'il concerne.
+ *
+ * @param {string[]} paquets
+ * @returns {Map<string, string>}
+ */
+export function etiquettes(paquets) {
+  const court = (p) => String(p).replace(/^@[^/]+\//, '')
+  const compte = new Map()
+  for (const p of paquets) compte.set(court(p), (compte.get(court(p)) ?? 0) + 1)
+  return new Map(paquets.map((p) => [p, compte.get(court(p)) > 1 ? String(p) : court(p)]))
+}
+
+/**
+ * LES PÉRIODES, EN PROPORTION DU PARC et non en nombres figés.
+ *
+ * Un seuil écrit « 20 dépôts » vaudrait aujourd'hui et mentirait le jour où le
+ * parc en compte quarante. Les bornes sont donc des parts : le noyau est ce que
+ * portent au moins sept dépôts sur dix.
+ */
+export const PERIODES = [
+  [0.7, 'Le noyau'],
+  [0.5, 'La ceinture'],
+  [0.3, 'Selon le besoin'],
+  [0.1, 'Les spécialités'],
+  [0, 'Les traces'],
+]
+
+/** L'index de période d'un paquet porté par `n` dépôts sur `total`. */
+export const periodeDe = (n, total) => {
+  const part = total > 0 ? n / total : 0
+  const i = PERIODES.findIndex(([seuil]) => part >= seuil)
+  return i === -1 ? PERIODES.length - 1 : i
+}
+
 /**
  * L'ordre sur une colonne de paquet.
  *

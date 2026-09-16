@@ -33,6 +33,19 @@
         --ord3: #3987e5;
         --ord4: #86b6ef;
         --ordFold: #c3c2b7;
+        /* Teintes des groupes de la table des éléments — des pas MÉDIANS de
+           rampe, lisibles sur fond clair comme sur fond sombre, donc déclarés
+           une seule fois. Voir `.element`, qui les mélange au fond. */
+        --g-lang: #7f77dd;
+        --g-build: #378add;
+        --g-ui: #1d9e75;
+        --g-data: #639922;
+        --g-dos: #ba7517;
+        --g-test: #d85a30;
+        --g-qual: #d4537e;
+        --g-obs: #e24b4a;
+        --g-infra: #888780;
+        --g-autre: #b4b2a9;
       }
       @media (prefers-color-scheme: dark) {
         :root:where(:not([data-theme='light'])) {
@@ -1002,6 +1015,93 @@
         font-variant-numeric: tabular-nums;
         color: var(--ink2);
       }
+      /* ── Table des éléments ─────────────────────────────────────────────
+         UNE SEULE TEINTE PAR GROUPE, mélangée au fond de la page plutôt que
+         posée en dur. `color-mix` avec `--surface` et `--border` fait suivre
+         les trois thèmes (clair, sombre auto, sombre choisi) sans tripler les
+         déclarations — et l'encre reste `--ink`, qui tient son contraste sur un
+         aplat à 14 % quel que soit le thème. Les teintes sont des pas MÉDIANS
+         de rampe : elles ne basculent ni au blanc ni au noir. */
+      .periode {
+        margin-bottom: 18px;
+      }
+      .tetePeriode {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+      .rangPeriode {
+        font-size: 12px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        min-width: 96px;
+      }
+      .nomPeriode {
+        font-size: 13px;
+        color: var(--ink2);
+      }
+      .elements {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+        gap: 6px;
+      }
+      .element {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 68px;
+        padding: 7px 6px 6px;
+        border-radius: 8px;
+        border: 1px solid color-mix(in srgb, var(--teinte) 45%, var(--border));
+        background: color-mix(in srgb, var(--teinte) 14%, var(--surface));
+        color: var(--ink);
+        text-align: left;
+        font: inherit;
+      }
+      .element[data-socle='true'] {
+        border-width: 2px;
+      }
+      .elementN {
+        position: absolute;
+        top: 5px;
+        right: 7px;
+        font-size: 10px;
+        color: var(--ink2);
+        font-variant-numeric: tabular-nums;
+      }
+      .elementSym {
+        font-size: 19px;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+      }
+      .elementNom {
+        font-size: 9.5px;
+        line-height: 1.25;
+        color: var(--ink2);
+        overflow-wrap: anywhere;
+      }
+      /* `--ink2` et non `--muted` : le gris atténué tient son 4,5:1 sur
+         `--surface`, pas sur l'aplat TEINTÉ que `color-mix` fabrique ici.
+         Mesuré dans la page : 2,93 en clair, 4,04 en sombre — sous AA des deux
+         côtés, pour la seule ligne qui porte un numéro de version. Le piège est
+         connu du parc : un jeton se valide contre un fond, pas contre une
+         couleur composée. */
+      .elementVer {
+        font-size: 9px;
+        color: var(--ink2);
+        font-variant-numeric: tabular-nums;
+      }
+      .pastilleGroupe {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        display: inline-block;
+        margin-right: 5px;
+        vertical-align: -1px;
+        background: var(--teinte);
+      }
       .etiquetteFiltre {
         font-size: 12.5px;
         color: var(--ink2);
@@ -1343,6 +1443,25 @@
           </div>
           <p class="vide" id="aucuneColonne" hidden>Aucune colonne sélectionnée.</p>
           <p class="vide" id="aucuneLigne" hidden>Aucun dépôt ne répond à ces filtres.</p>
+        </section>
+
+        <section id="elements">
+          <div class="titreSection">
+            <h2>Table des éléments</h2>
+            <span class="compteur" id="compteurElements"></span>
+          </div>
+          <p class="chapo">
+            La section « librairies » les liste, la matrice les croise avec les dépôts ; celle-ci répond à une autre question — <strong>de quoi ce parc est-il fait ?</strong> Une
+            <strong>période</strong> (une ligne) dit combien de dépôts portent l'élément, en part du parc et non en nombre figé. Un <strong>groupe</strong> (une couleur) dit à quoi il sert. Le nombre
+            en haut d'une case est le compte de dépôts, la ligne du bas la version la plus récente que le parc tienne.
+            <strong>Rien n'est écrit à la main</strong> : les symboles se dérivent des noms, et un paquet qui arrivera demain trouvera sa place tout seul.
+          </p>
+          <div class="filtres">
+            <button class="bouton" type="button" id="elementsPartages" aria-pressed="true">Seulement ce qui est partagé</button>
+          </div>
+          <div class="filtres" id="legendeGroupes" role="group" aria-label="Filtrer par groupe"></div>
+          <div id="periodes"></div>
+          <p class="vide" id="aucunElement" hidden>Aucun élément dans ce groupe.</p>
         </section>
 
         <section id="activite">
@@ -2617,6 +2736,134 @@
         () => rendLibs(),
       )
 
+      /* ---------------- table des éléments ---------------- */
+
+      /**
+       * CE QU'AUCUN LOCKFILE NE DÉCLARE, mais que le relevé sait compter.
+       *
+       * GitHub Actions, Pages, Lighthouse, Renovate, Supabase, Cloudflare : ces
+       * technologies ne sont dans aucun `package.json`, et elles portent
+       * pourtant la moitié de ce que le parc fait. Chacune est DÉDUITE — d'un
+       * nom de workflow, d'un champ du dépôt — jamais écrite de mémoire. Une
+       * ligne qui ne trouve aucun dépôt ne s'affiche pas : mieux vaut un trou
+       * qu'un chiffre inventé.
+       */
+      function elementsHorsNpm() {
+        const wf = (re) => D.depots.filter((d) => (d.workflows || []).some((w) => re.test(w.nom || w.name || ''))).length
+        const lang = (nom) => D.depots.filter((d) => d.langage === nom).length
+        const brut = [
+          { nom: 'GitHub Actions', n: D.depots.filter((d) => (d.workflows || []).length).length, ver: 'workflows', groupe: 'infra' },
+          { nom: 'GitHub Pages', n: D.depots.filter((d) => d.pages).length, ver: 'sites servis', groupe: 'infra' },
+          { nom: 'Renovate', n: wf(/renovate/i), ver: 'montées de deps', groupe: 'qual' },
+          { nom: 'Lighthouse CI', n: wf(/lighthouse/i), ver: 'seuils a11y', groupe: 'test' },
+          { nom: 'Supabase', n: wf(/supabase/i), ver: 'Postgres · RLS', groupe: 'dos' },
+          { nom: 'Cloudflare Workers', n: wf(/worker/i), ver: 'proxys', groupe: 'dos' },
+          { nom: 'Firebase Hosting', n: wf(/firebase/i), ver: 'déploiement', groupe: 'dos' },
+          { nom: 'Rust', n: lang('Rust'), ver: 'crates', groupe: 'lang' },
+          { nom: 'C#', n: lang('C#'), ver: '.NET', groupe: 'lang' },
+          { nom: 'Python', n: lang('Python'), ver: 'scripts', groupe: 'lang' },
+        ]
+        return brut.filter((e) => e.n > 0)
+      }
+
+      function rendElements() {
+        const hote = $('#periodes')
+        hote.textContent = ''
+        const total = D.depots.length
+        const retenus = new Set([...document.querySelectorAll('#legendeGroupes button[aria-pressed="true"]')].map((b) => b.dataset.groupe))
+
+        // Les plus portés d'abord : c'est cet ordre qui décide quel paquet
+        // garde le symbole le plus court.
+        // PAR DÉFAUT, SEULEMENT CE QUI EST PARTAGÉ — la même règle que la
+        // section « librairies » : un paquet présent dans un seul dépôt est une
+        // dépendance d'application, pas une technologie du parc. Sans ce filtre,
+        // la dernière période en avalait cinquante et noyait les quatre autres.
+        const partages = $('#elementsPartages').getAttribute('aria-pressed') === 'true'
+        const tries = [...D.libs]
+          .filter((l) => (partages ? l.nbDepots > 1 : true))
+          .sort((a, b) => b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet))
+        // UN SEUL JEU DE SYMBOLES POUR TOUT LE TABLEAU. Les engendrer en deux
+        // passes — les paquets, puis les éléments de synthèse — laissait deux
+        // cases porter `Re` : `react` et `Renovate`. Les paquets passent en
+        // premier, donc gardent les symboles les plus courts.
+        const synthese = elementsHorsNpm()
+        const sym = symboles([...tries.map((l) => l.paquet), ...synthese.map((e) => e.nom)])
+        const etiq = etiquettes(tries.map((l) => l.paquet))
+
+        const tous = [
+          ...tries.map((l) => ({
+            nom: l.paquet,
+            sym: sym.get(l.paquet),
+            n: l.nbDepots,
+            ver: l.plusRecente,
+            etiquette: etiq.get(l.paquet),
+            groupe: groupeDe(l.paquet),
+            socle: l.paquet === D.socle,
+          })),
+          ...synthese.map((e) => ({ ...e, sym: sym.get(e.nom), synthese: true })),
+        ].filter((e) => !retenus.size || retenus.has(e.groupe))
+
+        const rang = new Map(GROUPES.map(([cle], i) => [cle, i]))
+        let montres = 0
+        PERIODES.forEach(([, nomPeriode], i) => {
+          const dedans = tous
+            .filter((e) => periodeDe(e.n, total) === i)
+            .sort((a, b) => rang.get(a.groupe) - rang.get(b.groupe) || b.n - a.n || parTexte(a.nom, b.nom))
+          if (!dedans.length) return
+          montres += dedans.length
+
+          const bloc = el('div', 'periode')
+          const tete = el('div', 'tetePeriode')
+          // La borne est dite en DÉPÔTS, pas en pourcentage : c'est l'unité
+          // qu'on lit dans le reste de la page.
+          const bas = Math.ceil(PERIODES[i][0] * total)
+          const haut = i === 0 ? total : Math.ceil(PERIODES[i - 1][0] * total) - 1
+          const plancher = Math.max(bas, partages ? 2 : 1)
+          tete.append(el('span', 'rangPeriode', plancher >= haut ? `${haut} dépôt${haut > 1 ? 's' : ''}` : `${haut} → ${plancher}`))
+          tete.append(el('span', 'nomPeriode', nomPeriode))
+
+          const grille = el('div', 'elements')
+          for (const e of dedans) {
+            const c = el('div', 'element')
+            c.style.setProperty('--teinte', `var(--g-${e.groupe})`)
+            if (e.socle) c.dataset.socle = 'true'
+            const libelle = GROUPES.find(([cle]) => cle === e.groupe)?.[1] ?? e.groupe
+            c.title = `${e.nom} — ${e.n} dépôt${e.n > 1 ? 's' : ''} · ${e.ver} · ${libelle}${e.synthese ? ' · déduit du relevé, hors lockfile' : ''}`
+            c.append(el('span', 'elementN', String(e.n)), el('div', 'elementSym', e.sym))
+            const bas2 = el('div')
+            // L'étiquette raccourcit, SAUF quand raccourcir rendrait deux cases
+            // identiques — le titre, lui, porte toujours le nom entier.
+            bas2.append(el('div', 'elementNom', e.etiquette ?? e.nom), el('div', 'elementVer', e.ver || '—'))
+            c.append(bas2)
+            grille.append(c)
+          }
+          bloc.append(tete, grille)
+          hote.append(bloc)
+        })
+
+        $('#aucunElement').hidden = montres > 0
+        const pl = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`
+        $('#compteurElements').textContent = `${pl(montres, 'élément')} · ${pl(total, 'dépôt')}`
+        ecritUrl()
+      }
+
+      // La légende EST le filtre : une pastille qu'on peut cliquer économise une
+      // rangée de contrôles, et dit du même geste ce que la couleur signifie.
+      for (const [cle, libelle] of GROUPES) {
+        const b = el('button', 'bouton')
+        b.type = 'button'
+        b.dataset.groupe = cle
+        b.setAttribute('aria-pressed', 'false')
+        const p = el('span', 'pastilleGroupe')
+        p.style.setProperty('--teinte', `var(--g-${cle})`)
+        b.append(p, document.createTextNode(libelle))
+        b.addEventListener('click', () => {
+          b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+          rendElements()
+        })
+        $('#legendeGroupes').append(b)
+      }
+
       /* ---------------- l'état de la vue, dans l'URL ---------------- */
 
       // CE QU'ON REGARDE DOIT POUVOIR SE TRANSMETTRE. La page savait lier une
@@ -2718,6 +2965,13 @@
       )
       etatUrl('m.fam', ...bascules('#filtresFamilleMatrice button', 'famille'))
       etatUrl('m.mat', ...bascules('#filtresMaturite button', 'maturite'))
+      $('#elementsPartages').addEventListener('click', () => {
+        const b = $('#elementsPartages')
+        b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+        rendElements()
+      })
+      etatUrl('e.tout', ...interrupteur('#elementsPartages'))
+      etatUrl('e.grp', ...bascules('#legendeGroupes button', 'groupe'))
       etatUrl('m.eclate', ...interrupteur('#matriceEclate'))
       etatUrl('m.lignes', ...interrupteur('#matriceLignes'))
 
@@ -2726,6 +2980,7 @@
       rendDepots()
       rendLibs()
       rendMatrice()
+      rendElements()
     </script>
   </body>
 </html>
