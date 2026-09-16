@@ -1102,6 +1102,24 @@
         vertical-align: -1px;
         background: var(--teinte);
       }
+      /* ── LE VOCABULAIRE DES FILTRES, ÉCRIT UNE FOIS ──────────────────────
+       *
+       * UN INTERRUPTEUR NOMME L'ÉTAT, JAMAIS LE GESTE. Un bouton
+       * `aria-pressed="true"` intitulé « Masquer les dépôts sans écart » ne dit
+       * pas s'ils SONT masqués ou si cliquer VA les masquer — et un lecteur
+       * d'écran annonce « Masquer les dépôts sans écart, activé », ce qui ne
+       * tranche rien. Il s'appelle désormais « Seulement les dépôts en écart » :
+       * enfoncé, c'est ce qu'on voit ; relâché, on voit tout.
+       *
+       * La règle ne vaut PAS pour les boutons d'action — « Tout réafficher »,
+       * « Choisir les colonnes », « Sommaire » — qui ne portent pas d'état et
+       * dont le verbe est juste.
+       *
+       * LES ÉTATS VIDES DISENT LA MÊME PHRASE : « Aucun X ne répond à ces
+       * filtres. » Ils en disaient trois. Seul celui des librairies dormantes
+       * garde la sienne, parce qu'il annonce une BONNE nouvelle et non un
+       * résultat vide.
+       */
       .etiquetteFiltre {
         font-size: 12.5px;
         color: var(--ink2);
@@ -1377,7 +1395,7 @@
             <button class="bouton raz" type="button" id="raz-depots" hidden>Tout réafficher</button>
           </div>
           <div id="grilleDepots"></div>
-          <p class="vide" id="aucunDepot" hidden>Aucun dépôt ne correspond à ce filtre.</p>
+          <p class="vide" id="aucunDepot" hidden>Aucun dépôt ne répond à ces filtres.</p>
         </section>
 
         <section id="librairies">
@@ -1394,9 +1412,10 @@
             <input class="champ" id="rechercheLib" type="search" placeholder="Filtrer une librairie…" aria-label="Filtrer les librairies" />
             <button class="bouton" type="button" id="filtreRetard" aria-pressed="false">Avec du retard</button>
             <button class="bouton" type="button" id="filtreEclate" aria-pressed="false">Versions éclatées</button>
-            <button class="bouton" type="button" id="filtreToutes" aria-pressed="false">Montrer aussi les mono-dépôt</button>
+            <button class="bouton" type="button" id="filtreToutes" aria-pressed="false">Mono-dépôt compris</button>
             <button class="bouton raz" type="button" id="raz-librairies" hidden>Tout réafficher</button>
           </div>
+          <p class="vide" id="aucuneLib" hidden>Aucun paquet ne répond à ces filtres.</p>
           <div class="carte tableEnveloppe">
             <table>
               <caption class="sr">Librairies du parc : paquet, nombre de dépôts, répartition des versions, version amont, dépôts en retard.</caption>
@@ -1464,7 +1483,7 @@
           <div class="filtres">
             <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes">Choisir les colonnes</button>
             <button class="bouton" type="button" id="matriceEclate" aria-pressed="true">Seulement les paquets éclatés</button>
-            <button class="bouton" type="button" id="matriceLignes" aria-pressed="true">Masquer les dépôts sans écart</button>
+            <button class="bouton" type="button" id="matriceLignes" aria-pressed="true">Seulement les dépôts en écart</button>
             <select class="bouton" id="matriceTri" aria-label="Trier les lignes de la matrice">
               <option value="ecarts">Trier : plus d'écarts d'abord</option>
               <option value="nom">Trier : nom</option>
@@ -1512,7 +1531,7 @@
           </div>
           <div class="filtres" id="legendeGroupes" role="group" aria-label="Filtrer par groupe"></div>
           <div id="periodes"></div>
-          <p class="vide" id="aucunElement" hidden>Aucun élément dans ce groupe.</p>
+          <p class="vide" id="aucunElement" hidden>Aucun élément ne répond à ces filtres.</p>
         </section>
 
         <section id="activite">
@@ -2208,6 +2227,11 @@
           })
           tb.append(tr, detail)
         }
+        // L'ÉTAT VIDE QUI MANQUAIT. Une recherche sans résultat laissait un
+        // tableau réduit à ses en-têtes, sans un mot : le seul indice était le
+        // compteur, en haut de la section. Les quatre autres sections filtrantes
+        // en avaient un ; celle-ci, la plus grosse, non.
+        $('#aucuneLib').hidden = liste.length > 0
         $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets` : `${liste.length} sur ${D.libs.length} paquets`
         ecritUrl()
         majRaz()
