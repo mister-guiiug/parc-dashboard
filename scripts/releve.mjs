@@ -723,10 +723,44 @@ modele.compareA = avant?.genere || null
 
 const gabarit = readFileSync(join(ICI, 'gabarit.html'), 'utf8')
 if (!gabarit.includes('__DONNEES__')) throw new Error('placeholder __DONNEES__ absent du gabarit')
-// L'empreinte du gabarit entre dans le modèle : sans elle, la comparaison ne
-// porterait que sur les données et une refonte de la page ne serait JAMAIS
-// republiée — le relevé répondrait « rien n'a bougé » sur un gabarit réécrit.
-modele.gabarit = createHash('sha256').update(gabarit).digest('hex').slice(0, 12)
+if (!gabarit.includes('__VUE__')) throw new Error('placeholder __VUE__ absent du gabarit')
+
+// LES RÈGLES DE LA VUE, INSÉRÉES PLUTÔT QU'ÉCRITES DANS LE HTML.
+//
+// Elles vivaient en JavaScript dans `gabarit.html`, donc hors de portée de
+// `node --test` : c'est ce qui a laissé la colonne « Écarts » contredire son
+// propre tri pendant des semaines. Elles sont désormais dans `regles.mjs` et
+// `vue.mjs`, éprouvées, et recopiées ici au rendu.
+//
+// La page reste UN SEUL FICHIER sans ressource externe — elle est poussée telle
+// quelle sur Pages, et un second fichier à charger changerait ça. Le transport
+// se paie en octets : les deux modules pèsent quelques kilo-octets bruts,
+// quelques centaines une fois gzippés, contre 59 ko pour la page entière.
+//
+// `export` et `import` retirés : le script de la page n'est pas un module. Le
+// motif est volontairement littéral — un `import` multiligne casserait le
+// retrait, et la garde ci-dessous le dit plutôt que de le laisser passer.
+const sansModule = (src, nom) => {
+  const net = src.replace(/^export (?=const |function |let |class )/gm, '').replace(/^import .*$/gm, '')
+  if (/^\s*(?:export|import)\b/m.test(net))
+    throw new Error(`${nom} : un export ou un import a survécu au retrait — forme multiligne ?`)
+  return net
+}
+
+const regles = readFileSync(join(ICI, 'regles.mjs'), 'utf8')
+const vue = readFileSync(join(ICI, 'vue.mjs'), 'utf8')
+
+// L'empreinte entre dans le modèle : sans elle, la comparaison ne porterait que
+// sur les données et une refonte de la page ne serait JAMAIS republiée — le
+// relevé répondrait « rien n'a bougé » sur un gabarit réécrit. Les DEUX modules
+// y entrent aussi : depuis qu'ils portent la logique, les oublier rendrait
+// invisible un changement de tri ou de rang d'écart.
+modele.gabarit = createHash('sha256')
+  .update(gabarit)
+  .update(regles)
+  .update(vue)
+  .digest('hex')
+  .slice(0, 12)
 
 // La décision se prend AVANT d'assembler la page : l'historique qui y sera
 // embarqué dépend d'elle.
@@ -786,7 +820,12 @@ modele.historique = histo
 /* ------------------------------------------------------------- page */
 
 const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16))
-const page = gabarit.replace('__DONNEES__', charge)
+// `__VUE__` d'abord : le code inséré ne contient aucun marqueur, mais les
+// données, elles, sont du JSON arbitraire — remplacer dans l'autre sens ferait
+// dépendre le résultat de ce qu'un dépôt a mis dans sa description.
+const page = gabarit
+  .replace('__VUE__', () => `${sansModule(regles, 'regles.mjs')}\n${sansModule(vue, 'vue.mjs')}`)
+  .replace('__DONNEES__', () => charge)
 
 if (inchange) {
   console.error(`Rien n'a bougé depuis le relevé précédent (${appels} appels d'API). Fichier laissé tel quel.`)

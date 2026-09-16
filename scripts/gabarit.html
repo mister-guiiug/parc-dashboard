@@ -2117,30 +2117,12 @@
 
       /* ---------------- matrice des écarts ---------------- */
 
-      const cmpV = (a, b) => {
-        const pa = String(a).split('.').map(Number)
-        const pb = String(b).split('.').map(Number)
-        for (let i = 0; i < 3; i += 1) {
-          const d = (pa[i] || 0) - (pb[i] || 0)
-          if (d) return Math.sign(d)
-        }
-        return 0
-      }
-
-      // Le RANG de l'écart, pas sa distance. Passer de 4.2 à 4.3 n'a rien de
-      // commun avec passer de 3 à 4 : un chiffre unique mélangerait les deux,
-      // et c'est précisément ce que la couleur doit séparer.
-      const rangEcart = (v, ref) => {
-        if (!v) return 'absent'
-        if (!ref || cmpV(v, ref) >= 0) return '0'
-        const a = String(v).split('.').map(Number)
-        const b = String(ref).split('.').map(Number)
-        if ((a[0] || 0) !== (b[0] || 0)) return 'majeure'
-        if ((a[1] || 0) !== (b[1] || 0)) return 'mineure'
-        return 'patch'
-      }
-
-      const POIDS = { majeure: 3, mineure: 2, patch: 1, 0: 0, absent: 0 }
+      // Les règles PURES de la vue vivent dans `scripts/vue.mjs` et
+      // `scripts/regles.mjs`, insérées ici par `releve.mjs` à la place du
+      // marqueur ci-dessous. Elles y sont éprouvées par `node --test` — ce
+      // qu'aucun test ne pouvait atteindre tant qu'elles étaient écrites dans
+      // ce fichier. La page reste un seul fichier, sans ressource externe.
+      __VUE__
 
       // Le modèle range les versions par paquet ; la matrice a besoin de
       // l'inverse. On retourne l'index une fois, au lieu de balayer `D.libs`
@@ -2275,8 +2257,8 @@
             return { paquet: l.paquet, version: v, rang: rangEcart(v, l.plusRecente) }
           })
           if (!cellules.some((c) => c.version)) continue
-          const score = cellules.reduce((n, c) => n + POIDS[c.rang], 0)
-          const nb = cellules.filter((c) => POIDS[c.rang] > 0).length
+          const score = graviteEcarts(cellules)
+          const nb = compteEcarts(cellules)
           lignes.push({ depot: d.nom, famille: familleDe.get(d.nom), maturite: maturiteDe(d), cellules, score, nb })
         }
 
@@ -2307,7 +2289,6 @@
         // dépôts à cinq écarts restent classés par gravité, et la colonne reste
         // lisible de haut en bas. Le poids n'est pas perdu — il est dit dans
         // l'infobulle de chaque cellule.
-        const parEcart = (a, b) => b.nb - a.nb || b.score - a.score || a.depot.localeCompare(b.depot)
         const tri = $('#matriceTri').value
         visibles.sort((a, b) =>
           tri === 'nom'
@@ -2315,8 +2296,8 @@
             : tri === 'famille'
               ? String(a.famille).localeCompare(String(b.famille)) || a.depot.localeCompare(b.depot)
               : tri === 'maturite'
-                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || parEcart(a, b)
-                : parEcart(a, b),
+                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || parNombreEcarts(a, b)
+                : parNombreEcarts(a, b),
         )
 
         // Le tri par colonne passe DEVANT celui de la liste déroulante, qui
@@ -2341,7 +2322,7 @@
             if (!va && !vb) return stable.get(a.depot) - stable.get(b.depot)
             if (!va) return 1
             if (!vb) return -1
-            return cmpV(va, vb) * triColonne.sens || stable.get(a.depot) - stable.get(b.depot)
+            return cmpVersion(va, vb) * triColonne.sens || stable.get(a.depot) - stable.get(b.depot)
           })
         }
 
