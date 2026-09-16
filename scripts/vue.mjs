@@ -70,6 +70,39 @@ export const graviteEcarts = (cellules) => cellules.reduce((n, c) => n + POIDS[c
 export const parNombreEcarts = (a, b) => b.nb - a.nb || b.score - a.score || a.depot.localeCompare(b.depot)
 
 /**
+ * L'ordre sur un CHAMP quelconque — le tri des tableaux qui n'en avaient aucun.
+ *
+ * Relevé du 16/09/2026 : sur les cinq tableaux de la page, un seul portait des
+ * en-têtes triables. `librairies` — le plus gros, jusqu'à 92 paquets — ne
+ * pouvait s'ordonner ni par nombre de dépôts, ni par retard, alors qu'il a une
+ * recherche et trois filtres : l'effort était mis, le tri oublié.
+ *
+ * UNE VALEUR ABSENTE VA AU BOUT DANS LES DEUX SENS, comme un dépôt qui ne
+ * dépend pas d'un paquet dans la matrice : elle n'est ni la plus grande ni la
+ * plus petite, elle manque. Sans ça, le tri croissant d'« Amont » ouvrirait sur
+ * une colonne de tirets.
+ *
+ * @param {(x: any) => any} lire Le champ, extrait de la ligne.
+ * @param {number} sens -1 décroissant, 1 croissant.
+ * @param {(a: any, b: any) => number} [cmp] Comparaison, numérique par défaut.
+ */
+export const parChamp =
+  (lire, sens, cmp = (a, b) => (a > b ? 1 : a < b ? -1 : 0)) =>
+  (a, b) => {
+    const va = lire(a)
+    const vb = lire(b)
+    const rienA = va === null || va === undefined || va === ''
+    const rienB = vb === null || vb === undefined || vb === ''
+    if (rienA && rienB) return 0
+    if (rienA) return 1
+    if (rienB) return -1
+    return cmp(va, vb) * sens
+  }
+
+/** Comparaison de textes, insensible à la casse et aux accents. */
+export const parTexte = (a, b) => String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' })
+
+/**
  * L'ordre sur une colonne de paquet.
  *
  * UN DÉPÔT QUI NE DÉPEND PAS DU PAQUET n'a pas de version, et n'est donc ni en
