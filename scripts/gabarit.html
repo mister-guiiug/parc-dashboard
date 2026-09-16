@@ -1160,6 +1160,37 @@
       }
 
       /* ───────────────────── Sommaire flottant et retour en haut ─────────── */
+      /* Le lien d'évitement ne se voit qu'au focus — mais il est bien DANS le
+         document, pas masqué par `display: none`, qui le retirerait aussi du
+         parcours de tabulation qu'il sert à raccourcir. */
+      .evitement {
+        position: absolute;
+        left: -9999px;
+        top: 8px;
+        z-index: 60;
+        padding: 10px 16px;
+        border-radius: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--ink);
+        text-decoration: none;
+        font-size: 13px;
+      }
+      /* `:focus` ET PAS `:focus-visible`. Le second est une heuristique du
+         navigateur — il ne se déclenche pas sur un focus posé par programme, et
+         c'est exactement ce que fait un lecteur d'écran qui traverse la page.
+         Un lien d'évitement ne s'atteint qu'au clavier : la distinction qui
+         évite d'éclairer un bouton cliqué à la souris n'a ici aucun objet. */
+      .evitement:focus {
+        left: 8px;
+        outline: 2px solid var(--series1);
+        outline-offset: 2px;
+      }
+      /* La cible du lien reçoit le focus par programme : sans `outline: none`,
+         le navigateur cerne toute la zone de contenu d'un liseré. */
+      #contenu:focus {
+        outline: none;
+      }
       .flottant {
         position: fixed;
         right: 18px;
@@ -1227,6 +1258,10 @@
     </style>
   </head>
   <body>
+    <!-- PREMIER ARRÊT DE LA PAGE. Sans lui, atteindre la matrice au clavier
+         demandait 993 tabulations : chaque carte de dépôt porte ses liens, et
+         il y en a vingt-huit. Il ne se voit qu'au focus. -->
+    <a class="evitement" href="#contenu">Aller au contenu</a>
     <div class="enveloppe">
       <header>
         <div class="chapeau">
@@ -1280,7 +1315,19 @@
           brutes restent lisibles dans la source, sous <code>&lt;script id="donnees"&gt;</code>.
         </p>
       </noscript>
-      <main>
+      <!-- LE SOMMAIRE VIENT AVANT LE CONTENU, et c'est une correction.
+           Il vivait en fin de document : `position: fixed` le montrait en bas à
+           droite, mais au CLAVIER il arrivait au 1 108ᵉ arrêt sur 1 117 — le
+           seul contrôle qui permet de sauter était le dernier qu'on atteignait.
+           Mesuré sur la page publiée le 17/09/2026.
+           Déplacé ici, il est au 2ᵉ arrêt, et rien ne change à l'écran. -->
+      <div class="flottant">
+        <button class="bouton" type="button" id="basculeSommaire" aria-expanded="false" aria-controls="sommaire">Sommaire</button>
+        <nav class="sommaire" id="sommaire" aria-label="Chapitres de la page"></nav>
+        <button class="bouton" type="button" id="retourHaut" hidden>↑ Haut de page</button>
+      </div>
+
+      <main id="contenu" tabindex="-1">
         <section id="echecs">
           <div class="titreSection">
             <h2>Ce qui est rouge</h2>
@@ -1495,11 +1542,6 @@
       <footer id="pied"></footer>
     </div>
 
-    <div class="flottant">
-      <button class="bouton" type="button" id="basculeSommaire" aria-expanded="false" aria-controls="sommaire">Sommaire</button>
-      <nav class="sommaire" id="sommaire" aria-label="Chapitres de la page"></nav>
-      <button class="bouton" type="button" id="retourHaut" hidden>↑ Haut de page</button>
-    </div>
 
     <script type="application/json" id="donnees">
       __DONNEES__
