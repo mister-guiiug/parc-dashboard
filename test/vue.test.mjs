@@ -21,7 +21,12 @@ import {
   rangEcart,
   GROUPES,
   PERIODES,
+  TRIS_DEPOT,
+  correspondDepot,
+  correspondLib,
+  elementsHorsNpm,
   etiquettes,
+  foinDepot,
   groupeDe,
   periodeDe,
   symboles,
@@ -260,4 +265,97 @@ test('etiquettes : deux portées différentes du même nom gardent les deux', ()
   const e = etiquettes(['@a/x', '@b/x'])
   assert.equal(e.get('@a/x'), '@a/x')
   assert.equal(e.get('@b/x'), '@b/x')
+})
+
+/* ── Les filtres, sortis des rendus ─────────────────────────────────────── */
+
+const depot = (p = {}) => ({
+  nom: 'miss-x',
+  famille: 'pwa',
+  description: '',
+  role: '',
+  brancheDefaut: 'main',
+  pile: [],
+  workflows: [],
+  compte: { rouge: 0 },
+  commit: { jours: 1 },
+  ...p,
+})
+
+test('foinDepot : on cherche AUSSI dans la pile et les workflows', () => {
+  // C'est la partie la moins évidente du filtre, et celle qui rend la recherche
+  // utile : taper « supabase » sort les dépôts qui en dépendent, taper une
+  // version sort ceux qui la tiennent.
+  const d = depot({
+    pile: [{ paquet: '@supabase/supabase-js', version: '2.116.0' }],
+    workflows: [{ nom: 'Supabase migrations' }],
+  })
+  const foin = foinDepot(d)
+  assert.ok(foin.includes('supabase-js'))
+  assert.ok(foin.includes('2.116.0'))
+  assert.ok(foin.includes('supabase migrations'))
+  // En minuscules : la recherche l'est aussi.
+  assert.equal(foin, foin.toLowerCase())
+})
+
+test('correspondDepot : les critères se CUMULENT', () => {
+  const rouge = depot({ nom: 'a', compte: { rouge: 2 } })
+  const vert = depot({ nom: 'b', compte: { rouge: 0 } })
+  const drapeaux = new Set(['echec'])
+  assert.equal(correspondDepot(rouge, { drapeaux }), true)
+  assert.equal(correspondDepot(vert, { drapeaux }), false)
+  // Une famille exclue l'emporte sur un drapeau satisfait.
+  assert.equal(correspondDepot(rouge, { drapeaux, familles: new Set(['socle']) }), false)
+})
+
+test('correspondDepot : sans critère, tout passe', () => {
+  assert.equal(correspondDepot(depot()), true)
+  assert.equal(correspondDepot(depot(), { q: '   ' }), true, 'une recherche vide n’est pas un filtre')
+})
+
+test('correspondDepot ne suppose AUCUN champ présent', () => {
+  // Le relevé n'écrit pas `local` sans `--local`, ni `pages` sans site. Un
+  // filtre qui lèverait sur un champ absent casserait la page entière.
+  const nu = { nom: 'x', famille: 'pwa', compte: {}, commit: {} }
+  assert.doesNotThrow(() => correspondDepot(nu, { drapeaux: new Set(['modifie', 'site', 'prive']), q: 'x' }))
+  assert.equal(correspondDepot(nu, { drapeaux: new Set(['site']) }), false)
+})
+
+test('correspondLib : « partagé » est le DÉFAUT', () => {
+  const solo = { paquet: 'a', nbDepots: 1, nbVersions: 1 }
+  const partage = { paquet: 'b', nbDepots: 4, nbVersions: 1 }
+  assert.equal(correspondLib(solo), false, 'un paquet d’un seul dépôt est une dépendance d’app')
+  assert.equal(correspondLib(partage), true)
+  assert.equal(correspondLib(solo, { toutes: true }), true)
+})
+
+test('correspondLib : « éclaté » demande TROIS versions, pas deux', () => {
+  // À deux, c'est une montée en cours ; à trois, c'est une dispersion.
+  const deux = { paquet: 'a', nbDepots: 5, nbVersions: 2 }
+  const trois = { paquet: 'b', nbDepots: 5, nbVersions: 3 }
+  assert.equal(correspondLib(deux, { eclate: true }), false)
+  assert.equal(correspondLib(trois, { eclate: true }), true)
+})
+
+test('elementsHorsNpm : une ligne sans dépôt ne SORT PAS', () => {
+  // Mieux vaut un trou qu'un chiffre inventé : c'est toute la différence entre
+  // un relevé et une liste écrite de mémoire.
+  const parc = [
+    { nom: 'a', langage: 'Rust', workflows: [{ nom: 'CI' }, { nom: 'Renovate' }], pages: null },
+    { nom: 'b', langage: 'TypeScript', workflows: [{ nom: 'Lighthouse' }], pages: { ok: true } },
+  ]
+  const els = elementsHorsNpm(parc)
+  const par = Object.fromEntries(els.map((e) => [e.nom, e.n]))
+  assert.equal(par['GitHub Actions'], 2)
+  assert.equal(par['GitHub Pages'], 1)
+  assert.equal(par.Renovate, 1)
+  assert.equal(par['Lighthouse CI'], 1)
+  assert.equal(par.Rust, 1)
+  assert.equal(par['C#'], undefined, 'aucun dépôt en C# : la ligne n’existe pas')
+  assert.equal(par.Supabase, undefined)
+  assert.ok(els.every((e) => e.n > 0))
+})
+
+test('elementsHorsNpm : un parc vide rend une table vide, pas des zéros', () => {
+  assert.deepEqual(elementsHorsNpm([]), [])
 })

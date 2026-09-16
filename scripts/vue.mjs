@@ -102,6 +102,110 @@ export const parChamp =
 /** Comparaison de textes, insensible à la casse et aux accents. */
 export const parTexte = (a, b) => String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' })
 
+/* ── Les filtres, sortis des rendus ───────────────────────────────────────
+ *
+ * Ils vivaient DANS `rendDepots` et `rendLibs`, mêlés à la construction du DOM :
+ * une règle métier — « un dépôt se cherche aussi par le nom d'un paquet de sa
+ * pile » — qu'aucun test ne pouvait atteindre. Sortis ici, ils se jouent sur
+ * trois objets littéraux.
+ */
+
+/**
+ * Le texte dans lequel une recherche de dépôt cherche.
+ *
+ * PAS SEULEMENT LE NOM. On y trouve la description, le rôle, la branche par
+ * défaut, **les paquets de la pile avec leur version**, et les noms de
+ * workflows : taper `supabase` sort les dépôts qui en dépendent, taper `8.3.0`
+ * sort ceux qui tiennent cette version de Vite. C'est la partie la moins
+ * évidente du filtre, et la seule qui méritait d'être éprouvée.
+ */
+export const foinDepot = (d) =>
+  [
+    d.nom,
+    d.description || '',
+    d.role || '',
+    d.brancheDefaut || '',
+    ...(d.pile || []).map((p) => `${p.paquet} ${p.version}`),
+    ...(d.workflows || []).map((w) => w.nom),
+  ]
+    .join(' ')
+    .toLowerCase()
+
+/**
+ * Un dépôt répond-il aux filtres ?
+ *
+ * @param {object} d
+ * @param {{ q?: string, familles?: Set<string>, drapeaux?: Set<string> }} c
+ */
+export function correspondDepot(d, c = {}) {
+  const familles = c.familles ?? new Set()
+  const drapeaux = c.drapeaux ?? new Set()
+  if (familles.size && !familles.has(d.famille)) return false
+  if (drapeaux.has('echec') && !d.compte?.rouge) return false
+  if (drapeaux.has('modifie') && !d.local?.modifies) return false
+  if (drapeaux.has('prive') && !d.prive) return false
+  if (drapeaux.has('site') && !d.pages?.ok) return false
+  const q = (c.q ?? '').trim().toLowerCase()
+  return !q || foinDepot(d).includes(q)
+}
+
+/** Les quatre ordres de la liste des dépôts. */
+export const TRIS_DEPOT = {
+  echecs: (a, b) => b.compte.rouge - a.compte.rouge || a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
+  activite: (a, b) => a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
+  nom: (a, b) => a.nom.localeCompare(b.nom),
+  workflows: (a, b) => b.workflows.length - a.workflows.length || a.nom.localeCompare(b.nom),
+}
+
+/**
+ * Un paquet répond-il aux filtres de la section « librairies » ?
+ *
+ * PAR DÉFAUT, SEULEMENT CE QUI EST PARTAGÉ : un paquet présent dans un seul
+ * dépôt est une dépendance d'application, pas une librairie du parc. C'est la
+ * règle que la table des éléments a reprise ensuite.
+ *
+ * « Éclaté » demande TROIS versions et non deux : à deux, c'est une montée en
+ * cours ; à trois, c'est une dispersion.
+ *
+ * @param {object} l
+ * @param {{ q?: string, toutes?: boolean, retard?: boolean, eclate?: boolean }} c
+ */
+export function correspondLib(l, c = {}) {
+  if (!c.toutes && l.nbDepots < 2) return false
+  if (c.retard && !l.enRetard) return false
+  if (c.eclate && l.nbVersions < 3) return false
+  const q = (c.q ?? '').trim().toLowerCase()
+  return !q || l.paquet.toLowerCase().includes(q)
+}
+
+/**
+ * CE QU'AUCUN LOCKFILE NE DÉCLARE, mais que le relevé sait compter.
+ *
+ * GitHub Actions, Pages, Lighthouse, Renovate, Supabase, Cloudflare : ces
+ * technologies ne sont dans aucun `package.json`, et elles portent pourtant la
+ * moitié de ce que le parc fait. Chacune est DÉDUITE d'un nom de workflow ou
+ * d'un champ du dépôt, jamais écrite de mémoire.
+ *
+ * **Une ligne qui ne trouve aucun dépôt ne sort pas** : mieux vaut un trou
+ * qu'un chiffre inventé.
+ */
+export function elementsHorsNpm(depots) {
+  const wf = (re) => depots.filter((d) => (d.workflows || []).some((w) => re.test(w.nom || w.name || ''))).length
+  const lang = (nom) => depots.filter((d) => d.langage === nom).length
+  return [
+    { nom: 'GitHub Actions', n: depots.filter((d) => (d.workflows || []).length).length, ver: 'workflows', groupe: 'infra' },
+    { nom: 'GitHub Pages', n: depots.filter((d) => d.pages).length, ver: 'sites servis', groupe: 'infra' },
+    { nom: 'Renovate', n: wf(/renovate/i), ver: 'montées de deps', groupe: 'qual' },
+    { nom: 'Lighthouse CI', n: wf(/lighthouse/i), ver: 'seuils a11y', groupe: 'test' },
+    { nom: 'Supabase', n: wf(/supabase/i), ver: 'Postgres · RLS', groupe: 'dos' },
+    { nom: 'Cloudflare Workers', n: wf(/worker/i), ver: 'proxys', groupe: 'dos' },
+    { nom: 'Firebase Hosting', n: wf(/firebase/i), ver: 'déploiement', groupe: 'dos' },
+    { nom: 'Rust', n: lang('Rust'), ver: 'crates', groupe: 'lang' },
+    { nom: 'C#', n: lang('C#'), ver: '.NET', groupe: 'lang' },
+    { nom: 'Python', n: lang('Python'), ver: 'scripts', groupe: 'lang' },
+  ].filter((e) => e.n > 0)
+}
+
 /* ── La table des éléments ────────────────────────────────────────────────
  *
  * Le parc porte une centaine de paquets. La section « librairies » les liste,
