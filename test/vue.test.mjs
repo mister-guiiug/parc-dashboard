@@ -19,6 +19,12 @@ import {
   parTexte,
   parVersion,
   rangEcart,
+  GROUPES,
+  PERIODES,
+  etiquettes,
+  groupeDe,
+  periodeDe,
+  symboles,
 } from '../scripts/vue.mjs'
 import { cmpVersion } from '../scripts/regles.mjs'
 
@@ -167,4 +173,91 @@ test('parChamp : zéro n’est pas une absence', () => {
 test('parTexte ignore la casse et les accents', () => {
   const noms = ['Zod', 'éslint', 'axe']
   assert.deepEqual([...noms].sort(parTexte), ['axe', 'éslint', 'Zod'])
+})
+
+/* ── La table des éléments ──────────────────────────────────────────────── */
+
+test('groupeDe : l’ordre des motifs décide, et il n’est pas alphabétique', () => {
+  // `@testing-library/react` est un test AVANT d'être du React, et
+  // `@sentry/vite-plugin` de l'observabilité avant d'être un plugin Vite.
+  assert.equal(groupeDe('@testing-library/react'), 'test')
+  assert.equal(groupeDe('@sentry/vite-plugin'), 'obs')
+  assert.equal(groupeDe('vite-plugin-pwa'), 'build')
+  assert.equal(groupeDe('react'), 'ui')
+  assert.equal(groupeDe('typescript'), 'lang')
+  assert.equal(groupeDe('@types/react'), 'lang')
+  assert.equal(groupeDe('eslint-plugin-react-hooks'), 'qual')
+  assert.equal(groupeDe('@mister-guiiug/dev-pwa-config'), 'infra')
+})
+
+test('groupeDe : « autre » est une RÉPONSE, pas un échec', () => {
+  // Un paquet qu'aucun motif ne reconnaît s'affiche en gris et se VOIT. Le
+  // ranger d'office quelque part cacherait l'arrivée d'une technologie neuve
+  // dans une case qui ment.
+  assert.equal(groupeDe('une-librairie-inconnue-de-demain'), 'autre')
+  assert.ok(GROUPES.some(([cle]) => cle === 'autre'), 'le groupe doit exister')
+})
+
+test('symboles : uniques, dérivés, et les plus portés gardent le plus court', () => {
+  const s = symboles(['vite', 'vitest', 'react', 'react-dom', '@types/react'])
+  assert.equal(s.get('vite'), 'Vi', 'passé en premier, il garde le symbole court')
+  assert.equal(s.get('vitest'), 'Vit')
+  assert.equal(s.get('react'), 'Re')
+  assert.equal(s.get('react-dom'), 'Rd')
+  // La portée compte comme un segment : sans elle, `@types/react` et `react`
+  // porteraient le même symbole.
+  assert.equal(s.get('@types/react'), 'Tr')
+  assert.equal(new Set(s.values()).size, 5)
+})
+
+test('symboles : une collision prend une initiale de PLUS avant les lettres', () => {
+  // `Epr` et `Esli` ne se répondent pas ; `Epr` et `Eprr` si.
+  const s = symboles(['eslint-plugin-react-hooks', 'eslint-plugin-react-refresh'])
+  assert.equal(s.get('eslint-plugin-react-hooks'), 'Epr')
+  assert.equal(s.get('eslint-plugin-react-refresh'), 'Eprr')
+})
+
+test('symboles : l’ordre d’entrée décide, et rien d’autre', () => {
+  // La fonction est déterministe : mêmes entrées, mêmes symboles. C'est ce qui
+  // permet de les passer triés par adoption sans craindre qu'ils dansent d'un
+  // relevé à l'autre.
+  const a = symboles(['vitest', 'vite'])
+  assert.equal(a.get('vitest'), 'Vi', 'passé en premier, c’est lui qui garde Vi')
+  assert.equal(a.get('vite'), 'Vit')
+  assert.deepEqual([...symboles(['a-b', 'c-d'])], [...symboles(['a-b', 'c-d'])])
+})
+
+test('symboles rend TOUJOURS des symboles uniques, même sur des noms jumeaux', () => {
+  const s = symboles(['x-y', 'x_y', 'x.y', 'xy'])
+  assert.equal(new Set(s.values()).size, 4)
+})
+
+test('periodeDe raisonne en PART du parc, pas en nombres figés', () => {
+  // Un seuil écrit « 20 dépôts » vaudrait aujourd'hui et mentirait le jour où
+  // le parc en compte quarante.
+  assert.equal(periodeDe(28, 28), 0, 'tout le parc : le noyau')
+  assert.equal(periodeDe(20, 28), 0, '71 % : encore le noyau')
+  assert.equal(periodeDe(19, 28), 1, '68 % : la ceinture')
+  assert.equal(periodeDe(1, 28), 4, 'une trace')
+  // Le même paquet, dans un parc deux fois plus grand, descend d'une période.
+  assert.equal(periodeDe(20, 56), 2)
+  // Aucun dépôt : pas de division par zéro, pas de NaN.
+  assert.equal(periodeDe(0, 0), PERIODES.length - 1)
+})
+
+test('etiquettes : on raccourcit, sauf quand raccourcir ment', () => {
+  // `@types/react` et `react` s'affichaient TOUS DEUX « react », côte à côte,
+  // avec deux symboles et deux comptes différents. Vu à l'écran le 17/09/2026.
+  const e = etiquettes(['@types/react', 'react', '@testing-library/jest-dom'])
+  assert.equal(e.get('@types/react'), '@types/react', 'le doute lui coûte son nom entier')
+  assert.equal(e.get('react'), 'react')
+  // Celui que rien n'ambiguïse garde son nom court : une case de 82 px ne tient
+  // pas `@testing-library/jest-dom`.
+  assert.equal(e.get('@testing-library/jest-dom'), 'jest-dom')
+})
+
+test('etiquettes : deux portées différentes du même nom gardent les deux', () => {
+  const e = etiquettes(['@a/x', '@b/x'])
+  assert.equal(e.get('@a/x'), '@a/x')
+  assert.equal(e.get('@b/x'), '@b/x')
 })
