@@ -16,6 +16,10 @@ import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
 // ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
 import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, nettoie } from './regles.mjs'
+// Ce que le relevé CALCULE vit à part de ce qu'il va CHERCHER : importer ce
+// fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
+// trente appels d'API. Voir `scripts/modele.mjs`.
+import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, pileDuDepot } from './modele.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
 const COMPTE = process.env.PARC_COMPTE || 'mister-guiiug'
@@ -306,29 +310,6 @@ for (const nom of Object.keys(SOCLE)) {
 
 /* ------------------------------------------------ maturité des applications */
 
-// La maturité est ÉDITORIALE : aucun signal du dépôt ne la donne. Sa seule
-// source de vérité est `FAMILY_APPS` du socle — le même fichier que lisent les
-// applications pour s'afficher les unes aux autres. La relire ici, plutôt que
-// tenir une liste à côté, évite un second endroit où la même chose vieillit.
-function maturitesDuCatalogue(texte) {
-  const i = texte.indexOf('FAMILY_APPS')
-  if (i < 0) return {}
-  const out = {}
-  // Découpe sur les appels `app(`, PAS sur une fenêtre de caractères : deux
-  // entrées portent de longs commentaires à l'intérieur de l'appel, qu'aucune
-  // fenêtre raisonnable ne couvrait — vérifié contre le catalogue réel.
-  for (const morceau of texte.slice(i).split(/\bapp\(/).slice(1)) {
-    const id = /^\s*'([^']+)'/.exec(morceau)
-    if (!id) continue
-    // La maturité est un argument seul sur sa ligne (le fichier est formaté
-    // par prettier) : chercher le littéral n'importe où l'attraperait dans un
-    // commentaire, où le mot « stable » revient souvent.
-    const m = /^\s*'(alpha|beta|stable)',\s*$/m.exec(morceau)
-    out[id[1]] = m ? m[1] : null
-  }
-  return out
-}
-
 const depotSocle = depots.find((d) => d.nom === 'dev-pwa-config')
 const catalogue = depotSocle ? await fichier(depotSocle.nwo, depotSocle.brancheDefaut, 'apps-catalog.js') : null
 const maturites = catalogue ? maturitesDuCatalogue(catalogue) : {}
@@ -581,9 +562,7 @@ libs.sort((a, b) => b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet))
 // La date npm seule ne peut donc pas trancher. On va chercher le dernier
 // commit du dépôt amont, mais SEULEMENT pour les dormantes : dix appels au
 // lieu de quatre-vingts, et la question ne se pose que là.
-const SEUIL_DORMANCE_JOURS = 365
-const estDormante = (l) => l.publieLe && (MAINTENANT - new Date(l.publieLe)) / 86400000 > SEUIL_DORMANCE_JOURS
-const dormantes = libs.filter(estDormante)
+const dormantes = libs.filter((l) => estDormante(l, MAINTENANT))
 await enLot(dormantes, 5, async (l) => {
   if (!l.depotAmont) return
   const g = await api(`/repos/${l.depotAmont}`, { silence404: true })
@@ -592,34 +571,11 @@ await enLot(dormantes, 5, async (l) => {
   l.amontArchive = !!g.archived
   l.amontIssues = g.open_issues_count ?? null
 })
-for (const l of dormantes) {
-  const pousse = l.amontPousseLe ? (MAINTENANT - new Date(l.amontPousseLe)) / 86400000 : null
-  l.dormance = l.amontArchive ? 'archivee' : pousse == null ? 'inconnue' : pousse > SEUIL_DORMANCE_JOURS ? 'arretee' : 'sans-version'
-}
+for (const l of dormantes) l.dormance = etatDormance(l, MAINTENANT)
 
 // la pile montrée sur chaque carte
 for (const d of depots) {
-  const pile = []
-  const pousse = (nom, paquet) => {
-    const v = d.verrouillees[paquet] || nettoie(d.declarees[paquet])
-    if (v) pile.push({ nom, paquet, version: v, verrouille: !!d.verrouillees[paquet], amont: amont[paquet] || null })
-  }
-  if (d.nom === 'dev-pwa-config') pile.push({ nom: 'socle (ce dépôt)', paquet: NOM_SOCLE, version: d.paquet?.version || '?', verrouille: true, amont: amont[NOM_SOCLE] })
-  else pousse('socle', NOM_SOCLE)
-  for (const [etiq, p] of [
-    ['React', 'react'],
-    ['Vite', 'vite'],
-    ['Vitest', 'vitest'],
-    ['TypeScript', 'typescript'],
-    ['Tailwind', 'tailwindcss'],
-    ['Supabase', '@supabase/supabase-js'],
-    ['Firebase', 'firebase'],
-    ['Electron', 'electron'],
-    ['Playwright', '@playwright/test'],
-  ])
-    pousse(etiq, p)
-  for (const c of NOTABLES.slice(0, 8)) if (d.crates[c]) pile.push({ nom: c, paquet: c, version: d.crates[c], verrouille: true, amont: null, rust: true })
-  d.pile = pile
+  d.pile = pileDuDepot(d, { amont, nomSocle: NOM_SOCLE, crates: NOTABLES.slice(0, 8), nettoie })
   delete d.declarees
   delete d.verrouillees
   delete d.crates
