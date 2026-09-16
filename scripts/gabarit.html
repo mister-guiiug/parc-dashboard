@@ -1994,22 +1994,8 @@
       function rendDepots() {
         const q = $('#recherche').value.trim().toLowerCase()
         const tri = $('#tri').value
-        const liste = D.depots.filter((d) => {
-          if (famillesActives.size && !famillesActives.has(d.famille)) return false
-          if (filtresActifs.has('echec') && !d.compte.rouge) return false
-          if (filtresActifs.has('modifie') && !(d.local && d.local.modifies)) return false
-          if (filtresActifs.has('prive') && !d.prive) return false
-          if (filtresActifs.has('site') && !(d.pages && d.pages.ok)) return false
-          if (!q) return true
-          const foin = [d.nom, d.description || '', d.role || '', d.brancheDefaut, ...d.pile.map((p) => p.paquet + ' ' + p.version), ...d.workflows.map((w) => w.nom)].join(' ').toLowerCase()
-          return foin.includes(q)
-        })
-        const comparateurs = {
-          echecs: (a, b) => b.compte.rouge - a.compte.rouge || a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
-          activite: (a, b) => a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
-          nom: (a, b) => a.nom.localeCompare(b.nom),
-          workflows: (a, b) => b.workflows.length - a.workflows.length || a.nom.localeCompare(b.nom),
-        }
+        const liste = D.depots.filter((d) => correspondDepot(d, { q, familles: famillesActives, drapeaux: filtresActifs }))
+        const comparateurs = TRIS_DEPOT
         const hote = $('#grilleDepots')
         hote.textContent = ''
         // une section par famille : les PWA ne se mélangent plus au socle
@@ -2141,14 +2127,7 @@
         const seulRetard = $('#filtreRetard').getAttribute('aria-pressed') === 'true'
         const seulEclate = $('#filtreEclate').getAttribute('aria-pressed') === 'true'
         const toutes = $('#filtreToutes').getAttribute('aria-pressed') === 'true'
-        const liste = D.libs.filter((l) => {
-          // par défaut, seulement ce qui est PARTAGÉ : un paquet présent dans un
-          // seul dépôt est une dépendance d'application, pas une librairie du parc
-          if (!toutes && l.nbDepots < 2) return false
-          if (seulRetard && !l.enRetard) return false
-          if (seulEclate && l.nbVersions < 3) return false
-          return !q || l.paquet.toLowerCase().includes(q)
-        })
+        const liste = D.libs.filter((l) => correspondLib(l, { q, toutes, retard: seulRetard, eclate: seulEclate }))
         // Le tri des en-tetes passe DEVANT l'ordre du modele, qui reste celui
         // du relevé (paquets les plus éclatés d'abord).
         const ordre = ordreLibs && ordreLibs()
@@ -2818,34 +2797,6 @@
 
       /* ---------------- table des éléments ---------------- */
 
-      /**
-       * CE QU'AUCUN LOCKFILE NE DÉCLARE, mais que le relevé sait compter.
-       *
-       * GitHub Actions, Pages, Lighthouse, Renovate, Supabase, Cloudflare : ces
-       * technologies ne sont dans aucun `package.json`, et elles portent
-       * pourtant la moitié de ce que le parc fait. Chacune est DÉDUITE — d'un
-       * nom de workflow, d'un champ du dépôt — jamais écrite de mémoire. Une
-       * ligne qui ne trouve aucun dépôt ne s'affiche pas : mieux vaut un trou
-       * qu'un chiffre inventé.
-       */
-      function elementsHorsNpm() {
-        const wf = (re) => D.depots.filter((d) => (d.workflows || []).some((w) => re.test(w.nom || w.name || ''))).length
-        const lang = (nom) => D.depots.filter((d) => d.langage === nom).length
-        const brut = [
-          { nom: 'GitHub Actions', n: D.depots.filter((d) => (d.workflows || []).length).length, ver: 'workflows', groupe: 'infra' },
-          { nom: 'GitHub Pages', n: D.depots.filter((d) => d.pages).length, ver: 'sites servis', groupe: 'infra' },
-          { nom: 'Renovate', n: wf(/renovate/i), ver: 'montées de deps', groupe: 'qual' },
-          { nom: 'Lighthouse CI', n: wf(/lighthouse/i), ver: 'seuils a11y', groupe: 'test' },
-          { nom: 'Supabase', n: wf(/supabase/i), ver: 'Postgres · RLS', groupe: 'dos' },
-          { nom: 'Cloudflare Workers', n: wf(/worker/i), ver: 'proxys', groupe: 'dos' },
-          { nom: 'Firebase Hosting', n: wf(/firebase/i), ver: 'déploiement', groupe: 'dos' },
-          { nom: 'Rust', n: lang('Rust'), ver: 'crates', groupe: 'lang' },
-          { nom: 'C#', n: lang('C#'), ver: '.NET', groupe: 'lang' },
-          { nom: 'Python', n: lang('Python'), ver: 'scripts', groupe: 'lang' },
-        ]
-        return brut.filter((e) => e.n > 0)
-      }
-
       function rendElements() {
         const hote = $('#periodes')
         hote.textContent = ''
@@ -2866,7 +2817,7 @@
         // passes — les paquets, puis les éléments de synthèse — laissait deux
         // cases porter `Re` : `react` et `Renovate`. Les paquets passent en
         // premier, donc gardent les symboles les plus courts.
-        const synthese = elementsHorsNpm()
+        const synthese = elementsHorsNpm(D.depots)
         const sym = symboles([...tries.map((l) => l.paquet), ...synthese.map((e) => e.nom)])
         const etiq = etiquettes(tries.map((l) => l.paquet))
 
