@@ -1308,8 +1308,9 @@
             La section précédente répond « qui porte quelle version » paquet par paquet ; celle-ci les met côte à côte. Une ligne est un dépôt, une colonne un paquet, une cellule la version qu'il
             <strong>verrouille</strong>. La couleur ne dit pas « vieux » dans l'absolu mais l'<strong>écart à la version la plus récente du parc</strong> — la seule sur laquelle on peut agir, puisqu'un
             autre dépôt la tient déjà. Par défaut, seuls les paquets réellement éclatés sont montrés ; les colonnes s'ajoutent et se retirent une à une.
-            <strong>Cliquez un nom de paquet</strong> pour classer les dépôts sur la version qu'ils en portent — décroissant, puis croissant, puis retour au tri courant. La comparaison est
-            <strong>sémantique</strong> : <code>1.9.0</code> précède <code>1.10.0</code>. Un dépôt qui ne dépend pas du paquet n'a pas de version à comparer, il reste en bas dans les deux sens.
+            <strong>Tout en-tête classe le tableau</strong> — un paquet sur la version portée, <em>Dépôt</em> sur le nom, <em>Écarts</em> sur leur nombre. Un clic, puis l'inverse, puis retour au tri
+            courant. La comparaison des versions est <strong>sémantique</strong> : <code>1.9.0</code> précède <code>1.10.0</code>. Un dépôt qui ne dépend pas du paquet n'a pas de version à comparer, il
+            reste en bas dans les deux sens.
           </p>
           <div class="filtres">
             <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes">Choisir les colonnes</button>
@@ -1385,6 +1386,20 @@
       __DONNEES__
     </script>
     <script>
+      // LES RÈGLES PURES DE LA VUE, EN PRÉLUDE.
+      //
+      // Elles vivent dans `scripts/vue.mjs` et `scripts/regles.mjs`, insérées
+      // ici par `releve.mjs` à la place du marqueur — et y sont éprouvées par
+      // `node --test`, ce qu'aucun test ne pouvait atteindre tant qu'elles
+      // étaient écrites dans ce fichier. La page reste un seul fichier, sans
+      // ressource externe.
+      //
+      // EN TÊTE, et pas au milieu : ce sont des `const`, donc en zone morte
+      // temporelle tant qu'elles ne sont pas évaluées. Placées plus bas, le
+      // code du tableau d'activité — qui s'exécute au fil du script — levait
+      // « Cannot access 'parTexte' before initialization ».
+      __VUE__
+
       const D = JSON.parse(document.getElementById('donnees').textContent)
       const $ = (s) => document.querySelector(s)
       const el = (t, cls, txt) => {
@@ -1882,6 +1897,59 @@
         const lum = 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]
         noeud.style.color = lum > 0.18 ? '#0b0b0b' : '#ffffff'
       }
+      /**
+       * REND TRIABLE UN TABLEAU À EN-TÊTE STATIQUE.
+       *
+       * La matrice engendre ses en-têtes, donc elle pouvait y poser des boutons.
+       * Les quatre autres tableaux ont leur `<thead>` écrit dans le HTML : on ne
+       * le réécrit pas, on l'AMÉLIORE — le contenu de la cellule entre dans un
+       * bouton, et le reste du balisage (portée, classe `num`, libellé masqué)
+       * ne bouge pas.
+       *
+       * `colonnes` associe un index de colonne à `{ lire, cmp, sens }` : les
+       * colonnes absentes de la carte restent inertes, parce qu'il y en a qui
+       * n'ont rien à ordonner — une barre de répartition ne se classe pas.
+       *
+       * @returns {() => ((a, b) => number) | null} L'ordre courant, à appliquer
+       *   à la liste AVANT rendu : les lignes de `librairies` vont par paires
+       *   (la ligne et son détail replié), et réordonner le DOM les séparerait.
+       */
+      function rendTriable(table, colonnes, rerendre) {
+        let etat = null
+        const ths = [...table.querySelectorAll('thead th')]
+        for (const [i, def] of Object.entries(colonnes)) {
+          const th = ths[i]
+          if (!th) continue
+          const contenu = [...th.childNodes]
+          const b = el('button', 'triCol')
+          b.type = 'button'
+          b.append(...contenu, el('span', 'fleche', '↕'))
+          b.lastChild.setAttribute('aria-hidden', 'true')
+          b.setAttribute('aria-label', def.libelle)
+          th.setAttribute('aria-sort', 'none')
+          b.addEventListener('click', () => {
+            const premier = def.sens ?? -1
+            if (!etat || etat.i !== i) etat = { i, sens: premier }
+            else if (etat.sens === premier) etat.sens = -premier
+            else etat = null
+            for (const autre of ths) autre.setAttribute('aria-sort', 'none')
+            for (const autre of ths) autre.querySelector('button')?.classList.remove('triActif')
+            for (const autre of ths) {
+              const f = autre.querySelector('.fleche')
+              if (f) f.textContent = '↕'
+            }
+            if (etat) {
+              th.setAttribute('aria-sort', etat.sens === 1 ? 'ascending' : 'descending')
+              b.classList.add('triActif')
+              b.querySelector('.fleche').textContent = etat.sens === 1 ? '▲' : '▼'
+            }
+            rerendre()
+          })
+          th.append(b)
+        }
+        return () => (etat ? parChamp(colonnes[etat.i].lire, etat.sens, colonnes[etat.i].cmp) : null)
+      }
+
       function rendLibs() {
         const q = $('#rechercheLib').value.trim().toLowerCase()
         const seulRetard = $('#filtreRetard').getAttribute('aria-pressed') === 'true'
@@ -1895,6 +1963,10 @@
           if (seulEclate && l.nbVersions < 3) return false
           return !q || l.paquet.toLowerCase().includes(q)
         })
+        // Le tri des en-tetes passe DEVANT l'ordre du modele, qui reste celui
+        // du relevé (paquets les plus éclatés d'abord).
+        const ordre = ordreLibs && ordreLibs()
+        if (ordre) liste.sort(ordre)
         const tb = $('#corpsLibs')
         tb.textContent = ''
         for (const l of liste) {
@@ -2013,15 +2085,33 @@
       $('#axeActivite').textContent = `Échelle de 0 à ${maxJ} jours. Le dépôt le plus ancien du parc a ${maxJ} jours de retard sur son dernier commit : aucun dépôt n'est en sommeil.`
       $('#compteurActivite').textContent = `${D.activite.length} dépôts`
       const ca = $('#corpsActivite')
-      for (const a of D.activite) {
-        const tr = el('tr')
-        const c = el('td')
-        const lien = el('a', 'depotLien', a.depot)
-        lien.href = '#depot-' + a.depot
-        c.append(lien)
-        tr.append(c, el('td', 'num', String(a.jours)), el('td', null, fmtDate(a.date)))
-        ca.append(tr)
+      function rendActivite() {
+        ca.textContent = ''
+        const ordre = ordreActivite && ordreActivite()
+        const liste = ordre ? [...D.activite].sort(ordre) : D.activite
+        for (const a of liste) {
+          const tr = el('tr')
+          const c = el('td')
+          const lien = el('a', 'depotLien', a.depot)
+          lien.href = '#depot-' + a.depot
+          c.append(lien)
+          tr.append(c, el('td', 'num', String(a.jours)), el('td', null, fmtDate(a.date)))
+          ca.append(tr)
+        }
       }
+
+      // Trois colonnes, trois tris. « Jours » ouvre sur le plus ancien : c'est
+      // la question qu'on pose à ce tableau.
+      const ordreActivite = rendTriable(
+        ca.closest('table'),
+        {
+          0: { lire: (a) => a.depot, cmp: parTexte, sens: 1, libelle: 'Trier par nom de dépôt' },
+          1: { lire: (a) => a.jours, sens: -1, libelle: 'Trier par nombre de jours' },
+          2: { lire: (a) => a.date, sens: -1, libelle: 'Trier par date du dernier commit' },
+        },
+        () => rendActivite(),
+      )
+      rendActivite()
       $('#basculeTableauActivite').addEventListener('click', () => {
         const b = $('#basculeTableauActivite')
         const on = b.getAttribute('aria-pressed') !== 'true'
@@ -2116,30 +2206,6 @@
 
       /* ---------------- matrice des écarts ---------------- */
 
-      const cmpV = (a, b) => {
-        const pa = String(a).split('.').map(Number)
-        const pb = String(b).split('.').map(Number)
-        for (let i = 0; i < 3; i += 1) {
-          const d = (pa[i] || 0) - (pb[i] || 0)
-          if (d) return Math.sign(d)
-        }
-        return 0
-      }
-
-      // Le RANG de l'écart, pas sa distance. Passer de 4.2 à 4.3 n'a rien de
-      // commun avec passer de 3 à 4 : un chiffre unique mélangerait les deux,
-      // et c'est précisément ce que la couleur doit séparer.
-      const rangEcart = (v, ref) => {
-        if (!v) return 'absent'
-        if (!ref || cmpV(v, ref) >= 0) return '0'
-        const a = String(v).split('.').map(Number)
-        const b = String(ref).split('.').map(Number)
-        if ((a[0] || 0) !== (b[0] || 0)) return 'majeure'
-        if ((a[1] || 0) !== (b[1] || 0)) return 'mineure'
-        return 'patch'
-      }
-
-      const POIDS = { majeure: 3, mineure: 2, patch: 1, 0: 0, absent: 0 }
 
       // Le modèle range les versions par paquet ; la matrice a besoin de
       // l'inverse. On retourne l'index une fois, au lieu de balayer `D.libs`
@@ -2187,12 +2253,49 @@
       // une colonne est « qui est le plus en retard ? », et la réponse est plus
       // lisible quand les dépôts à jour ouvrent la liste et que le retard se lit
       // en descendant.
+      // DEUX COLONNES N'ÉTAIENT PAS DES COLONNES — « Dépôt » et « Écarts »
+      // étaient de simples `<th>` de texte, quand les treize autres étaient des
+      // boutons de tri. Un lecteur qui apprend « je clique `typescript` » clique
+      // `Dépôt`, et rien ne se passe. Le tri existait pourtant : dans la liste
+      // déroulante, trois lignes plus haut.
+      //
+      // Elles rejoignent donc le MÊME mécanisme, sous deux clés réservées, au
+      // lieu d'un second système parallèle : un seul état, un seul cycle, une
+      // seule façon de revenir au tri de la liste déroulante.
+      const TRI_DEPOT = ' depot'
+      const TRI_ECARTS = ' ecarts'
+
+      // LE PREMIER SENS N'EST PAS LE MÊME PARTOUT, parce que la question ne
+      // l'est pas. Sur une version ou sur des écarts, on demande « qui est le
+      // plus en retard ? » et la réponse ouvre la liste. Sur un NOM, on demande
+      // l'alphabet — commencer par Z serait une curiosité.
+      const SENS_INITIAL = (cle) => (cle === TRI_DEPOT ? 1 : -1)
+
       let triColonne = null
-      function cyclerTriColonne(paquet) {
-        if (!triColonne || triColonne.paquet !== paquet) triColonne = { paquet, sens: -1 }
-        else if (triColonne.sens === -1) triColonne.sens = 1
+      function cyclerTriColonne(cle) {
+        if (!triColonne || triColonne.cle !== cle) triColonne = { cle, sens: SENS_INITIAL(cle) }
+        else if (triColonne.sens === SENS_INITIAL(cle)) triColonne.sens = -SENS_INITIAL(cle)
         else triColonne = null
         rendMatrice()
+      }
+
+      /** Le bouton de tri d'un en-tête, quelle que soit sa colonne. */
+      function boutonTri(cle, texte, libelles) {
+        const actif = triColonne && triColonne.cle === cle
+        const th = el('th', libelles.classe || null)
+        th.scope = 'col'
+        // `aria-sort` est le seul signal que lit un lecteur d'écran : la
+        // flèche, elle, est décorative et masquée.
+        th.setAttribute('aria-sort', actif ? (triColonne.sens === 1 ? 'ascending' : 'descending') : 'none')
+        const b = el('button', 'triCol' + (actif ? ' triActif' : ''))
+        b.type = 'button'
+        b.append(texte, el('span', 'fleche', actif ? (triColonne.sens === 1 ? '▲' : '▼') : '↕'))
+        b.lastChild.setAttribute('aria-hidden', 'true')
+        if (libelles.titre) b.title = libelles.titre
+        b.setAttribute('aria-label', actif ? (triColonne.sens === 1 ? libelles.croissant : libelles.decroissant) : libelles.inactif)
+        b.addEventListener('click', () => cyclerTriColonne(cle))
+        th.append(b)
+        return th
       }
 
       function rendChoixColonnes() {
@@ -2237,8 +2340,8 @@
             return { paquet: l.paquet, version: v, rang: rangEcart(v, l.plusRecente) }
           })
           if (!cellules.some((c) => c.version)) continue
-          const score = cellules.reduce((n, c) => n + POIDS[c.rang], 0)
-          const nb = cellules.filter((c) => POIDS[c.rang] > 0).length
+          const score = graviteEcarts(cellules)
+          const nb = compteEcarts(cellules)
           lignes.push({ depot: d.nom, famille: familleDe.get(d.nom), maturite: maturiteDe(d), cellules, score, nb })
         }
 
@@ -2269,7 +2372,6 @@
         // dépôts à cinq écarts restent classés par gravité, et la colonne reste
         // lisible de haut en bas. Le poids n'est pas perdu — il est dit dans
         // l'infobulle de chaque cellule.
-        const parEcart = (a, b) => b.nb - a.nb || b.score - a.score || a.depot.localeCompare(b.depot)
         const tri = $('#matriceTri').value
         visibles.sort((a, b) =>
           tri === 'nom'
@@ -2277,17 +2379,24 @@
             : tri === 'famille'
               ? String(a.famille).localeCompare(String(b.famille)) || a.depot.localeCompare(b.depot)
               : tri === 'maturite'
-                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || parEcart(a, b)
-                : parEcart(a, b),
+                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || parNombreEcarts(a, b)
+                : parNombreEcarts(a, b),
         )
 
         // Le tri par colonne passe DEVANT celui de la liste déroulante, qui
         // reste le départage à versions égales — deux dépôts sur la même version
         // gardent l'ordre choisi juste au-dessus, au lieu d'un ordre arbitraire.
-        if (triColonne && cols.some((l) => l.paquet === triColonne.paquet)) {
-          const i = cols.findIndex((l) => l.paquet === triColonne.paquet)
+        const i = triColonne ? cols.findIndex((l) => l.paquet === triColonne.cle) : -1
+        const surColonne = triColonne && (i !== -1 || triColonne.cle === TRI_DEPOT || triColonne.cle === TRI_ECARTS)
+        if (surColonne) {
           const stable = new Map(visibles.map((r, n) => [r.depot, n]))
           visibles.sort((a, b) => {
+            if (triColonne.cle === TRI_DEPOT) return a.depot.localeCompare(b.depot) * triColonne.sens
+            // Sur les écarts, le départage reste celui du correctif de tri : le
+            // compte d'abord, la gravité ensuite. Inverser l'ordre inverse les
+            // DEUX, sinon le croissant classerait les ex æquo à l'envers.
+            if (triColonne.cle === TRI_ECARTS)
+              return (a.nb - b.nb || a.score - b.score) * triColonne.sens || stable.get(a.depot) - stable.get(b.depot)
             const va = a.cellules[i].version
             const vb = b.cellules[i].version
             // UN DÉPÔT QUI NE DÉPEND PAS DU PAQUET N'A PAS DE VERSION, et n'est
@@ -2296,42 +2405,37 @@
             if (!va && !vb) return stable.get(a.depot) - stable.get(b.depot)
             if (!va) return 1
             if (!vb) return -1
-            return cmpV(va, vb) * triColonne.sens || stable.get(a.depot) - stable.get(b.depot)
+            return cmpVersion(va, vb) * triColonne.sens || stable.get(a.depot) - stable.get(b.depot)
           })
         }
 
         const tr = el('tr')
-        const thDepot = el('th', null, 'Dépôt')
-        thDepot.scope = 'col'
-        tr.append(thDepot)
+        tr.append(
+          boutonTri(TRI_DEPOT, 'Dépôt', {
+            inactif: 'Trier les dépôts par nom',
+            croissant: 'Dépôt : trié de A à Z. Cliquer pour inverser.',
+            decroissant: 'Dépôt : trié de Z à A. Cliquer pour revenir au tri par défaut.',
+          }),
+        )
         for (const l of cols) {
-          const th = el('th')
-          th.scope = 'col'
-          const actif = triColonne && triColonne.paquet === l.paquet
-          // `aria-sort` est le seul signal que lit un lecteur d'écran : la
-          // flèche, elle, est décorative et masquée.
-          th.setAttribute('aria-sort', actif ? (triColonne.sens === 1 ? 'ascending' : 'descending') : 'none')
-          const b = el('button', 'triCol' + (actif ? ' triActif' : ''))
-          b.type = 'button'
-          const s = el('span', 'matriceCol', l.paquet)
-          b.append(s, el('span', 'fleche', actif ? (triColonne.sens === 1 ? '▲' : '▼') : '↕'))
-          b.lastChild.setAttribute('aria-hidden', 'true')
-          b.title = `${l.paquet} — plus récente du parc : ${l.plusRecente}${l.amont ? `, amont : ${l.amont}` : ''}`
-          b.setAttribute(
-            'aria-label',
-            actif
-              ? triColonne.sens === 1
-                ? `${l.paquet} : trié du plus ancien au plus récent. Cliquer pour revenir au tri par défaut.`
-                : `${l.paquet} : trié du plus récent au plus ancien. Cliquer pour inverser.`
-              : `Trier les dépôts sur la version de ${l.paquet}`,
+          tr.append(
+            boutonTri(l.paquet, el('span', 'matriceCol', l.paquet), {
+              titre: `${l.paquet} — plus récente du parc : ${l.plusRecente}${l.amont ? `, amont : ${l.amont}` : ''}`,
+              inactif: `Trier les dépôts sur la version de ${l.paquet}`,
+              croissant: `${l.paquet} : trié du plus ancien au plus récent. Cliquer pour revenir au tri par défaut.`,
+              decroissant: `${l.paquet} : trié du plus récent au plus ancien. Cliquer pour inverser.`,
+            }),
           )
-          b.addEventListener('click', () => cyclerTriColonne(l.paquet))
-          th.append(b)
-          tr.append(th)
         }
-        const thEcarts = el('th', 'num', 'Écarts')
-        thEcarts.scope = 'col'
-        tr.append(thEcarts)
+        tr.append(
+          boutonTri(TRI_ECARTS, 'Écarts', {
+            classe: 'num',
+            titre: 'Nombre d’écarts sur les colonnes affichées ; la gravité départage les ex æquo.',
+            inactif: 'Trier les dépôts sur le nombre d’écarts',
+            croissant: 'Écarts : trié du moins au plus. Cliquer pour revenir au tri par défaut.',
+            decroissant: 'Écarts : trié du plus au moins. Cliquer pour inverser.',
+          }),
+        )
         tete.append(tr)
 
         for (const r of visibles) {
@@ -2488,6 +2592,20 @@
       }
       window.addEventListener('scroll', suitDefilement, { passive: true })
       suitDefilement()
+
+      // Quatre colonnes sur six. La barre de répartition ne se classe pas — il
+      // n'y a pas d'ordre sur un dessin — et la première ne porte que le
+      // chevron de dépliage.
+      const ordreLibs = rendTriable(
+        $('#corpsLibs').closest('table'),
+        {
+          1: { lire: (l) => l.paquet, cmp: parTexte, sens: 1, libelle: 'Trier par nom de paquet' },
+          2: { lire: (l) => l.nbDepots, sens: -1, libelle: 'Trier par nombre de dépôts' },
+          4: { lire: (l) => l.amont, cmp: cmpVersion, sens: -1, libelle: 'Trier par version amont' },
+          5: { lire: (l) => l.enRetard, sens: -1, libelle: 'Trier par nombre de dépôts en retard' },
+        },
+        () => rendLibs(),
+      )
 
       rendDepots()
       rendLibs()
