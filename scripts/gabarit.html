@@ -2251,6 +2251,25 @@
           .filter((r) => (sansEcart ? r.nb > 0 : true))
           .filter((r) => (choisies.size ? choisies.has(r.maturite) : true))
           .filter((r) => (choisiesFam.size ? choisiesFam.has(r.famille) : true))
+        // LA COLONNE QU'ON LIT EST LA CLÉ QUI TRIE — et ça ne l'était pas.
+        //
+        // « Plus d'écarts d'abord » ordonnait sur `score`, la somme PONDÉRÉE
+        // (majeure 3, mineure 2, patch 1), pendant que la colonne « Écarts »
+        // affichait `nb`, le simple compte. Deux majeures pèsent 6 et
+        // s'affichent « 2 » ; cinq patchs pèsent 5 et s'affichent « 5 ».
+        //
+        // Mesuré sur la page publiée le 16/09/2026, vue par défaut : QUATRE
+        // inversions visibles à l'écran — 9, 9, 8, 7, 8, 6, 7… `miss-carbook`
+        // (7) passait devant `mister-footcoach` (8). Le tri n'était pas faux,
+        // il répondait à une autre question que celle du libellé ; mais de
+        // l'autre côté de l'écran, un tableau dont la colonne triée n'est pas
+        // monotone est simplement cassé.
+        //
+        // Le compte passe donc DEVANT, et le poids devient le départage : deux
+        // dépôts à cinq écarts restent classés par gravité, et la colonne reste
+        // lisible de haut en bas. Le poids n'est pas perdu — il est dit dans
+        // l'infobulle de chaque cellule.
+        const parEcart = (a, b) => b.nb - a.nb || b.score - a.score || a.depot.localeCompare(b.depot)
         const tri = $('#matriceTri').value
         visibles.sort((a, b) =>
           tri === 'nom'
@@ -2258,8 +2277,8 @@
             : tri === 'famille'
               ? String(a.famille).localeCompare(String(b.famille)) || a.depot.localeCompare(b.depot)
               : tri === 'maturite'
-                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || b.score - a.score || a.depot.localeCompare(b.depot)
-                : b.score - a.score || a.depot.localeCompare(b.depot),
+                ? RANG_MAT[a.maturite] - RANG_MAT[b.maturite] || parEcart(a, b)
+                : parEcart(a, b),
         )
 
         // Le tri par colonne passe DEVANT celui de la liste déroulante, qui
@@ -2341,7 +2360,20 @@
               : `${r.depot} ne dépend pas de ${c.paquet}`
             l.append(td)
           }
-          l.append(el('td', 'num matriceTotal', String(r.nb)))
+          // LE POIDS NE DISPARAÎT PAS, il change de place. La colonne porte le
+          // COMPTE — celui qu'on peut vérifier à l'œil en comptant les cellules
+          // colorées de la ligne — et l'infobulle dit la gravité, qui départage
+          // deux dépôts à égalité.
+          const tdTotal = el('td', 'num matriceTotal', String(r.nb))
+          const detail = ['majeure', 'mineure', 'patch']
+            .map((rang) => [rang, r.cellules.filter((c) => c.rang === rang).length])
+            .filter(([, n]) => n > 0)
+            .map(([rang, n]) => `${n} ${rang}${n > 1 ? 's' : ''}`)
+            .join(', ')
+          tdTotal.title = r.nb
+            ? `${r.depot} — ${r.nb} écart${r.nb > 1 ? 's' : ''} sur les colonnes affichées (${detail}) — gravité ${r.score}`
+            : `${r.depot} — aucun écart sur les colonnes affichées`
+          l.append(tdTotal)
           corps.append(l)
         }
 
