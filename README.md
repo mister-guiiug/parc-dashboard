@@ -25,6 +25,7 @@ Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github
 | Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
 | Où suis-je dans la page, et comment revenir en haut ? | sommaire flottant en bas à droite |
+| Et en anglais ? | liste déroulante en haut à droite — voir « Les deux langues » |
 
 ## La matrice des écarts
 
@@ -79,6 +80,49 @@ une couleur veut dire « écart », et rien d'autre.
 
 Les huit dépôts qui n'en portent pas sont ceux qui ne sont pas des
 applications — les trois couches du socle, l'outillage, et `.github`.
+
+## Les deux langues
+
+La page se lit en **français** ou en **anglais**, et la bascule est immédiate :
+rien n'est rechargé, tout est déjà dans le document.
+
+La langue servie se décide dans cet ordre — **l'URL**, puis le **choix
+mémorisé**, puis le **navigateur**. L'URL passe devant parce qu'elle est ce
+qu'on envoie à quelqu'un : un lien qui s'ouvrirait dans la langue du
+destinataire ne montrerait pas ce qu'on voulait montrer. Le paramètre `?lang=en`
+rejoint donc les onze autres que la page sait déjà transmettre, et le défaut ne
+s'écrit pas.
+
+Tout le texte vit dans [`scripts/libelles.mjs`](scripts/libelles.mjs), recopié
+dans la page comme les autres modules. **Une langue de plus, c'est une entrée
+dans `LANGUES` et un objet de plus dans `LIBELLES`** — le gabarit ne bouge pas.
+Deux langues seulement, et non les sept du socle : celui-ci habille des
+applications que d'autres gens ouvrent, quand cette page est un instrument de
+bord dont le texte est de la prose technique qui bouge à chaque relevé.
+
+Trois règles portent l'ensemble :
+
+- **Un module qui calcule n'écrit jamais une phrase, il rend une clé.**
+  `regles.mjs` rend `role.vscode`, pas « extension VS Code » ; `modele.mjs` rend
+  `pile.socle` ; `vue.mjs` rend `groupe.lang`. C'est la correction d'un défaut
+  réel : le relevé embarquait ses libellés français **dans le JSON**, et aucun
+  sélecteur n'aurait pu défaire après coup une langue cuite dans la donnée. Ce
+  qui n'est pas une clé — `Electron`, `.NET`, un langage rendu par l'API —
+  traverse tel quel : un nom propre n'a pas de traduction à chercher.
+- **Le balisage porte les clés, et c'est ce qui permet de retraduire sans rien
+  reconstruire.** `data-t` remplace le texte, `data-th` le balisage intérieur
+  (les chapeaux portent du `<code>` et du `<strong>`), `data-t-placeholder` et
+  ses voisins les attributs. Un bouton dont le libellé dépend de son état pose
+  sa clé au lieu d'écrire son texte — son état survit ainsi au changement de
+  langue.
+- **Les pluriels passent par `Intl.PluralRules`.** La forme écrite à la main —
+  `n > 1 ? 's' : ''` — était juste en français, où 0 et 1 sont au singulier, et
+  fausse en anglais dès « 0 repositories ». Et quand une phrase compte un
+  total (« 1 sur 92 paquets »), c'est le **total** qui commande l'accord.
+
+Le HTML servi reste en français en clair : les moteurs, les aperçus de lien et
+le paragraphe `noscript` lisent le document tel qu'il arrive. Deux écritures du
+même texte, donc deux textes qui divergeraient — `npm test` les compare.
 
 ## Comment les familles sont établies
 
@@ -153,6 +197,16 @@ jeton, `node:test` suffit.
 C'est `fond()` qui justifie surtout ces tests : elle décide si la CI commite. Une
 régression y ferait réécrire `index.html` toutes les nuits sans que rien n'ait
 bougé, et personne ne le verrait avant des semaines de commits vides.
+
+[`test/libelles.test.mjs`](test/libelles.test.mjs) garde les traductions, dont
+les défauts sont **tous silencieux** : un oubli ne lève rien, ne rougit rien, et
+ne se voit que si quelqu'un ouvre la page dans l'autre langue. Il exige donc que
+les deux langues portent les mêmes clés, les mêmes interpolations et les mêmes
+formes de pluriel ; que **toute clé demandée existe et que toute clé du
+dictionnaire soit demandée** — le second sens attrape le texte mort ; que le
+français **servi** dans le gabarit soit mot pour mot celui du dictionnaire ; et
+que l'empreinte du relevé compte `libelles.mjs`, sans quoi une traduction
+corrigée — qui ne change aucune donnée — n'atteindrait jamais la page publiée.
 
 ## Régénérer
 

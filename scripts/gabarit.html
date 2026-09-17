@@ -3,8 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Parc mister-guiiug — dépôts, pipelines, librairies</title>
-    <meta name="description" content="État des dépôts git du parc : pipelines GitHub Actions, dernier CI/CD, versions des librairies." />
+    <!-- LE TEXTE SERVI EST LE FRANÇAIS, et le JavaScript le remplace au
+         chargement si la langue demandée est une autre. Servir une page vide de
+         mots aurait deux défauts : les moteurs et les aperçus de lien lisent le
+         document tel qu'il arrive, et `noscript` n'aurait plus rien à dire. -->
+    <title data-t="page.titre">Parc mister-guiiug — dépôts, pipelines, librairies</title>
+    <meta name="description" data-t-content="page.description" content="État des dépôts git du parc : pipelines GitHub Actions, dernier CI/CD, versions des librairies." />
     <style>
       __STYLE__
     </style>
@@ -13,19 +17,25 @@
     <!-- PREMIER ARRÊT DE LA PAGE. Sans lui, atteindre la matrice au clavier
          demandait 993 tabulations : chaque carte de dépôt porte ses liens, et
          il y en a vingt-huit. Il ne se voit qu'au focus. -->
-    <a class="evitement" href="#contenu">Aller au contenu</a>
+    <a class="evitement" href="#contenu" data-t="a11y.evitement">Aller au contenu</a>
     <div class="enveloppe">
       <header>
         <div class="chapeau">
           <div>
-            <h1>Parc <span class="mono">mister-guiiug</span> — dépôts, pipelines, librairies</h1>
+            <h1 data-th="page.h1">Parc <span class="mono">mister-guiiug</span> — dépôts, pipelines, librairies</h1>
             <div class="sous" id="sousTitre"></div>
           </div>
           <div class="outils">
-            <button class="bouton" id="basculeTheme" type="button">Thème</button>
-            <a class="bouton" href="#echecs">Échecs</a>
-            <a class="bouton" href="#depots">Dépôts</a>
-            <a class="bouton" href="#librairies">Librairies</a>
+            <!-- LE SÉLECTEUR EN PREMIER DANS LA RANGÉE : c'est le seul contrôle
+                 dont dépend la lisibilité de tous les autres. Une liste
+                 déroulante et non deux boutons — deux langues tiennent dans
+                 deux boutons, sept n'y tiendraient pas, et le mécanisme est
+                 fait pour qu'en ajouter une soit un fichier. -->
+            <select class="bouton" id="langue" data-t-aria-label="outils.langue" aria-label="Langue"></select>
+            <button class="bouton" id="basculeTheme" type="button" data-t="outils.theme">Thème</button>
+            <a class="bouton" href="#echecs" data-t="outils.echecs">Échecs</a>
+            <a class="bouton" href="#depots" data-t="outils.depots">Dépôts</a>
+            <a class="bouton" href="#librairies" data-t="outils.librairies">Librairies</a>
           </div>
         </div>
 
@@ -45,15 +55,15 @@
 
         <div class="carte bandeauChangements" id="bandeauChangements" hidden>
           <div class="titreSection">
-            <h2 class="titreBandeau">Ce qui a bougé</h2>
+            <h2 class="titreBandeau" data-t="changements.h2">Ce qui a bougé</h2>
             <span class="compteur" id="compteurChangements"></span>
           </div>
           <ul class="listeChangements" id="listeChangements"></ul>
         </div>
 
         <div class="familles" id="familles">
-          <h2 class="titreFamilles">Par famille</h2>
-          <p class="chapo">
+          <h2 class="titreFamilles" data-t="familles.h2">Par famille</h2>
+          <p class="chapo" data-th="familles.chapo">
             Une application PWA se reconnaît à <code>vite-plugin-pwa</code> et à son déploiement Pages ; une application desktop à Electron ou Tauri. Les trois couches du socle sont nommées
             explicitement : le squelette est lui-même une PWA, aucun signal ne le distinguerait de ce qu'il engendre.
           </p>
@@ -62,6 +72,9 @@
       </header>
 
       <noscript>
+        <!-- Pas de `data-th` ici : ce paragraphe ne se voit QUE sans
+             JavaScript, donc dans le seul cas où rien ne le traduirait. Il
+             reste dans la langue servie, et c'est la seule réponse juste. -->
         <p class="chapo" style="margin: 0 0 1rem">
           Cette page se construit dans le navigateur, à partir d'un relevé déposé juste au-dessus dans le document — aucune requête réseau, mais du JavaScript. Sans lui, rien ne s'affiche. Les données
           brutes restent lisibles dans la source, sous <code>&lt;script id="donnees"&gt;</code>.
@@ -74,31 +87,31 @@
            Mesuré sur la page publiée le 17/09/2026.
            Déplacé ici, il est au 2ᵉ arrêt, et rien ne change à l'écran. -->
       <div class="flottant">
-        <button class="bouton" type="button" id="basculeSommaire" aria-expanded="false" aria-controls="sommaire">Sommaire</button>
-        <nav class="sommaire" id="sommaire" aria-label="Chapitres de la page"></nav>
-        <button class="bouton" type="button" id="retourHaut" hidden>↑ Haut de page</button>
+        <button class="bouton" type="button" id="basculeSommaire" aria-expanded="false" aria-controls="sommaire" data-t="sommaire.bouton">Sommaire</button>
+        <nav class="sommaire" id="sommaire" data-t-aria-label="sommaire.al" aria-label="Chapitres de la page"></nav>
+        <button class="bouton" type="button" id="retourHaut" hidden data-t="sommaire.haut">↑ Haut de page</button>
       </div>
 
       <main id="contenu" tabindex="-1">
         <section id="echecs">
           <div class="titreSection">
-            <h2>Ce qui est rouge</h2>
+            <h2 data-t="echecs.h2">Ce qui est rouge</h2>
             <span class="compteur" id="compteurEchecs"></span>
           </div>
-          <p class="chapo">
+          <p class="chapo" data-t="echecs.chapo">
             Dernier run de chaque workflow actif, pris sur la branche par défaut du dépôt (à défaut, le dernier run toutes branches). Les workflows réutilisables du socle sont exclus : ils n'ont pas de run propre.
           </p>
           <div id="motifs"></div>
           <div class="carte tableEnveloppe">
             <table>
-              <caption class="sr">Workflows en échec : dépôt, workflow, état, étape fautive, ancienneté, lien vers le run.</caption>
+              <caption class="sr" data-t="echecs.caption">Workflows en échec : dépôt, workflow, état, étape fautive, ancienneté, lien vers le run.</caption>
               <thead>
                 <tr>
-                  <th scope="col">Dépôt</th>
-                  <th scope="col">Workflow</th>
-                  <th scope="col">État</th>
-                  <th scope="col">Où ça casse</th>
-                  <th scope="col" class="num">Depuis</th>
+                  <th scope="col" data-t="echecs.th.depot">Dépôt</th>
+                  <th scope="col" data-t="echecs.th.workflow">Workflow</th>
+                  <th scope="col" data-t="echecs.th.etat">État</th>
+                  <th scope="col" data-t="echecs.th.ou">Où ça casse</th>
+                  <th scope="col" class="num" data-t="echecs.th.depuis">Depuis</th>
                   <th scope="col"></th>
                 </tr>
               </thead>
@@ -109,59 +122,63 @@
 
         <section id="depots">
           <div class="titreSection">
-            <h2>Dépôts</h2>
+            <h2 data-t="depots.h2">Dépôts</h2>
             <span class="compteur" id="compteurDepots"></span>
           </div>
-          <p class="chapo">Une carte par dépôt git : copie locale, pipelines, pile technique. Les versions de librairies sont celles <em>verrouillées</em> dans le lockfile — pas la plage déclarée.</p>
+          <p class="chapo" data-th="depots.chapo">Une carte par dépôt git : copie locale, pipelines, pile technique. Les versions de librairies sont celles <em>verrouillées</em> dans le lockfile — pas la plage déclarée.</p>
           <div class="filtres" id="filtresFamilles"></div>
           <div class="filtres">
-            <input class="champ" id="recherche" type="search" placeholder="Filtrer : nom, description, librairie…" aria-label="Filtrer les dépôts" />
-            <button class="bouton" type="button" data-filtre="echec" aria-pressed="false">Avec échec</button>
-            <button class="bouton" type="button" data-filtre="site" aria-pressed="false">Site en ligne</button>
-            <button class="bouton" type="button" data-filtre="modifie" aria-pressed="false" id="filtreModifs" hidden>Modifs locales</button>
-            <button class="bouton" type="button" data-filtre="prive" aria-pressed="false" id="filtrePrives" hidden>Privés</button>
-            <select class="bouton" id="tri" aria-label="Trier les dépôts">
-              <option value="echecs">Trier : échecs d'abord</option>
-              <option value="activite">Trier : activité récente</option>
-              <option value="nom">Trier : nom</option>
-              <option value="workflows">Trier : nombre de workflows</option>
+            <input class="champ" id="recherche" type="search" data-t-placeholder="depots.recherche.ph" data-t-aria-label="depots.recherche.al" placeholder="Filtrer : nom, description, librairie…" aria-label="Filtrer les dépôts" />
+            <button class="bouton" type="button" data-filtre="echec" aria-pressed="false" data-t="depots.filtre.echec">Avec échec</button>
+            <button class="bouton" type="button" data-filtre="site" aria-pressed="false" data-t="depots.filtre.site">Site en ligne</button>
+            <button class="bouton" type="button" data-filtre="modifie" aria-pressed="false" id="filtreModifs" hidden data-t="depots.filtre.modifie">Modifs locales</button>
+            <button class="bouton" type="button" data-filtre="prive" aria-pressed="false" id="filtrePrives" hidden data-t="depots.filtre.prive">Privés</button>
+            <select class="bouton" id="tri" data-t-aria-label="depots.tri.al" aria-label="Trier les dépôts">
+              <option value="echecs" data-t="depots.tri.echecs">Trier : échecs d'abord</option>
+              <option value="activite" data-t="depots.tri.activite">Trier : activité récente</option>
+              <option value="nom" data-t="depots.tri.nom">Trier : nom</option>
+              <option value="workflows" data-t="depots.tri.workflows">Trier : nombre de workflows</option>
             </select>
-            <button class="bouton" type="button" id="cartesDepliees" aria-pressed="false">Cartes dépliées</button>
-            <button class="bouton raz" type="button" id="raz-depots" hidden>Tout réafficher</button>
+            <button class="bouton" type="button" id="cartesDepliees" aria-pressed="false" data-t="depots.depliees">Cartes dépliées</button>
+            <button class="bouton raz" type="button" id="raz-depots" hidden data-t="raz">Tout réafficher</button>
           </div>
           <div id="grilleDepots"></div>
-          <p class="vide" id="aucunDepot" hidden>Aucun dépôt ne répond à ces filtres.</p>
+          <p class="vide" id="aucunDepot" hidden data-t="depots.aucun">Aucun dépôt ne répond à ces filtres.</p>
         </section>
 
         <section id="librairies">
           <div class="titreSection">
-            <h2>Librairies</h2>
+            <h2 data-t="libs.h2">Librairies</h2>
             <span class="compteur" id="compteurLibs"></span>
           </div>
-          <p class="chapo">
+          <p class="chapo" data-th="libs.chapo">
             Versions réellement verrouillées dans les lockfiles, agrégées sur tout le parc. Seuls les paquets présents dans <strong>au moins deux dépôts</strong> sont listés : un paquet unique est une
             dépendance d'application, pas une librairie du parc. Le dégradé va du plus récent (foncé) au plus ancien ; au-delà de quatre versions, la queue est repliée en gris. Cliquez une ligne pour
             voir quel dépôt porte quelle version.
           </p>
           <div class="filtres">
-            <input class="champ" id="rechercheLib" type="search" placeholder="Filtrer une librairie…" aria-label="Filtrer les librairies" />
-            <button class="bouton" type="button" id="filtreRetard" aria-pressed="false">Avec du retard</button>
-            <button class="bouton" type="button" id="filtreEclate" aria-pressed="false">Versions éclatées</button>
-            <button class="bouton" type="button" id="filtreToutes" aria-pressed="false">Mono-dépôt compris</button>
-            <button class="bouton raz" type="button" id="raz-librairies" hidden>Tout réafficher</button>
+            <input class="champ" id="rechercheLib" type="search" data-t-placeholder="libs.recherche.ph" data-t-aria-label="libs.recherche.al" placeholder="Filtrer une librairie…" aria-label="Filtrer les librairies" />
+            <button class="bouton" type="button" id="filtreRetard" aria-pressed="false" data-t="libs.filtre.retard">Avec du retard</button>
+            <button class="bouton" type="button" id="filtreEclate" aria-pressed="false" data-t="libs.filtre.eclate">Versions éclatées</button>
+            <button class="bouton" type="button" id="filtreToutes" aria-pressed="false" data-t="libs.filtre.toutes">Mono-dépôt compris</button>
+            <button class="bouton raz" type="button" id="raz-librairies" hidden data-t="raz">Tout réafficher</button>
           </div>
-          <p class="vide" id="aucuneLib" hidden>Aucun paquet ne répond à ces filtres.</p>
+          <p class="vide" id="aucuneLib" hidden data-t="libs.aucun">Aucun paquet ne répond à ces filtres.</p>
           <div class="carte tableEnveloppe">
             <table>
-              <caption class="sr">Librairies du parc : paquet, nombre de dépôts, répartition des versions, version amont, dépôts en retard.</caption>
+              <caption class="sr" data-t="libs.caption">Librairies du parc : paquet, nombre de dépôts, répartition des versions, version amont, dépôts en retard.</caption>
               <thead>
+                <!-- LA CLÉ EST SUR UN `span` INTÉRIEUR, et pas sur le `th`, pour
+                     les colonnes que `rendTriable` rend cliquables : il DÉPLACE
+                     le contenu de la cellule dans un bouton, et traduire le
+                     `th` après coup écraserait ce bouton. -->
                 <tr>
                   <th scope="col"></th>
-                  <th scope="col">Paquet</th>
-                  <th scope="col" class="num">Dépôts</th>
-                  <th scope="col">Répartition des versions <span class="sr">(du plus récent au plus ancien)</span></th>
-                  <th scope="col" class="num">Amont</th>
-                  <th scope="col" class="num">En retard</th>
+                  <th scope="col"><span data-t="libs.th.paquet">Paquet</span></th>
+                  <th scope="col" class="num"><span data-t="libs.th.depots">Dépôts</span></th>
+                  <th scope="col" data-th="libs.th.repartition">Répartition des versions <span class="sr">(du plus récent au plus ancien)</span></th>
+                  <th scope="col" class="num"><span data-t="libs.th.amont">Amont</span></th>
+                  <th scope="col" class="num"><span data-t="libs.th.retard">En retard</span></th>
                 </tr>
               </thead>
               <tbody id="corpsLibs"></tbody>
@@ -171,43 +188,43 @@
 
         <section id="dormance">
           <div class="titreSection">
-            <h2>Librairies dormantes</h2>
+            <h2 data-t="dormance.h2">Librairies dormantes</h2>
             <span class="compteur" id="compteurDormance"></span>
           </div>
-          <p class="chapo">
+          <p class="chapo" data-th="dormance.chapo">
             Librairies dont la dernière version publiée a <strong>plus d'un an</strong>. La date de publication seule ne dit pas grand-chose : une bibliothèque peut être stable et finie, ou
             simplement abandonnée. Ce tableau montre donc <strong>deux dates</strong> — la dernière version parue au registre, et le dernier commit reçu par le dépôt amont. Quand les deux se sont
             tues, la question d'un remplacement se pose ; quand seul le registre se tait, c'est une version qui manque, pas un projet mort.
           </p>
           <div class="carte tableEnveloppe">
             <table>
-              <caption class="sr">Librairies sans publication depuis plus d’un an : paquet, dépôts, dernière version, âge, dépôt amont, dernier commit, lecture.</caption>
+              <caption class="sr" data-t="dormance.caption">Librairies sans publication depuis plus d’un an : paquet, dépôts, dernière version, âge, dépôt amont, dernier commit, lecture.</caption>
               <thead>
                 <tr>
-                  <th scope="col">Paquet</th>
-                  <th scope="col" class="num">Dépôts</th>
-                  <th scope="col">Dernière version</th>
-                  <th scope="col" class="num">Publiée il y a</th>
-                  <th scope="col">Dépôt amont</th>
-                  <th scope="col" class="num">Dernier commit</th>
-                  <th scope="col">Lecture</th>
+                  <th scope="col" data-t="dormance.th.paquet">Paquet</th>
+                  <th scope="col" class="num" data-t="dormance.th.depots">Dépôts</th>
+                  <th scope="col" data-t="dormance.th.version">Dernière version</th>
+                  <th scope="col" class="num" data-t="dormance.th.age">Publiée il y a</th>
+                  <th scope="col" data-t="dormance.th.amont">Dépôt amont</th>
+                  <th scope="col" class="num" data-t="dormance.th.commit">Dernier commit</th>
+                  <th scope="col" data-t="dormance.th.lecture">Lecture</th>
                 </tr>
               </thead>
               <tbody id="corpsDormance"></tbody>
             </table>
           </div>
-          <p class="vide" id="aucuneDormante" hidden>Aucune librairie du parc n'est restée plus d'un an sans publication.</p>
+          <p class="vide" id="aucuneDormante" hidden data-t="dormance.aucune">Aucune librairie du parc n'est restée plus d'un an sans publication.</p>
         </section>
 
         <section id="matrice">
           <div class="titreSection">
-            <h2>Matrice des écarts</h2>
+            <h2 data-t="matrice.h2">Matrice des écarts</h2>
             <!-- Seule section à filtrer sur deux axes, donc la seule où le
                  résultat peut devenir vide sans qu'on le voie : le compteur est
                  annoncé à chaque changement. -->
             <span class="compteur" id="compteurMatrice" aria-live="polite"></span>
           </div>
-          <p class="chapo">
+          <p class="chapo" data-th="matrice.chapo">
             La section précédente répond « qui porte quelle version » paquet par paquet ; celle-ci les met côte à côte. Une ligne est un dépôt, une colonne un paquet, une cellule la version qu'il
             <strong>verrouille</strong>. La couleur ne dit pas « vieux » dans l'absolu mais l'<strong>écart à la version la plus récente du parc</strong> — la seule sur laquelle on peut agir, puisqu'un
             autre dépôt la tient déjà. Par défaut, seuls les paquets réellement éclatés sont montrés ; les colonnes s'ajoutent et se retirent une à une.
@@ -216,67 +233,70 @@
             reste en bas dans les deux sens.
           </p>
           <div class="filtres">
-            <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes">Choisir les colonnes</button>
-            <button class="bouton" type="button" id="matriceEclate" aria-pressed="true">Seulement les paquets éclatés</button>
-            <button class="bouton" type="button" id="matriceLignes" aria-pressed="true">Seulement les dépôts en écart</button>
-            <select class="bouton" id="matriceTri" aria-label="Trier les lignes de la matrice">
-              <option value="ecarts">Trier : plus d'écarts d'abord</option>
-              <option value="nom">Trier : nom</option>
-              <option value="famille">Trier : famille</option>
-              <option value="maturite">Trier : maturité</option>
+            <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes" data-t="matrice.colonnes">Choisir les colonnes</button>
+            <button class="bouton" type="button" id="matriceEclate" aria-pressed="true" data-t="matrice.eclate">Seulement les paquets éclatés</button>
+            <button class="bouton" type="button" id="matriceLignes" aria-pressed="true" data-t="matrice.lignes">Seulement les dépôts en écart</button>
+            <select class="bouton" id="matriceTri" data-t-aria-label="matrice.tri.al" aria-label="Trier les lignes de la matrice">
+              <option value="ecarts" data-t="matrice.tri.ecarts">Trier : plus d'écarts d'abord</option>
+              <option value="nom" data-t="matrice.tri.nom">Trier : nom</option>
+              <option value="famille" data-t="matrice.tri.famille">Trier : famille</option>
+              <option value="maturite" data-t="matrice.tri.maturite">Trier : maturité</option>
             </select>
-            <button class="bouton raz" type="button" id="raz-matrice" hidden>Tout réafficher</button>
+            <button class="bouton raz" type="button" id="raz-matrice" hidden data-t="raz">Tout réafficher</button>
           </div>
-          <div class="filtres" id="filtresFamilleMatrice" role="group" aria-label="Filtrer par famille">
-            <span class="etiquetteFiltre">Famille</span>
+          <div class="filtres" id="filtresFamilleMatrice" role="group" data-t-aria-label="matrice.famille.al" aria-label="Filtrer par famille">
+            <span class="etiquetteFiltre" data-t="matrice.famille.etiq">Famille</span>
           </div>
-          <div class="filtres" id="filtresMaturite" role="group" aria-label="Filtrer par maturité">
-            <span class="etiquetteFiltre">Maturité</span>
-            <button class="bouton" type="button" data-maturite="alpha" aria-pressed="false">Alpha</button>
-            <button class="bouton" type="button" data-maturite="beta" aria-pressed="false">Bêta</button>
-            <button class="bouton" type="button" data-maturite="stable" aria-pressed="false">Stable</button>
-            <button class="bouton" type="button" data-maturite="aucune" aria-pressed="false">Non renseignée</button>
+          <div class="filtres" id="filtresMaturite" role="group" data-t-aria-label="matrice.maturite.al" aria-label="Filtrer par maturité">
+            <span class="etiquetteFiltre" data-t="matrice.maturite.etiq">Maturité</span>
+            <button class="bouton" type="button" data-maturite="alpha" aria-pressed="false" data-t="maturite.alpha">Alpha</button>
+            <button class="bouton" type="button" data-maturite="beta" aria-pressed="false" data-t="maturite.beta">Bêta</button>
+            <button class="bouton" type="button" data-maturite="stable" aria-pressed="false" data-t="maturite.stable">Stable</button>
+            <button class="bouton" type="button" data-maturite="aucune" aria-pressed="false" data-t="maturite.aucune">Non renseignée</button>
           </div>
           <div class="carte colonnes" id="colonnes" hidden></div>
           <div class="carte matriceEnveloppe">
             <table class="matrice">
-              <caption class="sr">Matrice des écarts : une ligne par dépôt, une colonne par paquet, la cellule donne la version verrouillée.</caption>
+              <caption class="sr" data-t="matrice.caption">Matrice des écarts : une ligne par dépôt, une colonne par paquet, la cellule donne la version verrouillée.</caption>
               <thead id="teteMatrice"></thead>
               <tbody id="corpsMatrice"></tbody>
             </table>
           </div>
-          <p class="vide" id="aucuneColonne" hidden>Aucune colonne sélectionnée.</p>
-          <p class="vide" id="aucuneLigne" hidden>Aucun dépôt ne répond à ces filtres.</p>
+          <p class="vide" id="aucuneColonne" hidden data-t="matrice.aucuneColonne">Aucune colonne sélectionnée.</p>
+          <p class="vide" id="aucuneLigne" hidden data-t="matrice.aucuneLigne">Aucun dépôt ne répond à ces filtres.</p>
         </section>
 
         <section id="elements">
           <div class="titreSection">
-            <h2>Table des éléments</h2>
+            <h2 data-t="elements.h2">Table des éléments</h2>
             <span class="compteur" id="compteurElements"></span>
           </div>
-          <p class="chapo">
+          <p class="chapo" data-th="elements.chapo">
             La section « librairies » les liste, la matrice les croise avec les dépôts ; celle-ci répond à une autre question — <strong>de quoi ce parc est-il fait ?</strong> Une
             <strong>période</strong> (une ligne) dit combien de dépôts portent l'élément, en part du parc et non en nombre figé. Un <strong>groupe</strong> (une couleur) dit à quoi il sert. Le nombre
             en haut d'une case est le compte de dépôts, la ligne du bas la version la plus récente que le parc tienne.
             <strong>Rien n'est écrit à la main</strong> : les symboles se dérivent des noms, et un paquet qui arrivera demain trouvera sa place tout seul.
           </p>
           <div class="filtres">
-            <button class="bouton" type="button" id="elementsPartages" aria-pressed="true">Seulement ce qui est partagé</button>
-            <button class="bouton raz" type="button" id="raz-elements" hidden>Tout réafficher</button>
+            <button class="bouton" type="button" id="elementsPartages" aria-pressed="true" data-t="elements.partages">Seulement ce qui est partagé</button>
+            <button class="bouton raz" type="button" id="raz-elements" hidden data-t="raz">Tout réafficher</button>
           </div>
-          <div class="filtres" id="legendeGroupes" role="group" aria-label="Filtrer par groupe"></div>
+          <div class="filtres" id="legendeGroupes" role="group" data-t-aria-label="elements.groupes.al" aria-label="Filtrer par groupe"></div>
           <div id="periodes"></div>
-          <p class="vide" id="aucunElement" hidden>Aucun élément ne répond à ces filtres.</p>
+          <p class="vide" id="aucunElement" hidden data-t="elements.aucun">Aucun élément ne répond à ces filtres.</p>
         </section>
 
         <section id="activite">
           <div class="titreSection">
-            <h2>Jours depuis le dernier commit local</h2>
+            <h2 data-t="activite.h2">Jours depuis le dernier commit local</h2>
             <span class="compteur" id="compteurActivite"></span>
           </div>
-          <p class="chapo">Mesuré sur la copie de travail, pas sur GitHub.</p>
+          <p class="chapo" data-t="activite.chapo">Mesuré sur la copie de travail, pas sur GitHub.</p>
           <div class="filtres">
-            <button class="bouton" type="button" id="basculeTableauActivite" aria-pressed="false">Voir en tableau</button>
+            <!-- La clé est POSÉE PAR LE CODE à chaque bascule (`activite.tableau`
+                 ou `activite.graphique`), et c'est elle que la traduction relit :
+                 l'état du bouton survit ainsi à un changement de langue. -->
+            <button class="bouton" type="button" id="basculeTableauActivite" aria-pressed="false" data-t="activite.tableau">Voir en tableau</button>
           </div>
           <div class="carte">
             <div class="activite" id="grapheActivite"></div>
@@ -286,9 +306,9 @@
             <table>
               <thead>
                 <tr>
-                  <th scope="col">Dépôt</th>
-                  <th scope="col" class="num">Jours</th>
-                  <th scope="col">Date du commit</th>
+                  <th scope="col"><span data-t="activite.th.depot">Dépôt</span></th>
+                  <th scope="col" class="num"><span data-t="activite.th.jours">Jours</span></th>
+                  <th scope="col"><span data-t="activite.th.date">Date du commit</span></th>
                 </tr>
               </thead>
               <tbody id="corpsActivite"></tbody>
@@ -327,81 +347,97 @@
         if (txt != null) n.textContent = txt
         return n
       }
-      const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
-      const fmtHeure = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '—')
-      const depuis = (j) => (j == null ? '—' : j === 0 ? "aujourd'hui" : j === 1 ? 'hier' : j + ' j')
-      const MOTS = { vert: 'succès', rouge: 'échec', neutre: 'neutralisé', encours: 'en cours', jamais: 'jamais exécuté' }
+      /* ---------------- la langue ---------------- */
+
+      /**
+       * TROIS SOURCES, DANS CET ORDRE : l'URL, le choix mémorisé, le navigateur.
+       *
+       * L'URL d'abord parce qu'elle est ce qu'on ENVOIE à quelqu'un — un lien
+       * qui s'ouvrirait dans la langue du destinataire ne montrerait pas ce
+       * qu'on voulait montrer. Le choix mémorisé ensuite, pour que la deuxième
+       * visite n'ait rien à recliquer. Le navigateur en dernier : c'est la
+       * meilleure hypothèse quand personne n'a encore rien dit.
+       */
+      const CLE_LANGUE = 'parc-dashboard:langue'
+      function langueDemandee() {
+        const p = new URLSearchParams(location.search).get('lang')
+        if (p) return [p]
+        try {
+          const memo = localStorage.getItem(CLE_LANGUE)
+          if (memo) return [memo]
+        } catch {
+          // navigation privée, stockage refusé : on retombe sur le navigateur
+        }
+        return [...(navigator.languages || []), navigator.language || '']
+      }
+
+      let LANGUE = choisitLangue(langueDemandee())
+      let T = traducteur(LANGUE)
+      poseLangueTri(LANGUE)
+
+      /**
+       * LES DATES SUIVENT LA LANGUE, et pas seulement les phrases. Une page
+       * anglaise qui daterait « 16 sept. 2026 » aurait l'air à moitié traduite —
+       * ce qu'elle serait.
+       */
+      const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString(LANGUE, { day: '2-digit', month: 'short', year: 'numeric' }) : T('temps.rien'))
+      const fmtHeure = (iso) => (iso ? new Date(iso).toLocaleString(LANGUE, { dateStyle: 'long', timeStyle: 'short' }) : T('temps.rien'))
+      const depuis = (j) => (j == null ? T('temps.rien') : j === 0 ? T('temps.aujourdhui') : j === 1 ? T('temps.hier') : T('temps.jours', { n: j }))
+      /** Le mot d'un état de run — `MOTS` était une table figée en français. */
+      const mot = (etat) => T('etat.' + etat)
       const GLYPHES = { vert: '✓', rouge: '✕', neutre: '–', encours: '⋯', jamais: '∅' }
 
       function pastille(etat) {
         const n = el('span', 'etat')
         const g = el('span', 'glyphe g-' + etat, GLYPHES[etat])
         g.setAttribute('aria-hidden', 'true')
-        n.append(g, el('span', 'sr', MOTS[etat]))
+        n.append(g, el('span', 'sr', mot(etat)))
         return n
+      }
+
+      /**
+       * LE BALISAGE PORTE DES CLÉS, ET LE RESTE SUIT.
+       *
+       * `data-t` remplace le texte, `data-th` le balisage intérieur — les
+       * chapeaux de section portent du `<code>` et du `<strong>` qu'on ne peut
+       * pas perdre, et un test refuse toute balise hors de la liste permise.
+       * Les attributs ont leur propre table : un `placeholder` non traduit est
+       * un des rares défauts qu'on ne voit pas en relisant l'écran.
+       *
+       * Ces clés sont DURABLES : elles restent dans le DOM, et c'est ce qui
+       * permet de retraduire sans rien reconstruire. Un bouton dont le libellé
+       * dépend de son état pose donc sa clé (`n.dataset.t = …`) au lieu
+       * d'écrire son texte — ainsi son état survit au changement de langue.
+       */
+      const ATTRS_TRADUITS = { tPlaceholder: 'placeholder', tAriaLabel: 'aria-label', tTitle: 'title', tContent: 'content' }
+
+      function traduirePage() {
+        document.documentElement.lang = LANGUE
+        for (const n of document.querySelectorAll('[data-t]')) n.textContent = T(n.dataset.t)
+        for (const n of document.querySelectorAll('[data-th]')) n.innerHTML = T(n.dataset.th)
+        for (const [propriete, attribut] of Object.entries(ATTRS_TRADUITS))
+          for (const n of document.querySelectorAll(`[data-${propriete.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}]`)) n.setAttribute(attribut, T(n.dataset[propriete]))
+      }
+
+      /**
+       * LES CLÉS QUE LE RELEVÉ A MISES DANS LA DONNÉE.
+       *
+       * `role` arrive du modèle sous la forme d'une clé (`role.vscode`) ou d'un
+       * nom propre (`Electron`, `Rust`). On la traduit EN PLACE, et pas au
+       * moment d'afficher le badge, parce que le rôle entre aussi dans le foin
+       * de la recherche : sans ça, chercher « extension » ne trouverait plus
+       * rien, et chercher « role.vscode » trouverait quelque chose.
+       */
+      function traduitLesDonnees() {
+        for (const d of D.depots) {
+          if (d.roleCle === undefined) d.roleCle = d.role ?? null
+          d.role = d.roleCle ? T.ouTelQuel(d.roleCle) : null
+        }
       }
 
       /* ---------------- en-tête ---------------- */
       const k = D.kpi
-      $('#sousTitre').textContent = `Relevé du ${fmtHeure(D.genere)} · ${k.depots} dépôts git${D.publicsSeulement ? ' publics' : ''} · ${k.appsPwa} applications PWA · ${k.workflowsTous} workflows`
-      $('#heroChiffre').textContent = k.taux + ' %'
-      $('#heroQuoi').textContent = 'des workflows exécutés sont au vert sur leur dernier passage.'
-      $('#heroDetail').textContent = `${k.verts} verts · ${k.rouges} rouges · répartis sur ${k.depots - k.depotsRouges} dépôts sains et ${k.depotsRouges} à reprendre.`
 
-      const etats = [
-        { cle: 'vert', mot: 'succès', n: k.verts, c: 'var(--good)' },
-        { cle: 'rouge', mot: 'échec', n: k.rouges, c: 'var(--critical)' },
-        { cle: 'neutre', mot: 'neutralisé (skipped)', n: k.neutres, c: 'var(--baseline)' },
-        { cle: 'jamais', mot: 'jamais exécuté', n: k.jamais, c: 'var(--ghost2)' },
-      ]
-      const totalEtats = etats.reduce((s, e) => s + e.n, 0)
-      const barre = $('#barreEtat')
-      const lg = $('#legendeEtat')
-      for (const e of etats) {
-        if (!e.n) continue
-        const s = el('span')
-        s.style.flex = e.n
-        s.style.background = e.c
-        s.title = `${e.n} workflows — ${e.mot}`
-        barre.append(s)
-        const L = el('span')
-        const p = el('span', 'puce')
-        p.style.background = e.c
-        L.append(p, el('span', null, GLYPHES[e.cle] + ' ' + e.mot + ' '), el('b', null, String(e.n)))
-        lg.append(L)
-      }
-      barre.setAttribute('aria-label', `Répartition de ${totalEtats} workflows : ` + etats.map((e) => `${e.n} ${e.mot}`).join(', '))
-
-      const tuiles = [
-        { etiq: 'Dépôts git suivis', val: k.depots, app: D.publicsSeulement ? 'dépôts publics du compte' : `${k.publics} publics · ${k.prives} privés` },
-        { etiq: 'Applications PWA', val: k.appsPwa, app: `${D.parFamille.socle.depots} dépôts de socle · ${D.parFamille.desktop.depots} desktop` },
-        { etiq: 'Workflows actifs', val: k.workflows, app: `+ ${k.reutilisables} réutilisables du socle` },
-        { etiq: 'Workflows en échec', val: k.rouges, app: `sur ${k.depotsRouges} dépôts` },
-        { etiq: 'Sites Pages en ligne', val: `${k.sitesEnLigne}/${k.sites}`, app: 'vérifiés par requête HTTP' },
-        { etiq: 'Pull requests ouvertes', val: k.prOuvertes, app: k.prOuvertes ? 'à relire' : 'aucune revue en attente' },
-        // La courbe porte le nombre de dépôts EN DESSOUS, pas le numéro de
-        // version : sans ce libellé, « −2 » se lirait comme un recul du socle.
-        { etiq: 'Socle publié', val: k.socleAmont || '—', app: `${k.socleEnRetard} dépôts en dessous`, serie: 'socleEnRetard', serieNom: 'dépôts en dessous', sens: -1 },
-        // Trois états, jamais deux : un compte, ou l'aveu qu'on n'a pas pu lire.
-        k.alertesLisibles
-          ? {
-              etiq: 'Alertes de vulnérabilité',
-              val: k.alertes,
-              app: k.alertes ? `dont ${k.alertesGraves} graves · ${k.alertesProduction} en production` : `aucune sur ${k.depots - k.depotsSansAlertes} dépôts interrogés`,
-              serie: 'alertes',
-              sens: -1,
-            }
-          : { etiq: 'Alertes de vulnérabilité', val: '—', app: `illisibles sur ${k.depotsAlertesIllisibles} dépôts — PARC_TOKEN sans le droit « Dependabot alerts »` },
-      ]
-      // La tuile des workflows au vert porte la courbe : c'est le chiffre du hero.
-      tuiles.splice(3, 0, { etiq: 'Workflows au vert', val: k.taux == null ? '—' : k.taux + ' %', app: `${k.verts} verts · ${k.rouges} rouges`, serie: 'taux', sens: 1 })
-      if (k.lecturesIncompletes) tuiles.push({ etiq: 'Dépôts mal lus', val: k.lecturesIncompletes, app: "workflows illisibles — l'état affiché n'est pas concluant", alerte: true })
-      if (D.avecLocal)
-        tuiles.push({
-          etiq: 'Copies de travail modifiées',
-          val: k.depotsModifies,
-          app: k.horsBrancheDefaut ? `${k.horsBrancheDefaut} hors branche par défaut` : 'toutes sur la branche par défaut',
-        })
       // Une courbe n'est tracée qu'à partir de DEUX points : une ligne d'un
       // seul point ne dit rien et laisse croire à une tendance plate.
       const HISTO = (D.historique || []).filter((p) => p && p.jour)
@@ -419,7 +455,7 @@
         svg.setAttribute('role', 'img')
         const delta = pts[pts.length - 1] - pts[0]
         const mieux = delta * sens > 0
-        svg.setAttribute('aria-label', `${pts.length} relevés, de ${pts[0]} à ${pts[pts.length - 1]}`)
+        svg.setAttribute('aria-label', T('courbe.al', { n: pts.length, de: pts[0], a: pts[pts.length - 1] }))
         const l = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
         l.setAttribute('points', pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '))
         l.setAttribute('fill', 'none')
@@ -430,20 +466,121 @@
         svg.append(l)
         return { svg, delta, mieux }
       }
-      for (const t of tuiles) {
-        const n = el('div', 'tuile' + (t.alerte ? ' tuileAlerte' : ''))
-        n.append(el('div', 'etiq', t.etiq), el('div', 'val', String(t.val)))
-        const c = t.serie ? courbe(t.serie, t.sens) : null
-        if (c) {
-          n.append(c.svg)
-          const signe = c.delta > 0 ? '+' : ''
-          const quoi = t.serieNom ? t.serieNom + ' : ' : ''
-          const d = el('div', 'app', c.delta === 0 ? `${quoi}stable sur ${HISTO.length} relevés` : `${quoi}${signe}${c.delta} sur ${HISTO.length} relevés`)
-          d.style.color = c.delta === 0 ? 'var(--muted)' : c.mieux ? 'var(--goodInk)' : 'var(--critical)'
-          n.append(d)
+      /**
+       * TOUT L'EN-TÊTE, REJOUABLE — et c'est ce que le sélecteur de langue a
+       * exigé. Ce bloc s'exécutait une fois, au fil du script : sous-titre,
+       * hero, barre d'état, légende et tuiles étaient écrits puis oubliés.
+       * Changer de langue sans le rejouer aurait laissé la moitié de l'écran
+       * dans l'ancienne, et la moins discrète : les chiffres du haut.
+       *
+       * Les trois conteneurs sont VIDÉS d'abord : ils reçoivent des `append`,
+       * et sans ça un second passage aurait doublé la légende et les tuiles.
+       */
+      function rendEntete() {
+        const detailDepots = T(D.publicsSeulement ? 'entete.sousTitre.depotsPublics' : 'entete.sousTitre.depots', { n: k.depots })
+        $('#sousTitre').textContent = T('entete.sousTitre', {
+          quand: fmtHeure(D.genere),
+          depots: detailDepots,
+          pwa: T('entete.sousTitre.pwa', { n: k.appsPwa }),
+          workflows: T('entete.sousTitre.workflows', { n: k.workflowsTous }),
+        })
+        $('#heroChiffre').textContent = k.taux + ' %'
+        $('#heroQuoi').textContent = T('entete.heroQuoi')
+        $('#heroDetail').textContent = T('entete.heroDetail', {
+          verts: k.verts,
+          rouges: k.rouges,
+          sains: T('entete.heroDetail.sains', { n: k.depots - k.depotsRouges }),
+          reprendre: T('entete.heroDetail.reprendre', { n: k.depotsRouges }),
+        })
+
+        const etats = [
+          { cle: 'vert', mot: mot('vert'), n: k.verts, c: 'var(--good)' },
+          { cle: 'rouge', mot: mot('rouge'), n: k.rouges, c: 'var(--critical)' },
+          { cle: 'neutre', mot: T('etat.neutre.long'), n: k.neutres, c: 'var(--baseline)' },
+          { cle: 'jamais', mot: mot('jamais'), n: k.jamais, c: 'var(--ghost2)' },
+        ]
+        const totalEtats = etats.reduce((s, e) => s + e.n, 0)
+        const barre = $('#barreEtat')
+        const lg = $('#legendeEtat')
+        barre.textContent = ''
+        lg.textContent = ''
+        for (const e of etats) {
+          if (!e.n) continue
+          const s = el('span')
+          s.style.flex = e.n
+          s.style.background = e.c
+          s.title = T('entete.barre.titre', { n: e.n, mot: e.mot })
+          barre.append(s)
+          const L = el('span')
+          const p = el('span', 'puce')
+          p.style.background = e.c
+          L.append(p, el('span', null, GLYPHES[e.cle] + ' ' + e.mot + ' '), el('b', null, String(e.n)))
+          lg.append(L)
         }
-        n.append(el('div', 'app', t.app))
-        $('#tuiles').append(n)
+        barre.setAttribute('aria-label', T('entete.barre.al', { n: totalEtats, detail: etats.map((e) => `${e.n} ${e.mot}`).join(T('liste')) }))
+
+        const tuiles = [
+          { etiq: T('tuile.depots'), val: k.depots, app: D.publicsSeulement ? T('tuile.depots.publics') : T('tuile.depots.mixte', { publics: k.publics, prives: k.prives }) },
+          { etiq: T('tuile.pwa'), val: k.appsPwa, app: T('tuile.pwa.app', { socle: D.parFamille.socle.depots, desktop: D.parFamille.desktop.depots }) },
+          { etiq: T('tuile.workflows'), val: k.workflows, app: T('tuile.workflows.app', { n: k.reutilisables }) },
+          { etiq: T('tuile.rouges'), val: k.rouges, app: T('tuile.rouges.app', { n: k.depotsRouges }) },
+          { etiq: T('tuile.sites'), val: `${k.sitesEnLigne}/${k.sites}`, app: T('tuile.sites.app') },
+          { etiq: T('tuile.pr'), val: k.prOuvertes, app: k.prOuvertes ? T('tuile.pr.aRelire') : T('tuile.pr.aucune') },
+          // La courbe porte le nombre de dépôts EN DESSOUS, pas le numéro de
+          // version : sans ce libellé, « −2 » se lirait comme un recul du socle.
+          {
+            etiq: T('tuile.socle'),
+            val: k.socleAmont || T('temps.rien'),
+            app: T('tuile.socle.app', { n: k.socleEnRetard }),
+            serie: 'socleEnRetard',
+            serieNom: T('tuile.socle.serie'),
+            sens: -1,
+          },
+          // Trois états, jamais deux : un compte, ou l'aveu qu'on n'a pas pu lire.
+          k.alertesLisibles
+            ? {
+                etiq: T('tuile.alertes'),
+                val: k.alertes,
+                app: k.alertes
+                  ? T('tuile.alertes.dont', { graves: k.alertesGraves, production: k.alertesProduction })
+                  : T('tuile.alertes.aucune', { n: k.depots - k.depotsSansAlertes }),
+                serie: 'alertes',
+                sens: -1,
+              }
+            : { etiq: T('tuile.alertes'), val: T('temps.rien'), app: T('tuile.alertes.illisibles', { n: k.depotsAlertesIllisibles }) },
+        ]
+        // La tuile des workflows au vert porte la courbe : c'est le chiffre du hero.
+        tuiles.splice(3, 0, {
+          etiq: T('tuile.vert'),
+          val: k.taux == null ? T('temps.rien') : k.taux + ' %',
+          app: T('tuile.vert.app', { verts: k.verts, rouges: k.rouges }),
+          serie: 'taux',
+          sens: 1,
+        })
+        if (k.lecturesIncompletes) tuiles.push({ etiq: T('tuile.malLus'), val: k.lecturesIncompletes, app: T('tuile.malLus.app'), alerte: true })
+        if (D.avecLocal)
+          tuiles.push({
+            etiq: T('tuile.local'),
+            val: k.depotsModifies,
+            app: k.horsBrancheDefaut ? T('tuile.local.hors', { n: k.horsBrancheDefaut }) : T('tuile.local.propre'),
+          })
+
+        $('#tuiles').textContent = ''
+        for (const t of tuiles) {
+          const n = el('div', 'tuile' + (t.alerte ? ' tuileAlerte' : ''))
+          n.append(el('div', 'etiq', t.etiq), el('div', 'val', String(t.val)))
+          const c = t.serie ? courbe(t.serie, t.sens) : null
+          if (c) {
+            n.append(c.svg)
+            const signe = c.delta > 0 ? '+' : ''
+            const quoi = t.serieNom ? t.serieNom + ' : ' : ''
+            const d = el('div', 'app', quoi + (c.delta === 0 ? T('courbe.stable', { n: HISTO.length }) : T('courbe.delta', { n: HISTO.length, signe, delta: c.delta })))
+            d.style.color = c.delta === 0 ? 'var(--muted)' : c.mieux ? 'var(--goodInk)' : 'var(--critical)'
+            n.append(d)
+          }
+          n.append(el('div', 'app', t.app))
+          $('#tuiles').append(n)
+        }
       }
 
       /* ---------------- ce qui a bougé ---------------- */
@@ -453,124 +590,154 @@
       // quel relevé il se compare : `changements` est hors du « fond », donc la
       // page n'est pas republiée pour le seul plaisir de vider cette liste, et
       // le bandeau décrit toujours le dernier vrai changement.
-      {
+      const PUCES_CHANGEMENT = {
+        'ci-rouge': { p: '✕', c: 'var(--critical)' },
+        'ci-vert': { p: '✓', c: 'var(--goodInk)' },
+        alertes: { p: '!', c: 'var(--critical)' },
+        dormante: { p: '·', c: 'var(--warning)' },
+        reveillee: { p: '·', c: 'var(--goodInk)' },
+        amont: { p: '↑', c: 'var(--ink2)' },
+        'depot-entre': { p: '+', c: 'var(--goodInk)' },
+        'depot-sorti': { p: '−', c: 'var(--critical)' },
+      }
+
+      function rendChangements() {
         const ch = D.changements || []
-        if (ch.length) {
-          const PUCES = {
-            'ci-rouge': { p: '✕', c: 'var(--critical)' },
-            'ci-vert': { p: '✓', c: 'var(--goodInk)' },
-            alertes: { p: '!', c: 'var(--critical)' },
-            dormante: { p: '·', c: 'var(--warning)' },
-            reveillee: { p: '·', c: 'var(--goodInk)' },
-            amont: { p: '↑', c: 'var(--ink2)' },
-            'depot-entre': { p: '+', c: 'var(--goodInk)' },
-            'depot-sorti': { p: '−', c: 'var(--critical)' },
-          }
-          const phrase = (c) => {
-            if (c.type === 'ci-rouge' || c.type === 'ci-vert') return [c.depot, ' · ', c.workflow, c.type === 'ci-rouge' ? ' devient rouge' : ' repasse au vert']
-            if (c.type === 'amont') return [c.paquet, ` publie ${c.a}`, c.de ? ` (était ${c.de})` : '', c.nbDepots ? ` — ${c.nbDepots} dépôts concernés` : '']
-            if (c.type === 'dormante') return [c.paquet, ' entre dans les dormantes']
-            if (c.type === 'reveillee') return [c.paquet, ' publie à nouveau']
-            if (c.type === 'alertes') return ['alertes de vulnérabilité : ', `${c.de} → ${c.a}`]
-            if (c.type === 'depot-entre') return [c.depot, ' entre au relevé']
-            return [c.depot, ' sort du relevé']
-          }
-          const ul = $('#listeChangements')
-          for (const c of ch) {
-            const li = el('li')
-            const puce = PUCES[c.type] || { p: '·', c: 'var(--muted)' }
-            const sp = el('span', 'puce', puce.p)
-            sp.style.color = puce.c
-            sp.setAttribute('aria-hidden', 'true')
-            li.append(sp)
-            const txt = el('span')
-            const bouts = phrase(c)
-            // Le premier bout est un nom propre — dépôt ou paquet : en mono.
-            txt.append(el('span', 'mono', bouts[0]), document.createTextNode(bouts.slice(1).join('')))
-            li.append(txt)
-            ul.append(li)
-          }
-          $('#compteurChangements').textContent = `${ch.length} depuis le relevé du ${fmtHeure(D.compareA)}`
-          $('#bandeauChangements').hidden = false
+        $('#bandeauChangements').hidden = !ch.length
+        const ul = $('#listeChangements')
+        ul.textContent = ''
+        if (!ch.length) return
+        // Le premier bout est un nom propre — dépôt ou paquet — et reste en
+        // mono ; les suivants sont de la phrase, et se traduisent.
+        const phrase = (c) => {
+          if (c.type === 'ci-rouge' || c.type === 'ci-vert') return [c.depot, T('changements.' + c.type, { workflow: c.workflow })]
+          if (c.type === 'amont')
+            return [
+              c.paquet,
+              T('changements.amont', { a: c.a }),
+              c.de ? T('changements.amont.de', { de: c.de }) : '',
+              c.nbDepots ? T('changements.amont.depots', { n: c.nbDepots }) : '',
+            ]
+          if (c.type === 'dormante') return [c.paquet, T('changements.dormante')]
+          if (c.type === 'reveillee') return [c.paquet, T('changements.reveillee')]
+          if (c.type === 'alertes') return [T('changements.alertes'), T('changements.alertes.suite', { de: c.de, a: c.a })]
+          if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
+          return [c.depot, T('changements.depot-sorti')]
         }
+        for (const c of ch) {
+          const li = el('li')
+          const puce = PUCES_CHANGEMENT[c.type] || { p: '·', c: 'var(--muted)' }
+          const sp = el('span', 'puce', puce.p)
+          sp.style.color = puce.c
+          sp.setAttribute('aria-hidden', 'true')
+          li.append(sp)
+          const txt = el('span')
+          const bouts = phrase(c)
+          txt.append(el('span', 'mono', bouts[0]), document.createTextNode(bouts.slice(1).join('')))
+          li.append(txt)
+          ul.append(li)
+        }
+        $('#compteurChangements').textContent = T('changements.compteur', { n: ch.length, quand: fmtHeure(D.compareA) })
       }
 
       // --- petits multiples : un état par famille, sur la même échelle ---
-      // l'ordre d'affichage est celui déclaré par le relevé, pas une copie
-      const ORDRE_FAMILLES = Object.keys(D.familles)
+      //
+      // L'ORDRE VIENT DU RELEVÉ, LE TITRE DU DICTIONNAIRE. `D.familles` était un
+      // objet dont chaque entrée portait son titre et son sous-titre en
+      // français ; ce n'est plus qu'un TABLEAU de clés — le seul renseignement
+      // que le relevé soit seul à détenir, c'est-à-dire l'ordre d'affichage.
+      const ORDRE_FAMILLES = D.familles
+      const titreFamille = (f) => T('famille.' + f + '.titre')
       const maxWfFamille = Math.max(...ORDRE_FAMILLES.map((f) => D.parFamille[f].verts + D.parFamille[f].rouges), 1)
-      for (const f of ORDRE_FAMILLES) {
-        const pf = D.parFamille[f]
-        if (!pf.depots) continue
-        const ligne = el('div', 'ligneFamille')
-        const g = el('div')
-        g.append(el('div', 'nomF', pf.titre), el('div', 'sousF', pf.sous))
-        const barre = el('div', 'barreF')
-        // largeur proportionnelle au parc entier : les familles se comparent
-        barre.style.width = Math.max(6, ((pf.verts + pf.rouges) / maxWfFamille) * 100) + '%'
-        for (const [n, c, mot] of [
-          [pf.verts, 'var(--good)', 'succès'],
-          [pf.rouges, 'var(--critical)', 'échec'],
-        ]) {
-          if (!n) continue
-          const s = el('span')
-          s.style.flex = n
-          s.style.background = c
-          s.title = `${n} workflows — ${mot}`
-          barre.append(s)
+
+      function rendFamilles() {
+        const hote = $('#grilleFamilles')
+        hote.textContent = ''
+        for (const f of ORDRE_FAMILLES) {
+          const pf = D.parFamille[f]
+          if (!pf.depots) continue
+          const ligne = el('div', 'ligneFamille')
+          const g = el('div')
+          g.append(el('div', 'nomF', titreFamille(f)), el('div', 'sousF', T('famille.' + f + '.sous')))
+          const barre = el('div', 'barreF')
+          // largeur proportionnelle au parc entier : les familles se comparent
+          barre.style.width = Math.max(6, ((pf.verts + pf.rouges) / maxWfFamille) * 100) + '%'
+          for (const [n, c, etat] of [
+            [pf.verts, 'var(--good)', 'vert'],
+            [pf.rouges, 'var(--critical)', 'rouge'],
+          ]) {
+            if (!n) continue
+            const s = el('span')
+            s.style.flex = n
+            s.style.background = c
+            s.title = T('entete.barre.titre', { n, mot: mot(etat) })
+            barre.append(s)
+          }
+          const porte = el('div')
+          porte.append(barre)
+          const ch = el('div', 'chiffresF')
+          const e1 = el('span')
+          // LE CHIFFRE EST EN GRAS, LE MOT À CÔTÉ : `famille.depots` ne porte
+          // donc que le mot, accordé — et pas le nombre, qui vit dans le `<b>`.
+          e1.append(el('b', null, String(pf.depots)), document.createTextNode(T('famille.depots', { n: pf.depots })))
+          const e2 = el('span')
+          e2.append(el('b', null, pf.taux == null ? T('temps.rien') : pf.taux + ' %'), document.createTextNode(T('famille.auVert')))
+          const e3 = el('span')
+          e3.append(document.createTextNode(GLYPHES.rouge + ' '), el('b', null, String(pf.rouges)), document.createTextNode(T('famille.rouges', { n: pf.rouges })))
+          ch.append(e1, e2, e3)
+          barre.setAttribute('role', 'img')
+          barre.setAttribute('aria-label', T('famille.barre.al', { famille: titreFamille(f), verts: pf.verts, rouges: pf.rouges }))
+          ligne.append(g, porte, ch)
+          hote.append(ligne)
         }
-        const porte = el('div')
-        porte.append(barre)
-        const ch = el('div', 'chiffresF')
-        const e1 = el('span')
-        e1.append(el('b', null, String(pf.depots)), document.createTextNode(pf.depots > 1 ? ' dépôts' : ' dépôt'))
-        const e2 = el('span')
-        e2.append(el('b', null, pf.taux == null ? '—' : pf.taux + ' %'), document.createTextNode(' au vert'))
-        const e3 = el('span')
-        e3.append(document.createTextNode(GLYPHES.rouge + ' '), el('b', null, String(pf.rouges)), document.createTextNode(pf.rouges > 1 ? ' rouges' : ' rouge'))
-        ch.append(e1, e2, e3)
-        barre.setAttribute('role', 'img')
-        barre.setAttribute('aria-label', `${pf.titre} : ${pf.verts} workflows en succès, ${pf.rouges} en échec`)
-        ligne.append(g, porte, ch)
-        $('#grilleFamilles').append(ligne)
       }
 
       /* ---------------- échecs ---------------- */
-      $('#compteurEchecs').textContent = `${D.echecs.length} workflows rouges sur ${k.workflows} actifs`
-      for (const m of D.motifsPartages) {
-        const n = el('div', 'motif')
-        n.append(el('span', null, '⚠'), el('span', null, `Même cause sur ${m.depots.length} dépôts — l'étape « ${m.etape} » : ${m.depots.join(', ')}. Un correctif, ${m.depots.length} pipelines.`))
-        $('#motifs').append(n)
-      }
-      const corpsE = $('#corpsEchecs')
-      for (const e of D.echecs) {
-        const tr = el('tr')
-        const d = D.depots.find((x) => x.nom === e.depot)
-        const c1 = el('td')
-        const a = el('a', 'depotLien', e.depot)
-        a.href = '#depot-' + e.depot
-        c1.append(a)
-        if (d && d.prive) c1.append(document.createTextNode(' '), el('span', 'badge prive', 'privé'))
-        const c2 = el('td')
-        c2.append(el('span', null, e.workflow))
-        if (e.branche && d && e.branche !== d.brancheDefaut) c2.append(el('div', 'quand', 'branche ' + e.branche))
-        const c3 = el('td')
-        const p = pastille('rouge')
-        p.append(el('span', null, e.conclusion === 'failure' ? 'échec' : e.conclusion))
-        c3.append(p)
-        const c4 = el('td')
-        c4.textContent = e.demarrage ? "n'a pas démarré (aucun job)" : e.etape || e.jobs.map((j) => j.name).join(', ')
-        if (!e.demarrage && e.jobs.length) c4.append(el('div', 'quand', 'job : ' + e.jobs.map((j) => j.name).join(' · ')))
-        const c5 = el('td', 'num', depuis(e.jours))
-        c5.title = fmtDate(e.date)
-        const c6 = el('td')
-        const lien = el('a', null, 'run ↗')
-        lien.href = e.url
-        lien.target = '_blank'
-        lien.rel = 'noopener'
-        c6.append(lien)
-        tr.append(c1, c2, c3, c4, c5, c6)
-        corpsE.append(tr)
+      function rendEchecs() {
+        $('#compteurEchecs').textContent = T('echecs.compteur', {
+          rouges: T('echecs.compteur.rouges', { n: D.echecs.length }),
+          actifs: T('echecs.compteur.actifs', { n: k.workflows }),
+        })
+        const motifs = $('#motifs')
+        motifs.textContent = ''
+        for (const m of D.motifsPartages) {
+          const n = el('div', 'motif')
+          n.append(el('span', null, '⚠'), el('span', null, T('echecs.motif', { n: m.depots.length, etape: m.etape, depots: m.depots.join(T('liste')) })))
+          motifs.append(n)
+        }
+        const corpsE = $('#corpsEchecs')
+        corpsE.textContent = ''
+        for (const e of D.echecs) {
+          const tr = el('tr')
+          const d = D.depots.find((x) => x.nom === e.depot)
+          const c1 = el('td')
+          const a = el('a', 'depotLien', e.depot)
+          a.href = '#depot-' + e.depot
+          c1.append(a)
+          if (d && d.prive) c1.append(document.createTextNode(' '), el('span', 'badge prive', T('carte.prive')))
+          const c2 = el('td')
+          c2.append(el('span', null, e.workflow))
+          if (e.branche && d && e.branche !== d.brancheDefaut) c2.append(el('div', 'quand', T('echecs.branche', { branche: e.branche })))
+          const c3 = el('td')
+          const p = pastille('rouge')
+          // `failure` est le mot de l'API ; les autres conclusions sont rendues
+          // telles quelles — les traduire supposerait de les connaître toutes.
+          p.append(el('span', null, e.conclusion === 'failure' ? mot('rouge') : e.conclusion))
+          c3.append(p)
+          const c4 = el('td')
+          c4.textContent = e.demarrage ? T('echecs.pasDemarre') : e.etape || e.jobs.map((j) => j.name).join(T('liste'))
+          if (!e.demarrage && e.jobs.length) c4.append(el('div', 'quand', T('echecs.job', { jobs: e.jobs.map((j) => j.name).join(' · ') })))
+          const c5 = el('td', 'num', depuis(e.jours))
+          c5.title = fmtDate(e.date)
+          const c6 = el('td')
+          const lien = el('a', null, T('echecs.run'))
+          lien.href = e.url
+          lien.target = '_blank'
+          lien.rel = 'noopener'
+          c6.append(lien)
+          tr.append(c1, c2, c3, c4, c5, c6)
+          corpsE.append(tr)
+        }
       }
 
       /* ---------------- dépôts ---------------- */
@@ -611,23 +778,23 @@
         a.href = d.url
         a.target = '_blank'
         a.rel = 'noopener'
-        a.title = `Ouvrir ${d.nom} sur GitHub`
+        a.title = T('carte.ouvrir', { depot: d.nom })
         a.setAttribute('aria-label', a.title)
         tete.append(a)
-        if (d.prive) tete.append(el('span', 'badge prive', 'privé'))
+        if (d.prive) tete.append(el('span', 'badge prive', T('carte.prive')))
         if (d.role) tete.append(el('span', 'badge', d.role))
         if (d.paquet && d.paquet.version) tete.append(el('span', 'badge', 'v' + d.paquet.version))
         // Les deux avertissements de la carte se replient avec elle : ils
         // laissent chacun un badge dans la tête, sans quoi plier ferait
         // disparaître une alerte de vulnérabilité de la page entière.
         if (d.alertes?.etat === 'lu' && d.alertes.total) {
-          const b = el('span', 'badge alerte' + (d.alertes.graves ? ' grave' : ''), `⚠ ${d.alertes.total}`)
-          b.title = `${d.alertes.total} alerte${d.alertes.total > 1 ? 's' : ''} de vulnérabilité`
+          const b = el('span', 'badge alerte' + (d.alertes.graves ? ' grave' : ''), T('carte.alertes.badge', { n: d.alertes.total }))
+          b.title = T('carte.alertes.titre', { n: d.alertes.total })
           tete.append(b)
         }
         if (d.lectureIncomplete) {
-          const b = el('span', 'badge alerte', '⚠ lecture partielle')
-          b.title = "Workflows illisibles — le jeton n'a pas pu lire l'API Actions de ce dépôt."
+          const b = el('span', 'badge alerte', T('carte.malLu.badge'))
+          b.title = T('carte.malLu.titre')
           tete.append(b)
         }
         tete.append(resumeDepot(d))
@@ -665,15 +832,15 @@
         // de lectures refusées ; en dessous, deux dépôts pouvaient passer en
         // silence.
         if (d.lectureIncomplete) {
-          corps.append(el('div', 'malLu', "Workflows illisibles — le jeton n'a pas pu lire l'API Actions de ce dépôt. Ce qui suit n'est pas concluant."))
+          corps.append(el('div', 'malLu', T('carte.malLu.corps')))
         }
         if (d.alertes?.etat === 'lu' && d.alertes.total) {
           const al = el('div', 'malLu')
           al.style.borderLeftColor = d.alertes.graves ? 'var(--critical)' : 'var(--warning)'
           al.textContent =
-            `${d.alertes.total} alerte${d.alertes.total > 1 ? 's' : ''} de vulnérabilité` +
-            (d.alertes.graves ? `, dont ${d.alertes.graves} grave${d.alertes.graves > 1 ? 's' : ''}` : '') +
-            (d.alertes.production ? ` · ${d.alertes.production} en dépendance de production` : '')
+            T('carte.alertes.titre', { n: d.alertes.total }) +
+            (d.alertes.graves ? T('carte.alertes.graves', { n: d.alertes.graves }) : '') +
+            (d.alertes.production ? T('carte.alertes.production', { n: d.alertes.production }) : '')
           corps.append(al)
         }
 
@@ -681,20 +848,20 @@
         const l1 = el('div')
         if (d.local) {
           // seulement en mode --local : l'API ne connaît pas la copie de travail
-          l1.append(el('span', 'cle', 'Copie de travail · '))
-          l1.append(el('span', null, d.local.branche === d.brancheDefaut ? d.local.branche : `${d.local.branche} (défaut : ${d.brancheDefaut})`))
+          l1.append(el('span', 'cle', T('carte.copie')))
+          l1.append(el('span', null, d.local.branche === d.brancheDefaut ? d.local.branche : T('carte.copie.horsDefaut', { branche: d.local.branche, defaut: d.brancheDefaut })))
           const etats = []
-          if (d.local.modifies) etats.push(`${d.local.modifies} fichier${d.local.modifies > 1 ? 's' : ''} non commité${d.local.modifies > 1 ? 's' : ''}`)
-          if (d.local.avance) etats.push(`${d.local.avance} en avance`)
-          if (d.local.retard) etats.push(`${d.local.retard} en retard`)
-          l1.append(el('span', null, etats.length ? ' — ' + etats.join(', ') : ' — propre et à jour'))
+          if (d.local.modifies) etats.push(T('carte.copie.modifies', { n: d.local.modifies }))
+          if (d.local.avance) etats.push(T('carte.copie.avance', { n: d.local.avance }))
+          if (d.local.retard) etats.push(T('carte.copie.retard', { n: d.local.retard }))
+          l1.append(el('span', null, etats.length ? ' — ' + etats.join(T('liste')) : T('carte.copie.propre')))
         } else {
-          l1.append(el('span', 'cle', 'Branche · '))
+          l1.append(el('span', 'cle', T('carte.branche')))
           l1.append(el('span', null, d.brancheDefaut))
-          if (d.prs.length) l1.append(el('span', null, ` — ${d.prs.length} PR ouverte${d.prs.length > 1 ? 's' : ''}`))
+          if (d.prs.length) l1.append(el('span', null, T('carte.pr', { n: d.prs.length })))
         }
         const l2 = el('div')
-        l2.append(el('span', 'cle', 'Dernier commit · '))
+        l2.append(el('span', 'cle', T('carte.commit')))
         l2.append(el('span', null, `${depuis(d.commit.jours)} · `), el('code', null, d.commit.sha), el('span', null, ' ' + d.commit.sujet.slice(0, 68) + (d.commit.sujet.length > 68 ? '…' : '')))
         l2.title = `${fmtDate(d.commit.date)} — ${d.commit.auteur} — ${d.commit.sujet}`
         meta.append(l1, l2)
@@ -716,21 +883,21 @@
             r.rel = 'noopener'
             r.append(pastille(w.etat))
             const nom = el('span', 'nomWf', w.nom)
-            if (w.reutilisable) nom.append(el('span', 'quand', ' · réutilisable'))
-            else if (!w.surDefaut && w.etat !== 'jamais') nom.append(el('span', 'quand', ' · hors ' + d.brancheDefaut))
+            if (w.reutilisable) nom.append(el('span', 'quand', T('carte.wf.reutilisable')))
+            else if (!w.surDefaut && w.etat !== 'jamais') nom.append(el('span', 'quand', T('carte.wf.hors', { branche: d.brancheDefaut })))
             r.append(nom)
             const bande = el('span', 'bande')
             const derniers = w.derniers.slice().reverse()
             for (let i = 0; i < 5; i++) {
               const run = derniers[derniers.length - 5 + i]
               const b = el('i', 'b-' + (run ? run.etat : 'vide'))
-              if (run) b.title = `#${run.num} · ${MOTS[run.etat]} · ${fmtDate(run.date)}${run.branche ? ' · ' + run.branche : ''}`
+              if (run) b.title = T('carte.wf.bande', { num: run.num, mot: mot(run.etat), date: fmtDate(run.date) }) + (run.branche ? ' · ' + run.branche : '')
               bande.append(b)
             }
             bande.setAttribute('aria-hidden', 'true')
             r.append(bande)
-            r.append(el('span', 'quand', w.etat === 'jamais' ? 'jamais' : depuis(Math.floor((Date.now() - new Date(w.date)) / 86400000))))
-            r.title = `${w.nom} (${w.fichier}) — ${MOTS[w.etat]}${w.date ? ' le ' + fmtDate(w.date) : ''}`
+            r.append(el('span', 'quand', w.etat === 'jamais' ? T('carte.wf.jamais') : depuis(Math.floor((Date.now() - new Date(w.date)) / 86400000))))
+            r.title = T(w.date ? 'carte.wf.titreDate' : 'carte.wf.titre', { nom: w.nom, fichier: w.fichier, mot: mot(w.etat), date: fmtDate(w.date) })
             liste.append(r)
           }
           if (caches.length) {
@@ -738,9 +905,9 @@
             plus.type = 'button'
             const compte = caches.reduce((m, w) => ((m[w.etat] = (m[w.etat] || 0) + 1), m), {})
             const resume = Object.entries(compte)
-              .map(([e, n]) => `${n} ${MOTS[e]}`)
-              .join(', ')
-            plus.append(el('span', null, '+'), el('span', 'nomWf', `${caches.length} autres workflows — ${resume}`))
+              .map(([e, n]) => `${n} ${mot(e)}`)
+              .join(T('liste'))
+            plus.append(el('span', null, '+'), el('span', 'nomWf', T('carte.wf.plus', { n: caches.length, resume })))
             plus.addEventListener('click', () => {
               const ouvert = plus.getAttribute('aria-expanded') === 'true'
               for (const w of caches) liste.children[d.workflows.indexOf(w)].hidden = ouvert
@@ -752,7 +919,7 @@
           }
           corps.append(liste)
         } else {
-          corps.append(el('div', 'metaLignes', 'Aucun workflow GitHub Actions.'))
+          corps.append(el('div', 'metaLignes', T('carte.wf.aucun')))
         }
 
         if (d.pile.length) {
@@ -760,8 +927,12 @@
           for (const p of d.pile) {
             const enRetard = p.amont && p.version !== p.amont
             const c = el('span', 'lib' + (enRetard ? ' retard' : ''))
-            c.append(el('span', null, p.nom + ' '), el('b', null, p.version))
-            c.title = `${p.paquet} ${p.version}${p.verrouille ? ' (verrouillé)' : ' (plage déclarée)'}${p.amont ? ' · amont : ' + p.amont : ''}`
+            // `p.nom` est un nom propre (React, Vite…) SAUF pour les deux
+            // lignes du socle, que `pileDuDepot` rend sous forme de clé.
+            c.append(el('span', null, T.ouTelQuel(p.nom) + ' '), el('b', null, p.version))
+            c.title =
+              T(p.verrouille ? 'carte.pile.verrouille' : 'carte.pile.plage', { paquet: p.paquet, version: p.version }) +
+              (p.amont ? T('carte.pile.amont', { amont: p.amont }) : '')
             pile.append(c)
           }
           corps.append(pile)
@@ -773,20 +944,20 @@
           const g = el('span', 'glyphe g-' + (d.pages.ok ? 'vert' : 'rouge'), d.pages.ok ? '✓' : '✕')
           g.style.display = 'inline-grid'
           g.setAttribute('aria-hidden', 'true')
-          const lien = el('a', null, 'site' + (d.pages.ok ? ' en ligne' : ' injoignable'))
+          const lien = el('a', null, T(d.pages.ok ? 'carte.site.enLigne' : 'carte.site.injoignable'))
           lien.href = d.pages.url
           lien.target = '_blank'
           lien.rel = 'noopener'
           s.append(g, document.createTextNode(' '), lien)
-          if (d.pages.ms) s.title = `HTTP ${d.pages.code} en ${d.pages.ms} ms — ${d.pages.titre || d.pages.url}`
+          if (d.pages.ms) s.title = T('carte.site.titre', { code: d.pages.code, ms: d.pages.ms, quoi: d.pages.titre || d.pages.url })
           pied.append(s)
         }
         if (d.licence) pied.append(el('span', null, d.licence))
-        if (d.nbVerrouilles) pied.append(el('span', null, `${d.nbDeps} dépendances déclarées · ${d.nbVerrouilles} paquets verrouillés`))
-        else if (d.nbDeps) pied.append(el('span', null, `${d.nbDeps} dépendances déclarées · pas de package-lock`))
-        if (d.nbCrates) pied.append(el('span', null, `${d.nbCrates} crates verrouillés`))
+        if (d.nbVerrouilles) pied.append(el('span', null, T('carte.deps', { deps: d.nbDeps, verrouilles: d.nbVerrouilles })))
+        else if (d.nbDeps) pied.append(el('span', null, T('carte.deps.sansLock', { deps: d.nbDeps })))
+        if (d.nbCrates) pied.append(el('span', null, T('carte.crates', { n: d.nbCrates })))
         if (d.tailleKo != null) pied.append(el('span', null, (d.tailleKo / 1024).toFixed(1) + ' Mo'))
-        pied.append(el('span', null, `${d.compte.vert} verts${d.compte.rouge ? ' · ' + d.compte.rouge + ' rouges' : ''}`))
+        pied.append(el('span', null, T('carte.compte.verts', { n: d.compte.vert }) + (d.compte.rouge ? T('carte.compte.rouges', { n: d.compte.rouge }) : '')))
         corps.append(pied)
         appliquePli(n)
         return n
@@ -803,13 +974,16 @@
         if (d.compte.rouge) {
           const g = el('span', 'glyphe g-rouge', '✕')
           g.setAttribute('aria-hidden', 'true')
-          r.append(g, el('span', 'sr', `${d.compte.rouge} workflow${d.compte.rouge > 1 ? 's' : ''} en échec, `), el('span', 'nb', String(d.compte.rouge)))
+          r.append(g, el('span', 'sr', T('carte.resume.sr.echec', { n: d.compte.rouge })), el('span', 'nb', String(d.compte.rouge)))
         }
         const g = el('span', 'glyphe g-vert', '✓')
         g.setAttribute('aria-hidden', 'true')
-        r.append(g, el('span', 'sr', `${d.compte.vert} au vert, `), el('span', 'nb', String(d.compte.vert)))
+        r.append(g, el('span', 'sr', T('carte.resume.sr.vert', { n: d.compte.vert })), el('span', 'nb', String(d.compte.vert)))
         r.append(el('span', 'quand', depuis(d.commit.jours)))
-        r.title = `${d.compte.vert} workflows au vert${d.compte.rouge ? ` · ${d.compte.rouge} en échec` : ''} · dernier commit ${fmtDate(d.commit.date)}`
+        r.title =
+          T('carte.resume.titre', { n: d.compte.vert }) +
+          (d.compte.rouge ? T('carte.resume.titre.echec', { n: d.compte.rouge }) : '') +
+          T('carte.resume.titre.commit', { date: fmtDate(d.commit.date) })
         return r
       }
 
@@ -851,12 +1025,13 @@
         for (const f of ORDRE_FAMILLES) {
           const groupe = liste.filter((d) => d.famille === f).sort(comparateurs[tri])
           if (!groupe.length) continue
-          const pf = D.parFamille[f]
           const bloc = el('div', 'groupeFamille')
           const tete = el('div', 'teteGroupe')
-          tete.append(el('h3', null, pf.titre))
+          tete.append(el('h3', null, titreFamille(f)))
           const rouges = groupe.reduce((n, d) => n + d.compte.rouge, 0)
-          tete.append(el('span', 'compteur', `${groupe.length} dépôt${groupe.length > 1 ? 's' : ''}${rouges ? ` · ${rouges} workflow${rouges > 1 ? 's' : ''} rouge${rouges > 1 ? 's' : ''}` : ' · tout au vert'}`))
+          tete.append(
+            el('span', 'compteur', T('depots.groupe.compteur', { n: groupe.length }) + (rouges ? T('depots.groupe.rouges', { n: rouges }) : T('depots.groupe.toutVert'))),
+          )
           bloc.append(tete)
           const grille = el('div', 'grilleDepots')
           for (const d of groupe) grille.append(carteDepot(d))
@@ -866,7 +1041,8 @@
         $('#aucunDepot').hidden = liste.length > 0
         const nbOuverts = liste.filter((d) => ouverts.has(d.nom)).length
         $('#compteurDepots').textContent =
-          (liste.length === D.depots.length ? `${D.depots.length} dépôts` : `${liste.length} sur ${D.depots.length} dépôts`) + (nbOuverts ? ` · ${nbOuverts} dépliée${nbOuverts > 1 ? 's' : ''}` : '')
+          (liste.length === D.depots.length ? T('depots.compteur.tous', { n: D.depots.length }) : T('depots.compteur.filtre', { vus: liste.length, n: D.depots.length })) +
+          (nbOuverts ? T('depots.compteur.depliees', { n: nbOuverts }) : '')
         majPliGlobal()
         ecritUrl()
         majRaz()
@@ -911,13 +1087,21 @@
       window.addEventListener('hashchange', ouvreDepuisAncre)
       // chips de famille, construits d'après les données : une famille vide
       // n'affiche pas de bouton qui ne filtrerait rien
+      //
+      // CES BOUTONS NE SE RECONSTRUISENT PAS à chaque langue, et c'est
+      // volontaire : leur état pressé vit dans le DOM (`aria-pressed`) ou dans
+      // un ensemble qu'il faudrait rejouer. Le titre est donc porté par un
+      // `span` à clé, que la traduction met à jour sur place — le compte, lui,
+      // reste dans un nœud voisin qui ne dépend d'aucune langue.
       for (const f of ORDRE_FAMILLES) {
         const pf = D.parFamille[f]
         if (!pf.depots) continue
         const b = el('button', 'bouton')
         b.type = 'button'
         b.setAttribute('aria-pressed', 'false')
-        b.textContent = `${pf.titre} (${pf.depots})`
+        const titre = el('span', null, titreFamille(f))
+        titre.dataset.t = 'famille.' + f + '.titre'
+        b.append(titre, document.createTextNode(` (${pf.depots})`))
         b.addEventListener('click', () => {
           const on = famillesActives.has(f)
           if (on) famillesActives.delete(f)
@@ -987,7 +1171,10 @@
           b.type = 'button'
           b.append(...contenu, el('span', 'fleche', '↕'))
           b.lastChild.setAttribute('aria-hidden', 'true')
-          b.setAttribute('aria-label', def.libelle)
+          // La clé RESTE sur le bouton : cet en-tête n'est construit qu'une
+          // fois, et c'est `traduirePage` qui rafraîchira son libellé.
+          b.dataset.tAriaLabel = def.libelle
+          b.setAttribute('aria-label', T(def.libelle))
           th.setAttribute('aria-sort', 'none')
           b.addEventListener('click', () => {
             const premier = def.sens ?? -1
@@ -1032,28 +1219,28 @@
           const c1 = el('td')
           c1.append(el('code', null, l.paquet))
           if (l.ecosysteme === 'cargo') c1.append(document.createTextNode(' '), el('span', 'badge', 'cargo'))
-          if (l.paquet === D.socle) c1.append(document.createTextNode(' '), el('span', 'badge', 'socle'))
+          if (l.paquet === D.socle) c1.append(document.createTextNode(' '), el('span', 'badge', T('pile.socle')))
           const c2 = el('td', 'num', String(l.nbDepots))
           const c3 = el('td')
           const bar = el('div', 'repartition')
           const tete = l.versions.slice(0, 4)
           const queue = l.versions.slice(4)
           const segs = tete.map((v, i) => ({ v: v.version, n: v.depots.length, c: ORD[i] }))
-          if (queue.length) segs.push({ v: `${queue.length} plus anciennes`, n: queue.reduce((s, v) => s + v.depots.length, 0), c: 'var(--ordFold)' })
+          if (queue.length) segs.push({ v: T('libs.queue', { n: queue.length }), n: queue.reduce((s, v) => s + v.depots.length, 0), c: 'var(--ordFold)' })
           for (const s of segs) {
             const sp = el('span')
             sp.style.flex = s.n
             sp.style.background = s.c
-            sp.title = `${s.v} — ${s.n} dépôt${s.n > 1 ? 's' : ''}`
+            sp.title = T('libs.seg.titre', { n: s.n, version: s.v })
             sp.append(el('span', 'etiqSeg', s.v))
             bar.append(sp)
           }
           bar.setAttribute('role', 'img')
-          bar.setAttribute('aria-label', `${l.paquet} : ` + segs.map((s) => `${s.v} sur ${s.n} dépôts`).join(', '))
+          bar.setAttribute('aria-label', T('libs.barre.al', { paquet: l.paquet, detail: segs.map((s) => T('libs.barre.al.seg', { n: s.n, version: s.v })).join(T('liste')) }))
           c3.append(bar)
-          const c4 = el('td', 'num', l.amont || '—')
+          const c4 = el('td', 'num', l.amont || T('temps.rien'))
           const c5 = el('td', 'num')
-          if (l.enRetard == null) c5.textContent = '—'
+          if (l.enRetard == null) c5.textContent = T('temps.rien')
           else {
             // libellé propre : « échec » ne veut rien dire pour un retard de version
             const enRetard = l.enRetard > 0
@@ -1061,8 +1248,8 @@
             const g = el('span', 'glyphe ' + (enRetard ? 'g-encours' : 'g-vert'), enRetard ? '!' : '✓')
             g.setAttribute('aria-hidden', 'true')
             m.append(g)
-            if (enRetard) m.append(el('span', 'sr', 'en retard sur l’amont : '), el('span', null, `${l.enRetard}/${l.nbDepots}`))
-            else m.append(el('span', null, 'à jour'))
+            if (enRetard) m.append(el('span', 'sr', T('libs.retard.sr')), el('span', null, `${l.enRetard}/${l.nbDepots}`))
+            else m.append(el('span', null, T('libs.aJour')))
             c5.append(m)
           }
           tr.append(c0, c1, c2, c3, c4, c5)
@@ -1073,11 +1260,11 @@
           for (const v of l.versions) {
             const b = el('div', 'versionBloc')
             b.append(el('span', 'versionCle', v.version))
-            if (l.amont && v.version !== l.amont) b.append(el('span', 'badge', 'amont ' + l.amont))
+            if (l.amont && v.version !== l.amont) b.append(el('span', 'badge', T('libs.detail.amont', { amont: l.amont })))
             for (const dep of v.depots) {
               const ch = el('a', 'chipDepot', dep.depot)
               ch.href = '#depot-' + dep.depot
-              ch.title = `plage déclarée : ${dep.plage}${dep.verrouille ? ' · version verrouillée' : ' · pas de lockfile, plage affichée'}`
+              ch.title = T(dep.verrouille ? 'libs.detail.plage' : 'libs.detail.plageSeule', { plage: dep.plage })
               b.append(ch)
             }
             dc.append(b)
@@ -1101,7 +1288,8 @@
         // compteur, en haut de la section. Les quatre autres sections filtrantes
         // en avaient un ; celle-ci, la plus grosse, non.
         $('#aucuneLib').hidden = liste.length > 0
-        $('#compteurLibs').textContent = liste.length === D.libs.length ? `${D.libs.length} paquets` : `${liste.length} sur ${D.libs.length} paquets`
+        $('#compteurLibs').textContent =
+          liste.length === D.libs.length ? T('libs.compteur.tous', { n: D.libs.length }) : T('libs.compteur.filtre', { vus: liste.length, n: D.libs.length })
         ecritUrl()
         majRaz()
         // synchrone : la lecture de clientWidth force le calcul de mise en page.
@@ -1132,20 +1320,25 @@
 
       /* ---------------- activité ---------------- */
       const maxJ = Math.max(...D.activite.map((a) => a.jours), 1)
-      const gr = $('#grapheActivite')
-      for (const a of D.activite) {
-        const nom = el('a', 'nomA', a.depot)
-        nom.href = '#depot-' + a.depot
-        const piste = el('div', 'piste')
-        const b = el('div', 'barre')
-        b.style.width = Math.max(2, (a.jours / maxJ) * 100) + '%'
-        b.style.maxWidth = 'calc(100% - 46px)'
-        piste.append(b, el('span', 'vlab', a.jours === 0 ? "aujourd'hui" : a.jours + ' j'))
-        piste.title = `${a.depot} — dernier commit le ${fmtDate(a.date)}`
-        gr.append(nom, piste)
+      function rendActiviteGraphe() {
+        const gr = $('#grapheActivite')
+        gr.textContent = ''
+        for (const a of D.activite) {
+          const nom = el('a', 'nomA', a.depot)
+          nom.href = '#depot-' + a.depot
+          const piste = el('div', 'piste')
+          const b = el('div', 'barre')
+          b.style.width = Math.max(2, (a.jours / maxJ) * 100) + '%'
+          b.style.maxWidth = 'calc(100% - 46px)'
+          // Pas `depuis()` ici : cette étiquette-là ne dit jamais « hier », son
+          // axe est en jours et un mot au milieu des nombres le romprait.
+          piste.append(b, el('span', 'vlab', a.jours === 0 ? T('temps.aujourdhui') : T('temps.jours', { n: a.jours })))
+          piste.title = T('activite.piste.titre', { depot: a.depot, date: fmtDate(a.date) })
+          gr.append(nom, piste)
+        }
+        $('#axeActivite').textContent = T('activite.axe', { max: maxJ })
+        $('#compteurActivite').textContent = T('activite.compteur', { n: D.activite.length })
       }
-      $('#axeActivite').textContent = `Échelle de 0 à ${maxJ} jours. Le dépôt le plus ancien du parc a ${maxJ} jours de retard sur son dernier commit : aucun dépôt n'est en sommeil.`
-      $('#compteurActivite').textContent = `${D.activite.length} dépôts`
       const ca = $('#corpsActivite')
       function rendActivite() {
         ca.textContent = ''
@@ -1167,18 +1360,20 @@
       const ordreActivite = rendTriable(
         ca.closest('table'),
         {
-          0: { lire: (a) => a.depot, cmp: parTexte, sens: 1, libelle: 'Trier par nom de dépôt' },
-          1: { lire: (a) => a.jours, sens: -1, libelle: 'Trier par nombre de jours' },
-          2: { lire: (a) => a.date, sens: -1, libelle: 'Trier par date du dernier commit' },
+          0: { lire: (a) => a.depot, cmp: parTexte, sens: 1, libelle: 'activite.tri.depot' },
+          1: { lire: (a) => a.jours, sens: -1, libelle: 'activite.tri.jours' },
+          2: { lire: (a) => a.date, sens: -1, libelle: 'activite.tri.date' },
         },
         () => rendActivite(),
       )
-      rendActivite()
       $('#basculeTableauActivite').addEventListener('click', () => {
         const b = $('#basculeTableauActivite')
         const on = b.getAttribute('aria-pressed') !== 'true'
         b.setAttribute('aria-pressed', String(on))
-        b.textContent = on ? 'Voir le graphique' : 'Voir en tableau'
+        // LA CLÉ EST L'ÉTAT : on la pose, puis on la lit. Écrire le texte
+        // directement aurait figé la langue du moment où l'on a cliqué.
+        b.dataset.t = on ? 'activite.graphique' : 'activite.tableau'
+        b.textContent = T(b.dataset.t)
         $('#tableauActivite').hidden = !on
         $('#grapheActivite').parentElement.hidden = on
       })
@@ -1200,24 +1395,23 @@
       // dès le lendemain — et, pire, aurait rendu le modèle différent chaque
       // nuit : la garde « le fond a-t-il bougé ? » n'aurait plus jamais pu être
       // fausse, et le dépôt aurait reçu un commit par jour pour rien.
-      {
+      // LES CLASSES CSS RESTENT DANS LE CODE, le texte et l'aide partent au
+      // dictionnaire : `dormance.<état>` et `dormance.<état>.aide`.
+      const CLASSE_DORMANCE = { arretee: 'arret', archivee: 'arret', 'sans-version': 'sansVersion', inconnue: '' }
+
+      function rendDormance() {
         const age = (iso) => (iso ? Math.floor((Date.parse(D.genere) - Date.parse(iso)) / 86400000) : null)
-        const LECTURES = {
-          arretee: { texte: 'à l’arrêt', classe: 'arret', aide: 'Ni version publiée ni commit depuis plus d’un an : prévoir un remplacement.' },
-          archivee: { texte: 'archivée', classe: 'arret', aide: 'Le dépôt amont est archivé : il ne recevra plus rien.' },
-          'sans-version': { texte: 'développée, pas publiée', classe: 'sansVersion', aide: 'Le dépôt bouge encore ; c’est la publication qui manque.' },
-          inconnue: { texte: 'dépôt introuvable', classe: '', aide: 'Le paquet ne déclare pas de dépôt GitHub exploitable.' },
-        }
         const dormantes = D.libs.filter((l) => l.dormance).sort((a, b) => (a.publieLe || '').localeCompare(b.publieLe || ''))
         const arretees = dormantes.filter((l) => l.dormance === 'arretee' || l.dormance === 'archivee').length
         const ans = Math.round(D.seuilDormanceJours / 365)
-        const seuilMot = ans <= 1 ? 'plus d’un an' : `plus de ${ans} ans`
+        const seuilMot = ans <= 1 ? T('dormance.seuil.an') : T('dormance.seuil.ans', { n: ans })
         $('#compteurDormance').textContent = dormantes.length
-          ? `${dormantes.length} sur ${D.kpi.librairiesDatees} sans version depuis ${seuilMot} — ${arretees} dont le dépôt amont s’est tu aussi`
-          : `aucune sur ${D.kpi.librairiesDatees} librairies datées`
+          ? T('dormance.compteur', { n: dormantes.length, total: D.kpi.librairiesDatees, seuil: seuilMot, arretees })
+          : T('dormance.compteur.aucune', { n: D.kpi.librairiesDatees })
         const tb = $('#corpsDormance')
+        tb.textContent = ''
         for (const l of dormantes) {
-          const lect = LECTURES[l.dormance] || LECTURES.inconnue
+          const etat = CLASSE_DORMANCE[l.dormance] === undefined ? 'inconnue' : l.dormance
           const tr = el('tr')
 
           const c1 = el('td')
@@ -1240,31 +1434,34 @@
             a.target = '_blank'
             a.rel = 'noopener'
             c5.append(a)
-            if (l.amontArchive) c5.append(document.createTextNode(' '), el('span', 'badge arret', 'archivé'))
-            if (l.amontIssues != null) c5.append(el('div', 'quand', `${l.amontIssues} tickets ouverts`))
-          } else c5.textContent = '—'
+            if (l.amontArchive) c5.append(document.createTextNode(' '), el('span', 'badge arret', T('dormance.archive')))
+            if (l.amontIssues != null) c5.append(el('div', 'quand', T('dormance.tickets', { n: l.amontIssues })))
+          } else c5.textContent = T('temps.rien')
 
           const c6 = el('td', 'num', depuis(age(l.amontPousseLe)))
           c6.title = fmtDate(l.amontPousseLe)
 
           const c7 = el('td')
-          const b = el('span', 'badge ' + lect.classe, lect.texte)
-          b.title = lect.aide
+          const b = el('span', 'badge ' + CLASSE_DORMANCE[etat], T('dormance.' + etat))
+          b.title = T('dormance.' + etat + '.aide')
           c7.append(b)
 
           tr.append(c1, c2, c3, c4, c5, c6, c7)
           tb.append(tr)
         }
-        if (!dormantes.length) $('#aucuneDormante').hidden = false
+        $('#aucuneDormante').hidden = dormantes.length > 0
       }
 
       /* ---------------- pied ---------------- */
-      const pied = $('#pied')
-      pied.append(el('span', null, `Relevé du ${fmtHeure(D.genere)}.`))
-      pied.append(el('span', null, `Source : API GitHub, lockfiles lus sur la branche par défaut, registre npm${D.avecLocal ? ', copies de travail locales' : ''}.`))
-      if (D.publicsSeulement) pied.append(el('span', null, 'Les dépôts privés du compte sont exclus de ce relevé.'))
-      if (D.soi) pied.append(el('span', null, `Le dépôt ${D.soi}, qui produit cette page, s'exclut lui-même.`))
-      pied.append(el('span', null, 'Page régénérée chaque jour par GitHub Actions.'))
+      function rendPied() {
+        const pied = $('#pied')
+        pied.textContent = ''
+        pied.append(el('span', null, T('pied.releve', { quand: fmtHeure(D.genere) })))
+        pied.append(el('span', null, T(D.avecLocal ? 'pied.sourceLocale' : 'pied.source')))
+        if (D.publicsSeulement) pied.append(el('span', null, T('pied.publics')))
+        if (D.soi) pied.append(el('span', null, T('pied.soi', { depot: D.soi })))
+        pied.append(el('span', null, T('pied.regenere')))
+      }
 
       /* ---------------- matrice des écarts ---------------- */
 
@@ -1282,14 +1479,14 @@
 
       const libParNom = new Map(D.libs.map((l) => [l.paquet, l]))
       const familleDe = new Map(D.depots.map((d) => [d.nom, d.famille || '—']))
-      const MAT = { alpha: 'Alpha', beta: 'Bêta', stable: 'Stable' }
       const RANG_MAT = { alpha: 0, beta: 1, stable: 2, aucune: 3 }
       const maturiteDe = (d) => d.maturite || 'aucune'
+      /** Une famille connue du relevé mais pas du dictionnaire garde sa clé. */
+      const familleConnue = (f) => ORDRE_FAMILLES.includes(f)
       // Le titre d'une famille tient dans un bouton, pas dans une pastille
       // collée à un nom de dépôt. Une famille inconnue de cette table retombe
       // sur son titre : plus long, mais jamais faux.
-      const COURT_FAMILLE = { pwa: 'PWA', desktop: 'Desktop', socle: 'Socle', autre: 'Outillage' }
-      const courtFamille = (f) => COURT_FAMILLE[f] || (D.familles[f] ? D.familles[f].titre : f)
+      const courtFamille = (f) => (T.connait('famille.' + f + '.court') ? T('famille.' + f + '.court') : familleConnue(f) ? titreFamille(f) : f)
       const parEcarts = (a, b) => b.nbVersions - a.nbVersions || b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet)
 
       // Montrer les cent paquets noierait l'écart dans le bruit : le défaut est
@@ -1382,7 +1579,7 @@
             else colonnes.delete(l.paquet)
             rendMatrice()
           })
-          lab.append(cb, el('span', 'mono', l.paquet), el('span', 'pastilleCol', `${l.nbVersions}v · ${l.nbDepots}d`))
+          lab.append(cb, el('span', 'mono', l.paquet), el('span', 'pastilleCol', T('matrice.pastilleCol', { versions: l.nbVersions, depots: l.nbDepots })))
           zone.append(lab)
         }
       }
@@ -1480,29 +1677,29 @@
 
         const tr = el('tr')
         tr.append(
-          boutonTri(TRI_DEPOT, 'Dépôt', {
-            inactif: 'Trier les dépôts par nom',
-            croissant: 'Dépôt : trié de A à Z. Cliquer pour inverser.',
-            decroissant: 'Dépôt : trié de Z à A. Cliquer pour revenir au tri par défaut.',
+          boutonTri(TRI_DEPOT, T('matrice.th.depot'), {
+            inactif: T('matrice.tri.depot.inactif'),
+            croissant: T('matrice.tri.depot.croissant'),
+            decroissant: T('matrice.tri.depot.decroissant'),
           }),
         )
         for (const l of cols) {
           tr.append(
             boutonTri(l.paquet, el('span', 'matriceCol', l.paquet), {
-              titre: `${l.paquet} — plus récente du parc : ${l.plusRecente}${l.amont ? `, amont : ${l.amont}` : ''}`,
-              inactif: `Trier les dépôts sur la version de ${l.paquet}`,
-              croissant: `${l.paquet} : trié du plus ancien au plus récent. Cliquer pour revenir au tri par défaut.`,
-              decroissant: `${l.paquet} : trié du plus récent au plus ancien. Cliquer pour inverser.`,
+              titre: T(l.amont ? 'matrice.tri.col.titreAmont' : 'matrice.tri.col.titre', { paquet: l.paquet, recente: l.plusRecente, amont: l.amont }),
+              inactif: T('matrice.tri.col.inactif', { paquet: l.paquet }),
+              croissant: T('matrice.tri.col.croissant', { paquet: l.paquet }),
+              decroissant: T('matrice.tri.col.decroissant', { paquet: l.paquet }),
             }),
           )
         }
         tr.append(
-          boutonTri(TRI_ECARTS, 'Écarts', {
+          boutonTri(TRI_ECARTS, T('matrice.th.ecarts'), {
             classe: 'num',
-            titre: 'Nombre d’écarts sur les colonnes affichées ; la gravité départage les ex æquo.',
-            inactif: 'Trier les dépôts sur le nombre d’écarts',
-            croissant: 'Écarts : trié du moins au plus. Cliquer pour revenir au tri par défaut.',
-            decroissant: 'Écarts : trié du plus au moins. Cliquer pour inverser.',
+            titre: T('matrice.tri.ecarts.titre'),
+            inactif: T('matrice.tri.ecarts.inactif'),
+            croissant: T('matrice.tri.ecarts.croissant'),
+            decroissant: T('matrice.tri.ecarts.decroissant'),
           }),
         )
         tete.append(tr)
@@ -1513,13 +1710,13 @@
           const lien = el('a', 'depotLien', r.depot)
           lien.href = '#depot-' + r.depot
           th.append(lien)
-          if (D.familles[r.famille]) {
+          if (familleConnue(r.famille)) {
             const pf = el('span', 'pastilleFam', courtFamille(r.famille))
-            pf.title = D.familles[r.famille].titre
+            pf.title = titreFamille(r.famille)
             th.append(pf)
           }
           if (r.maturite !== 'aucune') {
-            const p = el('span', 'pastilleMat', MAT[r.maturite])
+            const p = el('span', 'pastilleMat', T('maturite.' + r.maturite))
             p.dataset.mat = r.maturite
             th.append(p)
           }
@@ -1529,8 +1726,13 @@
             td.dataset.ecart = c.rang
             const ref = libParNom.get(c.paquet)
             td.title = c.version
-              ? `${r.depot} — ${c.paquet} ${c.version}` + (c.rang === '0' ? ' (à jour dans le parc)' : ` — le parc tient déjà ${ref.plusRecente}`)
-              : `${r.depot} ne dépend pas de ${c.paquet}`
+              ? T(c.rang === '0' ? 'matrice.cellule.aJour' : 'matrice.cellule.retard', {
+                  depot: r.depot,
+                  paquet: c.paquet,
+                  version: c.version,
+                  recente: ref.plusRecente,
+                })
+              : T('matrice.cellule.absent', { depot: r.depot, paquet: c.paquet })
             l.append(td)
           }
           // LE POIDS NE DISPARAÎT PAS, il change de place. La colonne porte le
@@ -1541,11 +1743,11 @@
           const detail = ['majeure', 'mineure', 'patch']
             .map((rang) => [rang, r.cellules.filter((c) => c.rang === rang).length])
             .filter(([, n]) => n > 0)
-            .map(([rang, n]) => `${n} ${rang}${n > 1 ? 's' : ''}`)
-            .join(', ')
+            .map(([rang, n]) => T('matrice.rang.' + rang, { n }))
+            .join(T('liste'))
           tdTotal.title = r.nb
-            ? `${r.depot} — ${r.nb} écart${r.nb > 1 ? 's' : ''} sur les colonnes affichées (${detail}) — gravité ${r.score}`
-            : `${r.depot} — aucun écart sur les colonnes affichées`
+            ? T('matrice.total.titre', { depot: r.depot, n: r.nb, detail, score: r.score })
+            : T('matrice.total.aucun', { depot: r.depot })
           l.append(tdTotal)
           corps.append(l)
         }
@@ -1554,16 +1756,18 @@
         // les écarts du parc entier sous un filtre décrit un tableau qui n'est
         // pas celui qu'on a sous les yeux.
         const total = visibles.reduce((n, r) => n + r.nb, 0)
-        const pl = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`
         $('#aucuneLigne').hidden = visibles.length > 0
         // DIRE CE QU'ON CACHE. « 10 paquets × 23 dépôts » laissait croire que le
         // parc en compte dix : trois filtres sont actifs AU CHARGEMENT, et sur
         // dix-huit écrans on s'éloigne vite de celui qu'on a posé. La section
         // « librairies » disait déjà « 54 sur 92 » ; il s'agissait de
         // généraliser la forme, pas de l'inventer.
-        const surN = (n, t, mot) => (n === t ? pl(n, mot) : `${n} sur ${pl(t, mot)}`)
-        $('#compteurMatrice').textContent =
-          `${surN(cols.length, D.libs.length, 'paquet')} × ${surN(visibles.length, lignes.length, 'dépôt')} — ${pl(total, 'écart')}`
+        const surN = (n, t, quoi) => (n === t ? T(`matrice.compteur.${quoi}`, { n }) : T(`matrice.compteur.${quoi}Sur`, { vus: n, n: t }))
+        $('#compteurMatrice').textContent = T('matrice.compteur', {
+          paquets: surN(cols.length, D.libs.length, 'paquets'),
+          depots: surN(visibles.length, lignes.length, 'depots'),
+          ecarts: T('matrice.compteur.ecarts', { n: total }),
+        })
         ecritUrl()
         majRaz()
       }
@@ -1603,7 +1807,11 @@
         b.type = 'button'
         b.dataset.famille = f
         b.setAttribute('aria-pressed', 'false')
-        b.textContent = D.familles[f].titre
+        // La clé reste sur le bouton : son état pressé ne vit QUE dans le DOM
+        // (`rendMatrice` le relit), donc le reconstruire à chaque langue
+        // effacerait le filtre posé.
+        b.dataset.t = 'famille.' + f + '.titre'
+        b.textContent = titreFamille(f)
         $('#filtresFamilleMatrice').append(b)
       }
       $('#filtresFamilleMatrice').addEventListener('click', (e) => {
@@ -1621,11 +1829,22 @@
       const chapitres = [...document.querySelectorAll('#familles, main section[id]')].filter((s) => s.querySelector('h2'))
       const nav = $('#sommaire')
       const liens = new Map()
-      for (const s of chapitres) {
-        const a = el('a', null, s.querySelector('h2').textContent.trim())
-        a.href = '#' + s.id
-        liens.set(s.id, a)
-        nav.append(a)
+
+      // `liens` est VIDÉE et remplie, jamais remplacée : l'observateur
+      // d'intersection ferme sur cette Map-là, et lui en substituer une autre
+      // aurait laissé le chapitre courant marqué dans des liens jetés.
+      //
+      // Le sommaire se reconstruit à chaque langue parce qu'il RECOPIE les
+      // titres du document : il doit donc passer APRÈS `traduirePage`.
+      function rendSommaire() {
+        nav.textContent = ''
+        liens.clear()
+        for (const s of chapitres) {
+          const a = el('a', null, s.querySelector('h2').textContent.trim())
+          a.href = '#' + s.id
+          liens.set(s.id, a)
+          nav.append(a)
+        }
       }
 
       $('#basculeSommaire').addEventListener('click', () => {
@@ -1677,10 +1896,10 @@
       const ordreLibs = rendTriable(
         $('#corpsLibs').closest('table'),
         {
-          1: { lire: (l) => l.paquet, cmp: parTexte, sens: 1, libelle: 'Trier par nom de paquet' },
-          2: { lire: (l) => l.nbDepots, sens: -1, libelle: 'Trier par nombre de dépôts' },
-          4: { lire: (l) => l.amont, cmp: cmpVersion, sens: -1, libelle: 'Trier par version amont' },
-          5: { lire: (l) => l.enRetard, sens: -1, libelle: 'Trier par nombre de dépôts en retard' },
+          1: { lire: (l) => l.paquet, cmp: parTexte, sens: 1, libelle: 'libs.tri.paquet' },
+          2: { lire: (l) => l.nbDepots, sens: -1, libelle: 'libs.tri.depots' },
+          4: { lire: (l) => l.amont, cmp: cmpVersion, sens: -1, libelle: 'libs.tri.amont' },
+          5: { lire: (l) => l.enRetard, sens: -1, libelle: 'libs.tri.retard' },
         },
         () => rendLibs(),
       )
@@ -1724,9 +1943,9 @@
           ...synthese.map((e) => ({ ...e, sym: sym.get(e.nom), synthese: true })),
         ].filter((e) => !retenus.size || retenus.has(e.groupe))
 
-        const rang = new Map(GROUPES.map(([cle], i) => [cle, i]))
+        const rang = new Map(GROUPES.map((cle, i) => [cle, i]))
         let montres = 0
-        PERIODES.forEach(([, nomPeriode], i) => {
+        PERIODES.forEach(([, clePeriode], i) => {
           const dedans = tous
             .filter((e) => periodeDe(e.n, total) === i)
             .sort((a, b) => rang.get(a.groupe) - rang.get(b.groupe) || b.n - a.n || parTexte(a.nom, b.nom))
@@ -1740,21 +1959,25 @@
           const bas = Math.ceil(PERIODES[i][0] * total)
           const haut = i === 0 ? total : Math.ceil(PERIODES[i - 1][0] * total) - 1
           const plancher = Math.max(bas, partages ? 2 : 1)
-          tete.append(el('span', 'rangPeriode', plancher >= haut ? `${haut} dépôt${haut > 1 ? 's' : ''}` : `${haut} → ${plancher}`))
-          tete.append(el('span', 'nomPeriode', nomPeriode))
+          tete.append(el('span', 'rangPeriode', plancher >= haut ? T('elements.periode.borne', { n: haut }) : T('elements.periode.plage', { haut, bas: plancher })))
+          tete.append(el('span', 'nomPeriode', T(clePeriode)))
 
           const grille = el('div', 'elements')
           for (const e of dedans) {
             const c = el('div', 'element')
             c.style.setProperty('--teinte', `var(--g-${e.groupe})`)
             if (e.socle) c.dataset.socle = 'true'
-            const libelle = GROUPES.find(([cle]) => cle === e.groupe)?.[1] ?? e.groupe
-            c.title = `${e.nom} — ${e.n} dépôt${e.n > 1 ? 's' : ''} · ${e.ver} · ${libelle}${e.synthese ? ' · déduit du relevé, hors lockfile' : ''}`
+            // `ver` est un numéro de version pour un paquet, et une CLÉ pour
+            // les lignes déduites du relevé (« sites servis », « proxys »…).
+            const version = T.ouTelQuel(e.ver)
+            c.title =
+              T('elements.case.titre', { nom: e.nom, depots: T('elements.case.depots', { n: e.n }), version, groupe: T('groupe.' + e.groupe) }) +
+              (e.synthese ? T('elements.case.deduit') : '')
             c.append(el('span', 'elementN', String(e.n)), el('div', 'elementSym', e.sym))
             const bas2 = el('div')
             // L'étiquette raccourcit, SAUF quand raccourcir rendrait deux cases
             // identiques — le titre, lui, porte toujours le nom entier.
-            bas2.append(el('div', 'elementNom', e.etiquette ?? e.nom), el('div', 'elementVer', e.ver || '—'))
+            bas2.append(el('div', 'elementNom', e.etiquette ?? e.nom), el('div', 'elementVer', version || T('temps.rien')))
             c.append(bas2)
             grille.append(c)
           }
@@ -1763,26 +1986,31 @@
         })
 
         $('#aucunElement').hidden = montres > 0
-        const pl = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`
         // `catalogue` compte TOUT ce que la table pourrait montrer, filtres
         // levés : c'est le dénominateur honnête.
         const catalogue = D.libs.length + synthese.length
-        $('#compteurElements').textContent =
-          (montres === catalogue ? pl(montres, 'élément') : `${montres} sur ${pl(catalogue, 'élément')}`) + ` · ${pl(total, 'dépôt')}`
+        $('#compteurElements').textContent = T('elements.compteur', {
+          elements: montres === catalogue ? T('elements.compteur.tous', { n: montres }) : T('elements.compteur.filtre', { vus: montres, n: catalogue }),
+          depots: T('elements.compteur.depots', { n: total }),
+        })
         ecritUrl()
         majRaz()
       }
 
       // La légende EST le filtre : une pastille qu'on peut cliquer économise une
       // rangée de contrôles, et dit du même geste ce que la couleur signifie.
-      for (const [cle, libelle] of GROUPES) {
+      for (const cle of GROUPES) {
         const b = el('button', 'bouton')
         b.type = 'button'
         b.dataset.groupe = cle
         b.setAttribute('aria-pressed', 'false')
         const p = el('span', 'pastilleGroupe')
         p.style.setProperty('--teinte', `var(--g-${cle})`)
-        b.append(p, document.createTextNode(libelle))
+        // Le libellé va dans un `span` à clé, et pas dans un nœud de texte : la
+        // traduction ne doit pas emporter la pastille de couleur qui le précède.
+        const nom = el('span', null, T('groupe.' + cle))
+        nom.dataset.t = 'groupe.' + cle
+        b.append(p, nom)
         b.addEventListener('click', () => {
           b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
           rendElements()
@@ -2022,13 +2250,83 @@
       etatUrl('e.grp', ...bascules('#legendeGroupes button', 'groupe'))
       etatUrl('m.eclate', ...interrupteur('#matriceEclate'))
       etatUrl('m.lignes', ...interrupteur('#matriceLignes'))
+      etatUrl(
+        'lang',
+        // Le défaut ne s'écrit pas : une URL propre reste propre, et c'est la
+        // même règle que pour les onze autres paramètres.
+        () => (LANGUE === DEFAUT ? null : LANGUE),
+        // RIEN À APPLIQUER ICI. La langue décide du texte de la page ENTIÈRE,
+        // elle est donc lue avant le premier rendu — `litUrl` arrive après, et
+        // rejouerait un choix déjà fait. La clé reste déclarée pour que
+        // l'ÉCRITURE ait lieu : sans elle, un lien partagé perdrait la langue.
+        () => {},
+      )
+
+      /* ---------------- tout rendre, dans le bon ordre ---------------- */
+
+      /**
+       * LE RENDU COMPLET, REJOUABLE — ce que le sélecteur de langue appelle.
+       *
+       * L'ordre n'est pas indifférent : `rendSommaire` RECOPIE les titres du
+       * document, il doit donc passer après `traduirePage`, et c'est pour ça
+       * qu'il est ici plutôt qu'au fil du script.
+       *
+       * `rendTriable` n'y est PAS : il transforme les en-têtes une fois pour
+       * toutes — il déplace le contenu d'un `<th>` dans un bouton — et le
+       * rejouer emboîterait un bouton dans le précédent. Ses libellés portent
+       * leur clé (`data-t-aria-label`), donc la traduction les rattrape sans
+       * qu'on y retouche.
+       */
+      function rendTout() {
+        rendEntete()
+        rendChangements()
+        rendFamilles()
+        rendEchecs()
+        rendDormance()
+        rendPied()
+        rendActiviteGraphe()
+        rendSommaire()
+        rendDepots()
+        rendLibs()
+        rendMatrice()
+        rendElements()
+        rendActivite()
+      }
+
+      /**
+       * Changer de langue : le traducteur, le tri, la mémoire, puis tout le
+       * texte et tout le rendu. `ecritUrl` en fin de course, pour que le lien
+       * qu'on partage porte la langue qu'on regarde.
+       */
+      function appliqueLangue(code) {
+        LANGUE = choisitLangue([code])
+        T = traducteur(LANGUE)
+        poseLangueTri(LANGUE)
+        try {
+          localStorage.setItem(CLE_LANGUE, LANGUE)
+        } catch {
+          // stockage refusé : le choix ne survivra pas à la visite, sans plus
+        }
+        $('#langue').value = LANGUE
+        traduirePage()
+        traduitLesDonnees()
+        rendTout()
+        ecritUrl()
+      }
+
+      for (const [code, nom] of LANGUES) {
+        const o = el('option', null, nom)
+        o.value = code
+        $('#langue').append(o)
+      }
+      $('#langue').value = LANGUE
+      $('#langue').addEventListener('change', () => appliqueLangue($('#langue').value))
 
       litUrl()
 
-      rendDepots()
-      rendLibs()
-      rendMatrice()
-      rendElements()
+      traduirePage()
+      traduitLesDonnees()
+      rendTout()
       // APRÈS le premier rendu : au chargement, le navigateur cherche l'ancre
       // avant que la grille n'existe, et n'a donc rien à atteindre.
       ouvreDepuisAncre()

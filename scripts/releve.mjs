@@ -122,12 +122,13 @@ const json = (t) => {
 
 /* ------------------------------------------------- classement des dépôts */
 
-const FAMILLES = {
-  pwa: { titre: 'Applications PWA', sous: 'Applications web installables, déployées sur GitHub Pages.' },
-  desktop: { titre: 'Applications desktop', sous: 'Empaquetées avec Electron, Tauri ou .NET — hors chaîne Pages.' },
-  socle: { titre: 'Socle', sous: 'La bibliothèque, le squelette et le générateur dont vivent les applications.' },
-  autre: { titre: 'Outillage et divers', sous: 'Extensions, compétences, configuration du compte.' },
-}
+// LES FAMILLES NE SONT PLUS QU'UN ORDRE. Elles portaient ici leur titre et leur
+// sous-titre en français, et le modèle les embarquait dans la page : la langue
+// était cuite dans la DONNÉE, là où aucun sélecteur ne pouvait plus la
+// défaire. Les quatre paires vivent désormais dans `libelles.mjs`, sous
+// `famille.<clé>.titre` et `.sous`, dans chaque langue — et ce tableau ne dit
+// plus que ce qu'il est seul à savoir : dans quel ordre les montrer.
+const FAMILLES = ['pwa', 'desktop', 'socle', 'autre']
 
 /* --------------------------------------------------------- enrichissement local */
 
@@ -584,11 +585,10 @@ for (const d of depots) {
 
 const propres = depots.flatMap((d) => d.workflows.filter((w) => !w.reutilisable))
 const parFamille = {}
-for (const f of Object.keys(FAMILLES)) {
+for (const f of FAMILLES) {
   const liste = depots.filter((d) => d.famille === f)
   const wf = liste.flatMap((d) => d.workflows.filter((w) => !w.reutilisable))
   parFamille[f] = {
-    ...FAMILLES[f],
     depots: liste.length,
     workflows: wf.length,
     verts: wf.filter((w) => w.etat === 'vert').length,
@@ -707,6 +707,14 @@ const sansModule = (src, nom) => {
 const regles = readFileSync(join(ICI, 'regles.mjs'), 'utf8')
 const vue = readFileSync(join(ICI, 'vue.mjs'), 'utf8')
 
+// LES LIBELLÉS, POUR LA MÊME RAISON — et une de plus. Le texte de la page
+// vivait à trois endroits : les nœuds du gabarit, les chaînes du JavaScript en
+// ligne, et des phrases françaises que CE script calculait puis embarquait
+// dans le JSON. Rassemblés dans `libelles.mjs`, ils sont éprouvés par
+// `node --test` — qui exige notamment que les deux langues portent les mêmes
+// clés, les mêmes interpolations et les mêmes formes de pluriel.
+const libelles = readFileSync(join(ICI, 'libelles.mjs'), 'utf8')
+
 // LA FEUILLE DE STYLE, SORTIE DU GABARIT POUR LA MÊME RAISON QUE LES RÈGLES.
 // `gabarit.html` faisait 2 986 lignes, dont 1 220 de CSS et 1 478 de
 // JavaScript : dix pour cent du fichier était ce que son nom annonce. Un
@@ -717,13 +725,16 @@ const style = readFileSync(join(ICI, 'style.css'), 'utf8')
 
 // L'empreinte entre dans le modèle : sans elle, la comparaison ne porterait que
 // sur les données et une refonte de la page ne serait JAMAIS republiée — le
-// relevé répondrait « rien n'a bougé » sur un gabarit réécrit. Les DEUX modules
-// y entrent aussi : depuis qu'ils portent la logique, les oublier rendrait
-// invisible un changement de tri ou de rang d'écart.
+// relevé répondrait « rien n'a bougé » sur un gabarit réécrit. Les modules y
+// entrent aussi : depuis qu'ils portent la logique, les oublier rendrait
+// invisible un changement de tri ou de rang d'écart. `libelles.mjs` en est le
+// cas le plus net — une traduction corrigée ne change AUCUNE donnée, et sans
+// son empreinte ici elle n'atteindrait jamais la page publiée.
 modele.gabarit = createHash('sha256')
   .update(gabarit)
   .update(regles)
   .update(vue)
+  .update(libelles)
   .update(style)
   .digest('hex')
   .slice(0, 12)
@@ -793,7 +804,7 @@ const page = gabarit
   // Le saut de ligne final du fichier est retiré ici : il est de rigueur dans un
   // fichier source, et poserait une ligne vide de plus avant `</style>`.
   .replace('__STYLE__', () => style.replace(/\n$/, ''))
-  .replace('__VUE__', () => `${sansModule(regles, 'regles.mjs')}\n${sansModule(vue, 'vue.mjs')}`)
+  .replace('__VUE__', () => [sansModule(regles, 'regles.mjs'), sansModule(vue, 'vue.mjs'), sansModule(libelles, 'libelles.mjs')].join('\n'))
   .replace('__DONNEES__', () => charge)
 
 if (inchange) {

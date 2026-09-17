@@ -101,7 +101,9 @@ export const PILE_MONTREE = [
  * un retardataire. `verrouille` dit laquelle des deux on a pu lire.
  *
  * Le socle se nomme différemment DANS son propre dépôt — « socle (ce dépôt) » —
- * parce qu'il n'y est pas une dépendance mais le sujet.
+ * parce qu'il n'y est pas une dépendance mais le sujet. Ces deux noms-là sont
+ * des CLÉS de `libelles.mjs` : ce sont les seuls de la pile qui soient du texte
+ * et non un nom propre, et la page les traduit au rendu.
  *
  * @param {object} d Le dépôt, avec `verrouillees`, `declarees`, `crates`.
  * @param {{ amont: Record<string,string>, nomSocle: string,
@@ -115,9 +117,9 @@ export function pileDuDepot(d, ctx) {
     if (v) pile.push({ nom, paquet, version: v, verrouille: Boolean(d.verrouillees?.[paquet]), amont: amont[paquet] || null })
   }
   if (d.nom === 'dev-pwa-config') {
-    pile.push({ nom: 'socle (ce dépôt)', paquet: nomSocle, version: d.paquet?.version || '?', verrouille: true, amont: amont[nomSocle] })
+    pile.push({ nom: 'pile.socleCeDepot', paquet: nomSocle, version: d.paquet?.version || '?', verrouille: true, amont: amont[nomSocle] })
   } else {
-    pousse('socle', nomSocle)
+    pousse('pile.socle', nomSocle)
   }
   for (const [etiquette, paquet] of PILE_MONTREE) pousse(etiquette, paquet)
   for (const c of crates) {

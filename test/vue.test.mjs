@@ -200,7 +200,9 @@ test('groupeDe : « autre » est une RÉPONSE, pas un échec', () => {
   // ranger d'office quelque part cacherait l'arrivée d'une technologie neuve
   // dans une case qui ment.
   assert.equal(groupeDe('une-librairie-inconnue-de-demain'), 'autre')
-  assert.ok(GROUPES.some(([cle]) => cle === 'autre'), 'le groupe doit exister')
+  // `GROUPES` ne porte plus que des clés : le libellé de chacune vit dans
+  // `libelles.mjs`, sous `groupe.<clé>`, dans les deux langues.
+  assert.ok(GROUPES.includes('autre'), 'le groupe doit exister')
 })
 
 test('symboles : uniques, dérivés, et les plus portés gardent le plus court', () => {
