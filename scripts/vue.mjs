@@ -99,8 +99,19 @@ export const parChamp =
     return cmp(va, vb) * sens
   }
 
+/**
+ * La langue du CLASSEMENT, qui n'est pas forcément celle de l'affichage par
+ * hasard : `localeCompare` ne range pas pareil selon la locale, et un tableau
+ * trié « à la française » dans une page anglaise serait un détail faux de plus.
+ * Le sélecteur de langue la pose ; les tests la laissent au défaut.
+ */
+let langueTri = 'fr'
+export const poseLangueTri = (l) => {
+  langueTri = l || 'fr'
+}
+
 /** Comparaison de textes, insensible à la casse et aux accents. */
-export const parTexte = (a, b) => String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' })
+export const parTexte = (a, b) => String(a).localeCompare(String(b), langueTri, { sensitivity: 'base' })
 
 /* ── Les filtres, sortis des rendus ───────────────────────────────────────
  *
@@ -188,21 +199,25 @@ export function correspondLib(l, c = {}) {
  *
  * **Une ligne qui ne trouve aucun dépôt ne sort pas** : mieux vaut un trou
  * qu'un chiffre inventé.
+ *
+ * `nom` est un nom PROPRE et ne se traduit pas ; `ver` — ce qui tient la place
+ * du numéro de version dans la case — est une CLÉ de `libelles.mjs`, parce que
+ * « montées de deps » n'a rien à dire dans une page anglaise.
  */
 export function elementsHorsNpm(depots) {
   const wf = (re) => depots.filter((d) => (d.workflows || []).some((w) => re.test(w.nom || w.name || ''))).length
   const lang = (nom) => depots.filter((d) => d.langage === nom).length
   return [
-    { nom: 'GitHub Actions', n: depots.filter((d) => (d.workflows || []).length).length, ver: 'workflows', groupe: 'infra' },
-    { nom: 'GitHub Pages', n: depots.filter((d) => d.pages).length, ver: 'sites servis', groupe: 'infra' },
-    { nom: 'Renovate', n: wf(/renovate/i), ver: 'montées de deps', groupe: 'qual' },
-    { nom: 'Lighthouse CI', n: wf(/lighthouse/i), ver: 'seuils a11y', groupe: 'test' },
-    { nom: 'Supabase', n: wf(/supabase/i), ver: 'Postgres · RLS', groupe: 'dos' },
-    { nom: 'Cloudflare Workers', n: wf(/worker/i), ver: 'proxys', groupe: 'dos' },
-    { nom: 'Firebase Hosting', n: wf(/firebase/i), ver: 'déploiement', groupe: 'dos' },
-    { nom: 'Rust', n: lang('Rust'), ver: 'crates', groupe: 'lang' },
-    { nom: 'C#', n: lang('C#'), ver: '.NET', groupe: 'lang' },
-    { nom: 'Python', n: lang('Python'), ver: 'scripts', groupe: 'lang' },
+    { nom: 'GitHub Actions', n: depots.filter((d) => (d.workflows || []).length).length, ver: 'element.ver.workflows', groupe: 'infra' },
+    { nom: 'GitHub Pages', n: depots.filter((d) => d.pages).length, ver: 'element.ver.sites', groupe: 'infra' },
+    { nom: 'Renovate', n: wf(/renovate/i), ver: 'element.ver.deps', groupe: 'qual' },
+    { nom: 'Lighthouse CI', n: wf(/lighthouse/i), ver: 'element.ver.a11y', groupe: 'test' },
+    { nom: 'Supabase', n: wf(/supabase/i), ver: 'element.ver.postgres', groupe: 'dos' },
+    { nom: 'Cloudflare Workers', n: wf(/worker/i), ver: 'element.ver.proxys', groupe: 'dos' },
+    { nom: 'Firebase Hosting', n: wf(/firebase/i), ver: 'element.ver.deploiement', groupe: 'dos' },
+    { nom: 'Rust', n: lang('Rust'), ver: 'element.ver.crates', groupe: 'lang' },
+    { nom: 'C#', n: lang('C#'), ver: 'element.ver.dotnet', groupe: 'lang' },
+    { nom: 'Python', n: lang('Python'), ver: 'element.ver.scripts', groupe: 'lang' },
   ].filter((e) => e.n > 0)
 }
 
@@ -219,19 +234,13 @@ export function elementsHorsNpm(depots) {
  * sa place sans qu'on touche à ce fichier.
  */
 
-/** Les groupes, dans l'ordre de la chaîne : de la source au regard porté dessus. */
-export const GROUPES = [
-  ['lang', 'Langage & types'],
-  ['build', 'Construction'],
-  ['ui', 'Interface'],
-  ['data', 'État & données'],
-  ['dos', 'Dorsale'],
-  ['test', 'Tests'],
-  ['qual', 'Qualité & style'],
-  ['obs', 'Observabilité'],
-  ['infra', 'Socle & infrastructure'],
-  ['autre', 'Non classé'],
-]
+/**
+ * Les groupes, dans l'ordre de la chaîne : de la source au regard porté dessus.
+ *
+ * Des CLÉS seules, et non plus des paires `[clé, libellé]` : le libellé vit
+ * dans `libelles.mjs` sous `groupe.<clé>`, où il existe dans chaque langue.
+ */
+export const GROUPES = ['lang', 'build', 'ui', 'data', 'dos', 'test', 'qual', 'obs', 'infra', 'autre']
 
 /**
  * LE GROUPE D'UN PAQUET, par motifs ordonnés — le premier qui accroche gagne.
@@ -342,11 +351,11 @@ export function etiquettes(paquets) {
  * portent au moins sept dépôts sur dix.
  */
 export const PERIODES = [
-  [0.7, 'Le noyau'],
-  [0.5, 'La ceinture'],
-  [0.3, 'Selon le besoin'],
-  [0.1, 'Les spécialités'],
-  [0, 'Les traces'],
+  [0.7, 'periode.noyau'],
+  [0.5, 'periode.ceinture'],
+  [0.3, 'periode.besoin'],
+  [0.1, 'periode.specialites'],
+  [0, 'periode.traces'],
 ]
 
 /** L'index de période d'un paquet porté par `n` dépôts sur `total`. */

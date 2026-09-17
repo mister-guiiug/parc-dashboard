@@ -57,7 +57,10 @@ test('classe range par SIGNAL, jamais par nom', () => {
   assert.equal(classe('x', { electron: '^44' }, {}, {}, null).famille, 'desktop')
   assert.equal(classe('x', {}, { tauri: '2' }, {}, null).famille, 'desktop')
   assert.equal(classe('x', {}, {}, {}, 'C#').famille, 'desktop')
-  assert.equal(classe('x', {}, {}, { engines: { vscode: '^1' } }, null).role, 'extension VS Code')
+  // Le rôle est une CLÉ, pas une phrase : `libelles.mjs` la traduit, et un
+  // nom propre (Electron, .NET) reste tel quel — voir libelles.test.mjs.
+  assert.equal(classe('x', {}, {}, { engines: { vscode: '^1' } }, null).role, 'role.vscode')
+  assert.equal(classe('x', { electron: '^44' }, {}, {}, null).role, 'Electron')
 })
 
 test('classe : les trois couches du socle sont une liste explicite', () => {

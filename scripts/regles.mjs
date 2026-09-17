@@ -24,18 +24,25 @@ export function cmpVersion(a, b) {
 
 // Les trois couches du socle ne se devinent pas : `pwa-starter-kit` EST une PWA
 // (il en est le squelette), un signal seul le rangerait avec les applications.
+//
+// LES RÔLES SONT DES CLÉS, PAS DES PHRASES. Écrits en français, ils cuisaient
+// la langue dans le modèle : le JSON embarqué portait « bibliothèque
+// partagée », et aucun sélecteur de langue n'aurait pu le défaire après coup.
+// La page les traduit par `libelles.mjs`, qui laisse passer tel quel ce qui
+// n'est pas une clé — un nom propre (`Electron`, `.NET`, un langage rendu par
+// l'API GitHub) n'a pas de traduction à chercher.
 export const SOCLE = {
-  'dev-pwa-config': 'bibliothèque partagée',
-  'pwa-starter-kit': "squelette d'application",
-  'create-lg-pwa-app': 'générateur',
+  'dev-pwa-config': 'role.bibliotheque',
+  'pwa-starter-kit': 'role.squelette',
+  'create-lg-pwa-app': 'role.generateur',
 }
 
 /** Chaque règle repose sur un signal LISIBLE dans le dépôt, pas sur son nom —
  *  sauf le socle et `.github`, qui n'en portent aucun. */
 export function classe(nom, deps, crates, pkg, langage) {
   if (SOCLE[nom]) return { famille: 'socle', role: SOCLE[nom] }
-  if (nom === '.github') return { famille: 'autre', role: 'configuration du compte' }
-  if (pkg?.engines?.vscode || pkg?.contributes) return { famille: 'autre', role: 'extension VS Code' }
+  if (nom === '.github') return { famille: 'autre', role: 'role.compte' }
+  if (pkg?.engines?.vscode || pkg?.contributes) return { famille: 'autre', role: 'role.vscode' }
   if (deps.electron) return { famille: 'desktop', role: 'Electron' }
   if (crates.tauri || deps['@tauri-apps/api']) return { famille: 'desktop', role: 'Tauri' }
   if (langage === 'C#') return { famille: 'desktop', role: '.NET' }

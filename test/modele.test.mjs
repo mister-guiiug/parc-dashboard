@@ -126,12 +126,16 @@ test('pileDuDepot : sans lockfile, la plage déclarée est NETTOYÉE et signalé
 
 test('pileDuDepot : le socle se nomme autrement DANS son propre dépôt', () => {
   // Il n'y est pas une dépendance, il en est le sujet.
+  //
+  // DEUX CLÉS ET NON DEUX PHRASES : ce sont les seules lignes de la pile qui
+  // soient du texte et non un nom propre, et la page les traduit au rendu.
+  // `test/libelles.test.mjs` vérifie que les deux ont leur libellé.
   const socle = pileDuDepot({ nom: 'dev-pwa-config', paquet: { version: '4.21.1' }, verrouillees: {}, declarees: {} }, ctx())
-  assert.equal(socle[0].nom, 'socle (ce dépôt)')
+  assert.equal(socle[0].nom, 'pile.socleCeDepot')
   assert.equal(socle[0].version, '4.21.1')
 
   const app = pileDuDepot({ nom: 'miss-x', verrouillees: { '@mister-guiiug/dev-pwa-config': '4.20.0' }, declarees: {} }, ctx())
-  assert.equal(app[0].nom, 'socle')
+  assert.equal(app[0].nom, 'pile.socle')
 })
 
 test('pileDuDepot : un paquet absent ne laisse pas de case vide', () => {
