@@ -335,6 +335,9 @@ const LIBELLES_FR = {
   'libs.barre.al.seg': { one: '{version} sur {n} dépôt', other: '{version} sur {n} dépôts' },
   'libs.retard.sr': 'en retard sur l’amont : ',
   'libs.aJour': 'à jour',
+  'libs.majeursAdmis': 'majeurs {majeurs}',
+  'libs.majeursAdmis.titre':
+    '{paquet} vit à deux majeurs dans ce parc, par décision et non par retard : une contrainte amont interdit le plus récent à une partie des dépôts. La raison est écrite dans `MAJEURS_ADMIS` (scripts/regles.mjs).',
   'libs.detail.amont': 'amont {amont}',
   'libs.detail.plage': 'plage déclarée : {plage} · version verrouillée',
   'libs.detail.plageSeule': 'plage déclarée : {plage} · pas de lockfile, plage affichée',
@@ -730,6 +733,9 @@ const LIBELLES_EN = {
   'libs.barre.al.seg': { one: '{version} on {n} repository', other: '{version} on {n} repositories' },
   'libs.retard.sr': 'behind upstream: ',
   'libs.aJour': 'up to date',
+  'libs.majeursAdmis': 'majors {majeurs}',
+  'libs.majeursAdmis.titre':
+    '{paquet} lives at two majors in this estate, by decision and not by neglect: an upstream constraint forbids the newer one to some of the repositories. The reason is written in `MAJEURS_ADMIS` (scripts/regles.mjs).',
   'libs.detail.amont': 'upstream {amont}',
   'libs.detail.plage': 'declared range: {plage} · locked version',
   'libs.detail.plageSeule': 'declared range: {plage} · no lockfile, range shown',

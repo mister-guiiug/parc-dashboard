@@ -925,7 +925,9 @@
         if (d.pile.length) {
           const pile = el('div', 'pile')
           for (const p of d.pile) {
-            const enRetard = p.amont && p.version !== p.amont
+            // Un majeur admis n'est pas un retard : `typescript-eslint`
+            // interdit TypeScript 7, les dépôts qui lintent restent au 6.
+            const enRetard = p.amont && p.version !== p.amont && !majeurAdmis(p.paquet, p.version)
             const c = el('span', 'lib' + (enRetard ? ' retard' : ''))
             // `p.nom` est un nom propre (React, Vite…) SAUF pour les deux
             // lignes du socle, que `pileDuDepot` rend sous forme de clé.
@@ -1249,7 +1251,14 @@
             g.setAttribute('aria-hidden', 'true')
             m.append(g)
             if (enRetard) m.append(el('span', 'sr', T('libs.retard.sr')), el('span', null, `${l.enRetard}/${l.nbDepots}`))
-            else m.append(el('span', null, T('libs.aJour')))
+            else if (l.majeursAdmis) {
+              // SANS CETTE LIGNE, LE VERT MENT PAR OMISSION. Vingt-deux dépôts
+              // en 6.0.3 sous un amont en 7.0.2 affichés « à jour » se lisent
+              // comme une erreur de mesure. Le tableau dit donc quels majeurs
+              // coexistent, et le survol dit pourquoi.
+              m.append(el('span', null, T('libs.majeursAdmis', { majeurs: l.majeursAdmis.join(T('liste')) })))
+              m.title = T('libs.majeursAdmis.titre', { paquet: l.paquet })
+            } else m.append(el('span', null, T('libs.aJour')))
             c5.append(m)
           }
           tr.append(c0, c1, c2, c3, c4, c5)
