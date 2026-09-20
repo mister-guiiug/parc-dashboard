@@ -37,6 +37,44 @@ export const SOCLE = {
   'create-lg-pwa-app': 'role.generateur',
 }
 
+/**
+ * DEUX MAJEURS QUI COEXISTENT PAR DÉCISION, PAS PAR RETARD.
+ *
+ * `enRetard` compare une version au `latest` du registre, ce qui est juste
+ * tant qu'un parc n'a qu'une bonne réponse. TypeScript n'en a pas qu'une :
+ *
+ *  - **`typescript-eslint` interdit le 7.** Sa dernière version, la 8.70.0,
+ *    déclare `typescript: ">=4.8.4 <6.1.0"` — relu sur le registre le
+ *    20/09/2026, pas supposé. Tout dépôt qui lint du TypeScript est donc
+ *    tenu au 6, et ce n'est pas un choix qu'il puisse défaire seul. La
+ *    cause technique est connue : sous le 7, `require('typescript')`
+ *    n'exporte plus que `{ version }`, et l'analyseur n'a plus de compilateur
+ *    à interroger.
+ *  - **Ce qui ne lint pas avec lui prend le 7**, et c'est bien. Au relevé du
+ *    20/09/2026, `vscode-sops-diff` y est, seul, sans rien casser.
+ *
+ * Les vingt-deux dépôts en 6.0.3 étaient donc comptés « en retard » sur une
+ * version qu'ils ne PEUVENT PAS prendre, et la seule manière de faire taire le
+ * signal aurait été de casser leur lint. Un voyant qui ne s'éteint qu'en
+ * dégradant ce qu'il surveille ne mesure plus rien : il apprend à être ignoré.
+ *
+ * CE N'EST PAS UNE LISTE D'EXEMPTIONS COMMODE. Y ajouter une ligne est une
+ * décision, qui demande la même chose que celle-ci : une contrainte AMONT
+ * vérifiable, écrite avec sa source. Le jour où `typescript-eslint` accepte le
+ * 7, cette entrée disparaît et vingt-deux dépôts redeviennent en retard —
+ * c'est exactement ce qu'on veut qu'il se passe.
+ */
+export const MAJEURS_ADMIS = {
+  typescript: ['6', '7'],
+}
+
+/** Le majeur d'une version ou d'une plage : `^6.0.3` → `6`. */
+export const majeurDe = (v) => nettoie(v).split('.')[0]
+
+/** Cette version tient-elle un majeur ADMIS pour ce paquet ? */
+export const majeurAdmis = (paquet, version) =>
+  (MAJEURS_ADMIS[paquet] ?? []).includes(majeurDe(version))
+
 /** Chaque règle repose sur un signal LISIBLE dans le dépôt, pas sur son nom —
  *  sauf le socle et `.github`, qui n'en portent aucun. */
 export function classe(nom, deps, crates, pkg, langage) {

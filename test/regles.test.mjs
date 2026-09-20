@@ -8,7 +8,7 @@
 // des compteurs que rien ne recoupe.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, nettoie } from '../scripts/regles.mjs'
+import { MAJEURS_ADMIS, SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, majeurDe, nettoie } from '../scripts/regles.mjs'
 
 test('nettoie retire la plage et la préversion', () => {
   assert.equal(nettoie('^4.7.0'), '4.7.0')
@@ -206,4 +206,48 @@ test('fusionnePoint sans point antérieur rend le nouveau', () => {
 test('changementsDepuis borne la liste', () => {
   const beaucoup = (etat) => [{ nom: 'a', workflows: Array.from({ length: 60 }, (_, i) => ({ nom: 'w' + i, etat })) }]
   assert.equal(changementsDepuis(avec(beaucoup('vert')), avec(beaucoup('rouge'))).length, 40)
+})
+
+/* ---------------------------------------------- les majeurs admis */
+
+// Le voyant « en retard » compare au `latest` du registre, ce qui suppose
+// qu'un parc n'a qu'une bonne réponse. TypeScript n'en a pas qu'une :
+// `typescript-eslint` interdit le 7, donc tout dépôt qui lint reste au 6.
+// Sans cette règle, vingt-deux dépôts criaient pour une version qu'ils ne
+// peuvent pas prendre — et le seul moyen de les taire était de casser leur
+// lint. Ces tests tiennent les deux bords : l'exception s'applique, et elle
+// ne déborde pas.
+
+test('majeurDe lit le majeur d’une plage comme d’une version verrouillée', () => {
+  assert.equal(majeurDe('6.0.3'), '6')
+  assert.equal(majeurDe('^6.0.3'), '6')
+  assert.equal(majeurDe('>=7.0.0-beta.2'), '7')
+  assert.equal(majeurDe('10.11.0'), '10')
+})
+
+test('TypeScript 6 et 7 sont admis, et rien d’autre ne l’est', () => {
+  assert.equal(majeurAdmis('typescript', '6.0.3'), true)
+  assert.equal(majeurAdmis('typescript', '7.0.2'), true)
+  // Un majeur ABANDONNÉ reste un retard : l'exception nomme deux majeurs,
+  // elle n'ouvre pas le paquet en grand.
+  assert.equal(majeurAdmis('typescript', '5.9.3'), false)
+  assert.equal(majeurAdmis('typescript', '8.0.0'), false)
+})
+
+test('l’exception ne déborde sur AUCUN autre paquet', () => {
+  for (const paquet of ['eslint', '@eslint/js', 'typescript-eslint', 'react', 'vite']) {
+    assert.equal(majeurAdmis(paquet, '1.0.0'), false, paquet)
+    assert.equal(majeurAdmis(paquet, '6.0.3'), false, paquet)
+  }
+  assert.equal(majeurAdmis('inconnu', '6.0.3'), false)
+})
+
+test('la table reste une DÉCISION : une entrée nomme au moins deux majeurs', () => {
+  // Un seul majeur admis n'exempterait rien — ce serait le cas normal écrit
+  // en exception, donc une ligne qui ne dit rien et que personne ne relit.
+  for (const [paquet, majeurs] of Object.entries(MAJEURS_ADMIS)) {
+    assert.ok(Array.isArray(majeurs), paquet)
+    assert.ok(majeurs.length >= 2, `${paquet} n’admet qu’un majeur : ce n’est pas une exception`)
+    for (const m of majeurs) assert.match(m, /^\d+$/, `${paquet} : « ${m} » n’est pas un majeur`)
+  }
 })

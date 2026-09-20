@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
 // ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
-import { SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, nettoie } from './regles.mjs'
+import { MAJEURS_ADMIS, SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, nettoie } from './regles.mjs'
 // Ce que le relevé CALCULE vit à part de ce qu'il va CHERCHER : importer ce
 // fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
 // trente appels d'API. Voir `scripts/modele.mjs`.
@@ -499,8 +499,10 @@ for (const paquet of SUIVIES) {
   const versions = [...parVersion].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps.sort((a, b) => a.depot.localeCompare(b.depot)) }))
   const nbDepots = versions.reduce((n, v) => n + v.depots.length, 0)
   const a = amont[paquet] || null
-  const enRetard = a ? versions.filter((v) => cmpVersion(v.version, a) < 0).reduce((n, v) => n + v.depots.length, 0) : null
-  libs.push({ paquet, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, plusRecente: versions[0].version, publieLe: publieLe[paquet] || null, depotAmont: depotAmont[paquet] || null })
+  // Un majeur ADMIS n'est pas un retard : voir `MAJEURS_ADMIS` dans
+  // `regles.mjs`, et la contrainte amont qui l'y justifie.
+  const enRetard = a ? versions.filter((v) => cmpVersion(v.version, a) < 0 && !majeurAdmis(paquet, v.version)).reduce((n, v) => n + v.depots.length, 0) : null
+  libs.push({ paquet, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, majeursAdmis: MAJEURS_ADMIS[paquet] ?? null, plusRecente: versions[0].version, publieLe: publieLe[paquet] || null, depotAmont: depotAmont[paquet] || null })
 }
 const cratesMap = new Map()
 const NOTABLES = ['tauri', 'tokio', 'serde', 'serde_json', 'clap', 'anyhow', 'thiserror', 'chrono', 'uuid', 'reqwest', 'tracing', 'rusqlite', 'git2', 'axum', 'regex']
@@ -542,7 +544,8 @@ for (const [crate, m] of cratesMap) {
     nbVersions: versions.length,
     versions,
     amont: a,
-    enRetard: a ? versions.filter((v) => cmpVersion(v.version, a) < 0).reduce((n, v) => n + v.depots.length, 0) : null,
+    enRetard: a ? versions.filter((v) => cmpVersion(v.version, a) < 0 && !majeurAdmis(crate, v.version)).reduce((n, v) => n + v.depots.length, 0) : null,
+    majeursAdmis: MAJEURS_ADMIS[crate] ?? null,
     plusRecente: versions[0].version,
     publieLe: publieLe[crate] || null,
     depotAmont: depotAmont[crate] || null,
