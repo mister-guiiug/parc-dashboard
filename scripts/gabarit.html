@@ -1221,6 +1221,14 @@
           const c1 = el('td')
           c1.append(el('code', null, l.paquet))
           if (l.ecosysteme === 'cargo') c1.append(document.createTextNode(' '), el('span', 'badge', 'cargo'))
+          // Un alias npm porte un nom qui n'existe PAS au registre : sans le
+          // dire, un lecteur chercherait `typescript-7` sur npm et trouverait
+          // un 404. Le badge nomme le paquet réellement publié.
+          if (l.alias) {
+            const b = el('span', 'badge', T('libs.alias', { paquet: l.alias }))
+            b.title = T('libs.alias.titre', { nom: l.paquet, paquet: l.alias })
+            c1.append(document.createTextNode(' '), b)
+          }
           if (l.paquet === D.socle) c1.append(document.createTextNode(' '), el('span', 'badge', T('pile.socle')))
           const c2 = el('td', 'num', String(l.nbDepots))
           const c3 = el('td')
