@@ -38,18 +38,52 @@ export const SOCLE = {
 }
 
 /**
+ * UN ALIAS npm N'EST PAS UN PAQUET.
+ *
+ * `"typescript-7": "npm:typescript@~7.0.2"` déclare une dépendance dont le NOM
+ * dans `package.json` n'existe pas au registre : interrogé sur `typescript-7`,
+ * npm répond **404**. Sans résoudre l'alias, le relevé produisait une ligne
+ * sans amont, sans date de publication et sans dépôt amont — donc une
+ * librairie que la page ne pouvait jamais dire en retard. Un angle mort, et
+ * pas un blanc anodin : le jour où l'alias resterait figé sur une version
+ * corrigée depuis, rien ne l'aurait signalé.
+ *
+ * La règle est GÉNÉRALE, et c'est voulu : tout ce qui commence par `npm:` est
+ * un alias, quel que soit le paquet visé. Un cas particulier écrit pour
+ * `typescript-7` aurait laissé le prochain alias reproduire le défaut.
+ *
+ * @param {string} plage La valeur déclarée dans `package.json`.
+ * @returns {{paquet: string, plage: string} | null} `null` si ce n'est pas un alias.
+ */
+export function aliasNpm(plage) {
+  const brut = String(plage || '')
+  if (!brut.startsWith('npm:')) return null
+  const reste = brut.slice(4)
+  // Le paquet peut être SCOPÉ (`npm:@scope/nom@^1.2.3`) : le séparateur est le
+  // dernier `@`, pas le premier — sur un scope, le premier est celui du scope.
+  const coupe = reste.lastIndexOf('@')
+  if (coupe <= 0) return reste ? { paquet: reste, plage: '' } : null
+  return { paquet: reste.slice(0, coupe), plage: reste.slice(coupe + 1) }
+}
+
+/** Le paquet RÉELLEMENT publié derrière une dépendance déclarée. */
+export const paquetReel = (nom, plage) => aliasNpm(plage)?.paquet || nom
+
+/**
  * DEUX MAJEURS QUI COEXISTENT PAR DÉCISION, PAS PAR RETARD.
  *
  * `enRetard` compare une version au `latest` du registre, ce qui est juste
  * tant qu'un parc n'a qu'une bonne réponse. TypeScript n'en a pas qu'une :
  *
- *  - **`typescript-eslint` interdit le 7.** Sa dernière version, la 8.70.0,
+ *  - **`typescript-eslint` interdit le 7.** Sa dernière version, la 8.70.1,
  *    déclare `typescript: ">=4.8.4 <6.1.0"` — relu sur le registre le
- *    20/09/2026, pas supposé. Tout dépôt qui lint du TypeScript est donc
- *    tenu au 6, et ce n'est pas un choix qu'il puisse défaire seul. La
- *    cause technique est connue : sous le 7, `require('typescript')`
- *    n'exporte plus que `{ version }`, et l'analyseur n'a plus de compilateur
- *    à interroger.
+ *    21/09/2026, pas supposé, et la canary `8.70.2-alpha.0` porte la même
+ *    plage. Ce n'est même pas une peer qu'on pourrait forcer : `dist/index.js`
+ *    **lève à l'import** quand le majeur est ≥ 7, donc ESLint meurt pour TOUS
+ *    les fichiers. Et comme espree ne lit pas la syntaxe TypeScript, s'en
+ *    passer n'enlèverait pas quelques règles — cela éteindrait tout le lint des
+ *    `.ts`. Le garde visant `>= 7`, il attrapera aussi la 7.1 : le suivi amont
+ *    est typescript-eslint#10940.
  *  - **Ce qui ne lint pas avec lui prend le 7**, et c'est bien. Au relevé du
  *    20/09/2026, `vscode-sops-diff` y est, seul, sans rien casser.
  *
@@ -68,12 +102,60 @@ export const MAJEURS_ADMIS = {
   typescript: ['6', '7'],
 }
 
+/**
+ * PLAFONNER N'EST PAS EXEMPTER, ET LES CONFONDRE AURAIT ÉTEINT UN VOYANT.
+ *
+ * `typescript-7` est l'autre moitié de la décision ci-dessus : depuis le
+ * 21/09/2026 les dépôts du parc portent les deux compilateurs — la 6 que
+ * `typescript-eslint` résout, et la 7 en second avis non bloquant
+ * (`type-check:7`). L'alias est délibérément tenu en 7.x.
+ *
+ * Il aurait été tentant de l'écrire dans `MAJEURS_ADMIS`, et ce serait faux :
+ * cette table EXEMPTE du retard, donc un alias resté en 7.0.2 quand la 7.0.9
+ * existe serait passé pour à jour. Ce qu'on veut dire est plus étroit — sa
+ * référence n'est pas `latest`, c'est la plus haute 7.x — et cela se dit ici.
+ *
+ * Tant que `latest` tient dans le plafond, cette table ne change RIEN : elle
+ * prendra effet le jour où TypeScript 8 paraîtra, sans qu'on ait à y revenir.
+ */
+export const PLAFONDS = {
+  'typescript-7': ['7'],
+}
+
 /** Le majeur d'une version ou d'une plage : `^6.0.3` → `6`. */
 export const majeurDe = (v) => nettoie(v).split('.')[0]
 
 /** Cette version tient-elle un majeur ADMIS pour ce paquet ? */
 export const majeurAdmis = (paquet, version) =>
   (MAJEURS_ADMIS[paquet] ?? []).includes(majeurDe(version))
+
+/**
+ * LA RÉFÉRENCE D'UN PAQUET PLAFONNÉ N'EST PAS `latest`.
+ *
+ * `typescript-7` existe pour tenir la 7 pendant que `typescript` tient la 6.
+ * Le jour où TypeScript 8 paraîtra, le comparer à `latest` le dirait « en
+ * retard » alors qu'écarter la 8 est précisément son office — et l'inverse est
+ * aussi vrai : tant qu'on le compare à `latest`, un alias resté en 7.0.2 quand
+ * la 7.0.9 existe passerait pour à jour si on l'avait simplement exempté.
+ *
+ * On ne l'exempte donc pas, on lui donne la BONNE référence : la plus haute
+ * version publiée dans ses majeurs admis. Tant que `latest` y est — c'est le
+ * cas aujourd'hui, 7.0.2 — la fonction rend `latest` sans rien changer.
+ *
+ * Les préversions sont écartées : une `8.0.0-beta` n'est pas une cible, et une
+ * préversion publiée sous une étiquette stable ferait rétrograder le parc en
+ * silence.
+ */
+export function amontAdmis(paquet, versionsPubliees, latest) {
+  const majeurs = PLAFONDS[paquet]
+  if (!majeurs || !latest) return latest ?? null
+  if (majeurs.includes(majeurDe(latest))) return latest
+  const dans = (versionsPubliees ?? []).filter(
+    (v) => majeurs.includes(majeurDe(v)) && !String(v).includes('-')
+  )
+  if (!dans.length) return latest
+  return dans.sort((a, b) => cmpVersion(b, a))[0]
+}
 
 /** Chaque règle repose sur un signal LISIBLE dans le dépôt, pas sur son nom —
  *  sauf le socle et `.github`, qui n'en portent aucun. */

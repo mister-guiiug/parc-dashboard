@@ -8,7 +8,7 @@
 // des compteurs que rien ne recoupe.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MAJEURS_ADMIS, SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, majeurDe, nettoie } from '../scripts/regles.mjs'
+import { MAJEURS_ADMIS, PLAFONDS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, majeurDe, nettoie, paquetReel } from '../scripts/regles.mjs'
 
 test('nettoie retire la plage et la préversion', () => {
   assert.equal(nettoie('^4.7.0'), '4.7.0')
@@ -250,4 +250,98 @@ test('la table reste une DÉCISION : une entrée nomme au moins deux majeurs', (
     assert.ok(majeurs.length >= 2, `${paquet} n’admet qu’un majeur : ce n’est pas une exception`)
     for (const m of majeurs) assert.match(m, /^\d+$/, `${paquet} : « ${m} » n’est pas un majeur`)
   }
+})
+
+/* ------------------------------------------------- les alias npm */
+
+// `"typescript-7": "npm:typescript@~7.0.2"` déclare une dépendance dont le nom
+// n'existe PAS au registre : interrogé sur `typescript-7`, npm répond 404. Sans
+// résoudre l'alias, la ligne du tableau restait sans amont ni date — donc une
+// librairie que la page ne pouvait jamais dire en retard.
+
+test('aliasNpm reconnaît un alias et rend le paquet réellement publié', () => {
+  assert.deepEqual(aliasNpm('npm:typescript@~7.0.2'), { paquet: 'typescript', plage: '~7.0.2' })
+  assert.deepEqual(aliasNpm('npm:typescript@7.0.2'), { paquet: 'typescript', plage: '7.0.2' })
+})
+
+test('aliasNpm coupe au DERNIER @ : un paquet scopé garde son scope', () => {
+  // Couper au premier `@` rendrait `{ paquet: '' }` sur un scope, et la requête
+  // partirait sur une chaîne vide.
+  assert.deepEqual(aliasNpm('npm:@scope/nom@^1.2.3'), { paquet: '@scope/nom', plage: '^1.2.3' })
+})
+
+test('aliasNpm rend null sur ce qui n’est pas un alias', () => {
+  for (const plage of ['^6.0.3', '~7.0.2', '>=4.8.4 <6.1.0', '*', '', 'workspace:*', 'file:../x']) {
+    assert.equal(aliasNpm(plage), null, plage)
+  }
+  assert.equal(aliasNpm(undefined), null)
+})
+
+test('paquetReel laisse passer un nom ordinaire et traduit un alias', () => {
+  assert.equal(paquetReel('typescript', '~6.0.3'), 'typescript')
+  assert.equal(paquetReel('typescript-7', 'npm:typescript@~7.0.2'), 'typescript')
+  assert.equal(paquetReel('react', '^19.2.0'), 'react')
+})
+
+test('sans lockfile, la version affichée d’un alias est sa PLAGE, pas la chaîne npm:', () => {
+  // C'est la composition exacte dont `releve.mjs` se sert pour le repli. Sans
+  // `aliasNpm`, `nettoie` ne voit aucun préfixe de plage dans
+  // `npm:typescript@~7.0.2` et la rend TELLE QUELLE — la barre de répartition
+  // afficherait alors cette chaîne en guise de numéro de version.
+  const repli = (declaree) => nettoie(aliasNpm(declaree)?.plage ?? declaree)
+  assert.equal(repli('npm:typescript@~7.0.2'), '7.0.2')
+  assert.equal(repli('npm:@scope/nom@^1.2.3'), '1.2.3')
+  // Le repli ordinaire est inchangé.
+  assert.equal(repli('^6.0.3'), '6.0.3')
+  assert.equal(repli('~7.0.2'), '7.0.2')
+})
+
+/* --------------------------------------------------- les plafonds */
+
+// PLAFONNER N'EST PAS EXEMPTER. `MAJEURS_ADMIS` retire une version du compte
+// des retards ; `PLAFONDS` ne fait que changer la RÉFÉRENCE. Confondre les deux
+// aurait éteint un voyant : un alias resté en 7.0.2 quand la 7.0.9 existe serait
+// passé pour à jour.
+
+test('un paquet plafonné n’est PAS exempté du retard', () => {
+  for (const paquet of Object.keys(PLAFONDS)) {
+    assert.equal(
+      majeurAdmis(paquet, '7.0.0'),
+      false,
+      `${paquet} est plafonné, il ne doit pas être exempté`
+    )
+    assert.ok(!(paquet in MAJEURS_ADMIS), `${paquet} ne doit pas figurer dans les DEUX tables`)
+  }
+})
+
+test('tant que latest tient dans le plafond, amontAdmis ne change rien', () => {
+  // L'état du 21/09/2026 : `latest` de typescript est 7.0.2, dans le plafond.
+  assert.equal(amontAdmis('typescript-7', ['6.0.3', '7.0.1', '7.0.2'], '7.0.2'), '7.0.2')
+  // Et un retard DANS la 7.x reste visible : la référence est bien 7.0.2.
+  assert.equal(amontAdmis('typescript-7', ['7.0.1', '7.0.2'], '7.0.2'), '7.0.2')
+})
+
+test('le jour où latest sort du plafond, la référence devient la plus haute version admise', () => {
+  const publiees = ['6.0.3', '7.0.2', '7.0.9', '8.0.0', '8.1.0']
+  assert.equal(amontAdmis('typescript-7', publiees, '8.1.0'), '7.0.9')
+})
+
+test('amontAdmis écarte les préversions', () => {
+  // Une `7.1.0-dev` n'est pas une cible : elle rétrograderait la référence sous
+  // une version stable si elle triait devant.
+  assert.equal(amontAdmis('typescript-7', ['7.0.2', '7.1.0-dev.20260921.1'], '8.0.0'), '7.0.2')
+})
+
+test('amontAdmis laisse intact tout paquet NON plafonné', () => {
+  assert.equal(amontAdmis('react', ['19.1.0', '19.2.0'], '19.2.0'), '19.2.0')
+  assert.equal(amontAdmis('typescript', ['6.0.3', '7.0.2'], '7.0.2'), '7.0.2')
+  // Amont inconnu (hors ligne) : on ne fabrique pas une référence.
+  assert.equal(amontAdmis('typescript-7', ['7.0.2'], null), null)
+})
+
+test('amontAdmis rend latest quand aucune version ne tient le plafond', () => {
+  // Cas limite : la liste publiée ne contient rien d'admis. Mieux vaut une
+  // référence fausse mais AFFICHÉE qu'un `null` qui éteindrait la colonne.
+  assert.equal(amontAdmis('typescript-7', ['8.0.0', '8.1.0'], '8.1.0'), '8.1.0')
+  assert.equal(amontAdmis('typescript-7', undefined, '8.1.0'), '8.1.0')
 })

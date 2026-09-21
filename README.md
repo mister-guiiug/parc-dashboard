@@ -150,6 +150,20 @@ laisser glisser en silence dans une autre famille.
 - Les **versions de librairies** sont lues dans `package-lock.json`, pas dans
   `package.json` : une plage `^4.7.0` accepte déjà `4.9.0`, elle ne dit pas ce
   qui est installé. Pour les deux dépôts Cargo, la source est `Cargo.lock`.
+- Un **alias npm** (`"typescript-7": "npm:typescript@~7.0.2"`) porte un nom qui
+  n'existe pas au registre : interrogé sur `typescript-7`, npm répond **404**.
+  L'alias est donc résolu vers le paquet réellement publié, et la ligne porte le
+  badge « alias de … ». Sans cela elle restait sans amont, sans date et sans
+  dépôt amont — une librairie que la page ne pouvait *jamais* dire en retard.
+- **Deux majeurs de TypeScript coexistent dans ce parc, par décision.** La 6 est
+  celle que `typescript-eslint` résout — il refuse la 7 par un `throw` à
+  l'import — et la 7 vit à côté, sous l'alias `typescript-7`, en second avis non
+  bloquant (`type-check:7`). Les 6.x ne sont donc pas comptées en retard
+  (`MAJEURS_ADMIS`), et l'alias, lui, **reste surveillé dans la 7.x** : sa
+  référence est la plus haute 7.x publiée et non `latest`, pour qu'une
+  TypeScript 8 ne le dise pas en retard alors que l'écarter est son office
+  (`PLAFONDS`). Plafonner n'est pas exempter, et les confondre aurait éteint le
+  voyant.
 - L'API GitHub nomme un workflow **supprimé** par son chemin de fichier ; ces
   entrées sont écartées, sinon d'anciens échecs seraient comptés comme actuels.
 - Une librairie est dite **dormante** quand sa dernière version publiée a plus

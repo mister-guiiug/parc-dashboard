@@ -195,6 +195,17 @@ test('groupeDe : l’ordre des motifs décide, et il n’est pas alphabétique',
   assert.equal(groupeDe('@mister-guiiug/dev-pwa-config'), 'infra')
 })
 
+test('groupeDe : l’alias `typescript-7` est du langage, pas de l’« autre »', () => {
+  // Les dépôts du parc portent deux compilateurs : la 6 que `typescript-eslint`
+  // résout et la 7 en second avis. C'est le même langage, donc le même groupe —
+  // sinon l'alias tombait en « autre », là où se voit l'arrivée d'une
+  // technologie neuve, et brouillait ce signal-là.
+  assert.equal(groupeDe('typescript-7'), 'lang')
+  // Le motif ne doit pas pour autant avaler ce qui n'est PAS un alias de langage.
+  assert.equal(groupeDe('typescript-eslint'), 'qual')
+  assert.equal(groupeDe('typescript-plugin-css-modules'), 'autre')
+})
+
 test('groupeDe : « autre » est une RÉPONSE, pas un échec', () => {
   // Un paquet qu'aucun motif ne reconnaît s'affiche en gris et se VOIT. Le
   // ranger d'office quelque part cacherait l'arrivée d'une technologie neuve

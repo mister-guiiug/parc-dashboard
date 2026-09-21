@@ -338,6 +338,9 @@ const LIBELLES_FR = {
   'libs.majeursAdmis': 'majeurs {majeurs}',
   'libs.majeursAdmis.titre':
     '{paquet} vit à deux majeurs dans ce parc, par décision et non par retard : une contrainte amont interdit le plus récent à une partie des dépôts. La raison est écrite dans `MAJEURS_ADMIS` (scripts/regles.mjs).',
+  'libs.alias': 'alias de {paquet}',
+  'libs.alias.titre':
+    '{nom} n’existe pas au registre npm : c’est un alias, déclaré `npm:{paquet}@…`, qui installe {paquet} sous un autre nom. Le versionnage affiché est donc celui de {paquet}, et c’est ce qui permet de dire si l’alias prend du retard.',
   'libs.detail.amont': 'amont {amont}',
   'libs.detail.plage': 'plage déclarée : {plage} · version verrouillée',
   'libs.detail.plageSeule': 'plage déclarée : {plage} · pas de lockfile, plage affichée',
@@ -736,6 +739,9 @@ const LIBELLES_EN = {
   'libs.majeursAdmis': 'majors {majeurs}',
   'libs.majeursAdmis.titre':
     '{paquet} lives at two majors in this estate, by decision and not by neglect: an upstream constraint forbids the newer one to some of the repositories. The reason is written in `MAJEURS_ADMIS` (scripts/regles.mjs).',
+  'libs.alias': 'alias of {paquet}',
+  'libs.alias.titre':
+    '{nom} does not exist on the npm registry: it is an alias, declared `npm:{paquet}@…`, that installs {paquet} under another name. The versions shown are therefore those of {paquet}, which is what makes it possible to say whether the alias has fallen behind.',
   'libs.detail.amont': 'upstream {amont}',
   'libs.detail.plage': 'declared range: {plage} · locked version',
   'libs.detail.plageSeule': 'declared range: {plage} · no lockfile, range shown',

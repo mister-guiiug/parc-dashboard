@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
 // ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
-import { MAJEURS_ADMIS, SOCLE, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, nettoie } from './regles.mjs'
+import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, nettoie, paquetReel } from './regles.mjs'
 // Ce que le relevé CALCULE vit à part de ce qu'il va CHERCHER : importer ce
 // fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
 // trente appels d'API. Voir `scripts/modele.mjs`.
@@ -439,11 +439,24 @@ await enLot(sites, 8, async (d) => {
 for (const d of depots) if (!d.pages) d.pages = d.pagesUrl ? { url: d.pagesUrl, code: null, ok: null } : null
 
 const SUIVIES = new Set()
-for (const d of depots) for (const p of Object.keys(d.declarees)) SUIVIES.add(p)
+// UN ALIAS PORTE UN NOM QUI N'EXISTE PAS AU REGISTRE. `"typescript-7":
+// "npm:typescript@~7.0.2"` s'interroge sous `typescript`, sinon npm répond 404
+// et la ligne reste sans amont, sans date et sans dépôt amont — indatable, donc
+// jamais dite en retard. On garde le nom DÉCLARÉ pour la ligne (il distingue
+// les deux compilateurs) et le nom RÉEL pour la requête.
+const REEL = new Map()
+for (const d of depots) {
+  for (const [p, plage] of Object.entries(d.declarees)) {
+    SUIVIES.add(p)
+    const r = paquetReel(p, plage)
+    if (r !== p) REEL.set(p, r)
+  }
+}
 const NOM_SOCLE = '@mister-guiiug/dev-pwa-config'
 const amont = {}
 const publieLe = {}
 const depotAmont = {}
+const versionsPubliees = {}
 
 // ON LIT LE DOCUMENT COMPLET, ET NON `/latest`. Il coûte plus cher — 232 Mo
 // décompressés pour les 83 paquets du parc, mais il arrive en gzip et
@@ -460,7 +473,8 @@ const depotAmont = {}
 // `time.modified` du document abrégé n'est pas une réponse non plus : il bouge
 // pour une dépréciation ou un changement de mainteneur. `lodash.escaperegexp`
 // s'y donne modifié en 2022 alors que sa dernière version date de 2016.
-await enLot([...SUIVIES], 6, async (p) => {
+const INTERROGES = new Set([...SUIVIES].map((p) => REEL.get(p) ?? p))
+await enLot([...INTERROGES], 6, async (p) => {
   try {
     const res = await fetch(`https://registry.npmjs.org/${p.replace('/', '%2f')}`)
     if (!res.ok) return
@@ -468,6 +482,7 @@ await enLot([...SUIVIES], 6, async (p) => {
     const derniere = doc['dist-tags']?.latest
     if (!derniere) return
     amont[p] = derniere
+    versionsPubliees[p] = Object.keys(doc.versions || {})
     if (doc.time?.[derniere]) publieLe[p] = doc.time[derniere]
     const url = doc.repository?.url || doc.versions?.[derniere]?.repository?.url || ''
     const m = /github\.com[:/]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[#?].*)?$/.exec(url)
@@ -476,6 +491,13 @@ await enLot([...SUIVIES], 6, async (p) => {
     /* hors ligne : les colonnes amont et dormance restent vides, ce n'est pas bloquant */
   }
 })
+// Reporter sur le nom déclaré ce qui a été relevé sous le nom réel.
+for (const [nom, reel] of REEL) {
+  if (amont[reel]) amont[nom] = amont[reel]
+  if (versionsPubliees[reel]) versionsPubliees[nom] = versionsPubliees[reel]
+  if (publieLe[reel]) publieLe[nom] = publieLe[reel]
+  if (depotAmont[reel]) depotAmont[nom] = depotAmont[reel]
+}
 // le socle n'est pas sur npm public : sa référence est la version de son dépôt
 const socle = depots.find((d) => d.nom === 'dev-pwa-config')
 if (socle?.paquet?.version) amont[NOM_SOCLE] = socle.paquet.version
@@ -491,18 +513,24 @@ for (const paquet of SUIVIES) {
   const parVersion = new Map()
   for (const d of depots) {
     if (!(paquet in d.declarees)) continue
-    const v = d.verrouillees[paquet] || nettoie(d.declarees[paquet])
+    // Sans lockfile, la plage déclarée fait foi — et pour un ALIAS, la plage
+    // est celle de l'alias (`~7.0.2`), pas la chaîne `npm:typescript@~7.0.2`
+    // entière : `nettoie` n'y voit aucun préfixe de plage et la rendrait telle
+    // quelle, en guise de numéro de version, dans la barre de répartition.
+    const declaree = d.declarees[paquet]
+    const v = d.verrouillees[paquet] || nettoie(aliasNpm(declaree)?.plage ?? declaree)
     if (!parVersion.has(v)) parVersion.set(v, [])
     parVersion.get(v).push({ depot: d.nom, plage: d.declarees[paquet], verrouille: !!d.verrouillees[paquet] })
   }
   if (!parVersion.size) continue
   const versions = [...parVersion].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps.sort((a, b) => a.depot.localeCompare(b.depot)) }))
   const nbDepots = versions.reduce((n, v) => n + v.depots.length, 0)
-  const a = amont[paquet] || null
+  // La référence d'un paquet PLAFONNÉ n'est pas `latest` : voir `amontAdmis`.
+  const a = amontAdmis(paquet, versionsPubliees[paquet], amont[paquet] || null)
   // Un majeur ADMIS n'est pas un retard : voir `MAJEURS_ADMIS` dans
   // `regles.mjs`, et la contrainte amont qui l'y justifie.
   const enRetard = a ? versions.filter((v) => cmpVersion(v.version, a) < 0 && !majeurAdmis(paquet, v.version)).reduce((n, v) => n + v.depots.length, 0) : null
-  libs.push({ paquet, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, majeursAdmis: MAJEURS_ADMIS[paquet] ?? null, plusRecente: versions[0].version, publieLe: publieLe[paquet] || null, depotAmont: depotAmont[paquet] || null })
+  libs.push({ paquet, alias: REEL.get(paquet) ?? null, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, majeursAdmis: MAJEURS_ADMIS[paquet] ?? null, plusRecente: versions[0].version, publieLe: publieLe[paquet] || null, depotAmont: depotAmont[paquet] || null })
 }
 const cratesMap = new Map()
 const NOTABLES = ['tauri', 'tokio', 'serde', 'serde_json', 'clap', 'anyhow', 'thiserror', 'chrono', 'uuid', 'reqwest', 'tracing', 'rusqlite', 'git2', 'axum', 'regex']

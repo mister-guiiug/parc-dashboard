@@ -256,7 +256,10 @@ export const GROUPES = ['lang', 'build', 'ui', 'data', 'dos', 'test', 'qual', 'o
  */
 const MOTIFS = [
   [/^@types\//, 'lang'],
-  [/^(typescript|globals|serde|serde_json)$/, 'lang'],
+  // `typescript-7` est l'alias qui tient la 7 pendant que `typescript` tient la
+  // 6 : c'est le même langage, il va dans le même groupe. Le `-\d+` couvre le
+  // prochain alias sans qu'on ait à repasser ici.
+  [/^(typescript(-\d+)?|globals|serde|serde_json)$/, 'lang'],
   [/^@mister-guiiug\//, 'infra'],
   [/^@sentry\/|^web-vitals$|^tracing$/, 'obs'],
   [/^@testing-library\/|^@playwright\/|playwright|^axe-core$|^jsdom$|^fake-indexeddb$|coverage|rules-unit-testing/, 'test'],
