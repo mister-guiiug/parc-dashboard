@@ -22,6 +22,13 @@ import {
   pairsDures,
   precacheDe,
   referencesDe,
+  satisfait,
+  derniereDeSerie,
+  plafondEngines,
+  unitesDeLArbre,
+  espacesDeTravail,
+  verrouilleesDe,
+  versionNvmrc,
 } from '../scripts/collecte.mjs'
 
 /* ── Pairs du socle ─────────────────────────────────────────────────────── */
@@ -219,4 +226,147 @@ test('fluxAtom rend un flux valide, et échappe tout texte', () => {
   assert.equal((x.match(/<entry>/g) || []).length, 1)
   // chaque entrée porte les trois éléments que la RFC 4287 exige
   for (const balise of ['id', 'title', 'updated']) assert.match(x, new RegExp(`<entry>[\\s\\S]*<${balise}>[\\s\\S]*</entry>`))
+})
+
+/* ── Plages, séries, dossiers, .nvmrc : les angles morts du 23/09/2026 ──── */
+
+test('satisfait lit les plages que le socle impose à ses pairs', () => {
+  const cas = [
+    ['6.0.3', '~6.0.3', true],
+    ['6.1.0', '~6.0.3', false],
+    ['10.75.3', '^10.75.2', true],
+    ['11.0.0', '^10.75.2', false],
+    ['10.2.0', '^9.39.4 || ^10.0.0', true],
+    ['8.9.0', '^9.39.4 || ^10.0.0', false],
+    ['12.3.0', '>=9.0.0', true],
+    ['1.5.0', '>=1.2.0 <2.0.0', true],
+    ['2.0.0', '>=1.2.0 <2.0.0', false],
+    ['1.9.9', '1.x', true],
+    ['3.0.0', '*', true],
+    ['1.2.9', '~1.2', true],
+    ['1.3.0', '~1.2', false],
+    ['1.2.3', '> 1.2.2', true],
+    ['1.3.0', '<= 1.2', false],
+  ]
+  for (const [v, plage, attendu] of cas) assert.equal(satisfait(v, plage), attendu, `${v} dans ${plage}`)
+})
+
+test('satisfait : en 0.x, le caret s’arrête à la mineure, et en 0.0.z au correctif', () => {
+  assert.equal(satisfait('0.32.9', '^0.32.1'), true)
+  assert.equal(satisfait('0.33.0', '^0.32.1'), false)
+  assert.equal(satisfait('0.0.4', '^0.0.3'), false)
+  assert.equal(satisfait('0.9.0', '^0.x'), true)
+  assert.equal(satisfait('1.0.0', '^0.x'), false)
+})
+
+test('satisfait ne conclut rien de ce qu’il ne sait pas lire, ni d’une préversion', () => {
+  // Une plage à tiret n'est pas lue : l'alternative ne prouve rien.
+  assert.equal(satisfait('1.5.0', '1.2.3 - 2.0.0'), false)
+  assert.equal(satisfait('1.5.0', '1.2.3 - 2.0.0 || ^1.0.0'), true)
+  assert.equal(satisfait('2.0.0-beta.1', '^2.0.0'), false)
+})
+
+test('derniereDeSerie : la plus haute STABLE de la série — @sentry/react 10 sous une 11', () => {
+  const publiees = ['10.75.1', '10.75.2', '10.75.3', '10.76.0-beta.1', '11.0.0', '9.40.0']
+  assert.equal(derniereDeSerie(publiees, '10', { latest: '11.0.0' }), '10.75.3')
+  assert.equal(derniereDeSerie(publiees, '9', { latest: '11.0.0' }), '9.40.0')
+  assert.equal(derniereDeSerie(publiees, '12', { latest: '11.0.0' }), null)
+})
+
+test('derniereDeSerie ne dépasse pas `latest` quand il est dans la série — electron-builder et son étiquette v26', () => {
+  // 26.15.4 à 26.16.1 publiées sous `v26`, `latest` resté en 26.15.3 :
+  // Renovate ne propose rien au-delà, le relevé non plus.
+  const publiees = ['26.15.2', '26.15.3', '26.15.4', '26.16.1']
+  assert.equal(derniereDeSerie(publiees, '26', { latest: '26.15.3' }), '26.15.3')
+  // Hors de la série de `latest`, rien ne plafonne.
+  assert.equal(derniereDeSerie(publiees, '26', { latest: '27.0.0' }), '26.16.1')
+})
+
+test('derniereDeSerie respecte la plage de pair du socle — une 6.1 ne se conseille pas sous ~6.0.3', () => {
+  const publiees = ['6.0.2', '6.0.3', '6.0.4', '6.1.0']
+  assert.equal(derniereDeSerie(publiees, '6', { plage: '~6.0.3' }), '6.0.4')
+  assert.equal(derniereDeSerie(publiees, '6'), '6.1.0')
+})
+
+test('derniereDeSerie : en 0.x, la série est la mineure', () => {
+  const publiees = ['0.32.0', '0.32.1', '0.33.0', '0.40.2']
+  assert.equal(derniereDeSerie(publiees, '0.32', { latest: '0.40.2' }), '0.32.1')
+  assert.equal(derniereDeSerie(publiees, '0.40', { latest: '0.40.2' }), '0.40.2')
+})
+
+test('plafondEngines : @types/vscode plafonné par la mineure de engines.vscode', () => {
+  const publiees = ['1.89.0', '1.90.0', '1.91.0', '1.125.0', '1.138.0']
+  assert.equal(plafondEngines('@types/vscode', { engines: { vscode: '^1.90.0' } }, publiees), '1.90.0')
+  // Pas de 1.90 publiée : la plus haute des mineures inférieures.
+  assert.equal(plafondEngines('@types/vscode', { engines: { vscode: '^1.90.0' } }, ['1.88.0', '1.89.2', '1.91.0']), '1.89.2')
+  // Sans moteur déclaré, ou pour un paquet qui ne suit aucun moteur : pas de plafond.
+  assert.equal(plafondEngines('@types/vscode', {}, publiees), null)
+  assert.equal(plafondEngines('@types/node', { engines: { node: '>=22' } }, ['22.0.0']), null)
+})
+
+test('unitesDeLArbre : un dossier à lockfile PROPRE est une unité ; sans lock ni espace de travail, rien', () => {
+  const chemins = [
+    'package.json',
+    'package-lock.json',
+    'worker/package.json',
+    'worker/package-lock.json',
+    // miss-supaboss/proxy : rien ne fige ses versions, elles se résolvent à
+    // chaque installation — les attribuer au lock racine les inventerait
+    'proxy/package.json',
+    'apps/desktop/package.json',
+    'apps/desktop/package-lock.json',
+    'apps/desktop/e2e-native/package.json',
+  ]
+  assert.deepEqual(unitesDeLArbre(chemins), [
+    { dossier: 'apps/desktop', lock: 'propre' },
+    { dossier: 'worker', lock: 'propre' },
+  ])
+})
+
+test('unitesDeLArbre : un espace de travail de la racine est figé par le lock racine', () => {
+  const chemins = ['package.json', 'package-lock.json', 'packages/a/package.json', 'packages/b/package.json', 'outils/package.json']
+  assert.deepEqual(unitesDeLArbre(chemins, espacesDeTravail({ workspaces: ['packages/*'] })), [
+    { dossier: 'packages/a', lock: 'racine' },
+    { dossier: 'packages/b', lock: 'racine' },
+  ])
+  assert.deepEqual(espacesDeTravail({ workspaces: { packages: ['apps/**', '!apps/vieux'] } }), ['apps/**'])
+  assert.deepEqual(espacesDeTravail({}), [])
+})
+
+test('unitesDeLArbre écarte ce qui ne tourne pas : node_modules, jeux d’essai, gabarits, dossiers cachés', () => {
+  const avecLock = (d) => [`${d}/package.json`, `${d}/package-lock.json`]
+  const chemins = [
+    ...avecLock('node_modules/x'),
+    ...avecLock('test/fixtures/app'),
+    ...avecLock('templates/base'),
+    ...avecLock('examples/demo'),
+    ...avecLock('.github/actions/outil'),
+    ...avecLock('e2e'),
+  ]
+  assert.deepEqual(unitesDeLArbre(chemins), [{ dossier: 'e2e', lock: 'propre' }])
+})
+
+test('verrouilleesDe : le premier niveau du lock, et l’espace de travail l’emporte sur le hissé', () => {
+  const lock = {
+    packages: {
+      '': { name: 'racine' },
+      'node_modules/a': { version: '1.0.0' },
+      'node_modules/a/node_modules/b': { version: '2.0.0' },
+      'node_modules/lien': { resolved: 'packages/x', link: true },
+      'packages/x/node_modules/a': { version: '1.1.0' },
+    },
+  }
+  assert.deepEqual(verrouilleesDe(lock), { a: '1.0.0' })
+  assert.deepEqual(verrouilleesDe(lock, 'packages/x'), { a: '1.1.0' })
+  assert.deepEqual(verrouilleesDe(null), {})
+})
+
+test('versionNvmrc : seule une version COMPLÈTE est comparable', () => {
+  assert.equal(versionNvmrc('26.9.0\n'), '26.9.0')
+  assert.equal(versionNvmrc('v26.10.0\r\n'), '26.10.0')
+  // `26` suit la dernière 26.x d'elle-même, `lts/*` la dernière LTS : ni l'une
+  // ni l'autre n'est en retard sur quoi que ce soit.
+  assert.equal(versionNvmrc('26'), null)
+  assert.equal(versionNvmrc('lts/*'), null)
+  assert.equal(versionNvmrc(null), null)
 })

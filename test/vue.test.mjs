@@ -40,6 +40,11 @@ import {
   graviteRetard,
   heuresDepuis,
   phraseChangement,
+  correctifsDe,
+  nomUnite,
+  nomDemande,
+  nbDepotsDe,
+  moteurDe,
 } from '../scripts/vue.mjs'
 import { cmpVersion, etatPublie } from '../scripts/regles.mjs'
 
@@ -50,6 +55,19 @@ test('rangEcart nomme le RANG, pas la distance', () => {
   assert.equal(rangEcart('4.2.0', '4.3.0'), 'mineure')
   assert.equal(rangEcart('4.3.1', '4.3.9'), 'patch')
   assert.equal(rangEcart('4.3.9', '4.3.9'), '0')
+})
+
+test('rangEcart : en 0.x, changer de MINEURE est un majeur — rusqlite 0.32 → 0.40, le 23/09/2026', () => {
+  // `^0.32.1` refuse 0.33, Cargo aussi : huit versions cassantes ne sont pas
+  // « une mineure à monter ».
+  assert.equal(rangEcart('0.32.1', '0.40.2'), 'majeure')
+  // Dans la même série 0.13, le correctif reste un correctif.
+  assert.equal(rangEcart('0.13.4', '0.13.5'), 'patch')
+  // En 0.0.z, chaque correctif rompt.
+  assert.equal(rangEcart('0.0.3', '0.0.4'), 'majeure')
+  // Au-dessus de 1.0.0, rien ne change.
+  assert.equal(rangEcart('1.24.0', '1.26.1'), 'mineure')
+  assert.equal(rangEcart('10.75.2', '11.0.0'), 'majeure')
 })
 
 test('rangEcart : une version EN AVANCE du parc n’est pas un écart', () => {
@@ -470,16 +488,109 @@ test('demandeMontee nomme le paquet EXACT, la cible, et chaque dépôt en retard
   assert.deepEqual(demandeMontee(l), {
     paquet: '@sentry/react',
     alias: null,
+    fichier: null,
     cible: '11.0.0',
     gravite: 'majeure',
     depots: [
-      { depot: 'alpha', version: '10.75.2', transitif: false },
-      { depot: 'bac-sable', version: '10.75.2', transitif: true },
-      { depot: 'zeta', version: '10.75.2', transitif: false },
+      { depot: 'alpha', dossier: null, version: '10.75.2', transitif: false },
+      { depot: 'bac-sable', dossier: null, version: '10.75.2', transitif: true },
+      { depot: 'zeta', dossier: null, version: '10.75.2', transitif: false },
     ],
   })
   // rien à monter, rien à demander
   assert.equal(demandeMontee(lib('vite', '8.3.0', [['8.3.0', ['a']]])), null)
+})
+
+/* ── Les angles morts du 23/09/2026 ─────────────────────────────────────── */
+
+test('correctifsDe : le correctif qu’un nouveau majeur cachait — @sentry/react 10.75.3 sous une 11.0.0', () => {
+  const l = lib('@sentry/react', '11.0.0', [['10.75.2', ['b', 'a']]])
+  l.versions[0].derniere = '10.75.3'
+  l.versions[0].derniereLe = '2026-09-23T14:03:00Z'
+  assert.deepEqual(correctifsDe(l), [
+    {
+      paquet: '@sentry/react',
+      alias: null,
+      fichier: null,
+      cible: '10.75.3',
+      serie: '10',
+      amont: '11.0.0',
+      // la date de la CIBLE, pas celle de la 11.0.0
+      publie: '2026-09-23T14:03:00Z',
+      gravite: 'patch',
+      depots: [
+        { depot: 'a', dossier: null, version: '10.75.2', transitif: false },
+        { depot: 'b', dossier: null, version: '10.75.2', transitif: false },
+      ],
+    },
+  ])
+  // Le majeur reste une décision À PART, et la même ligne en garde la demande.
+  assert.equal(demandeMontee(l).cible, '11.0.0')
+  assert.equal(demandeMontee(l).gravite, 'majeure')
+  // Sans `derniere`, rien à ajouter ; une `derniere` qui n'avance pas non plus.
+  assert.deepEqual(correctifsDe(lib('@sentry/react', '11.0.0', [['10.75.2', ['a']]])), [])
+  const pareil = lib('x', '2.0.0', [['1.4.0', ['a']]])
+  pareil.versions[0].derniere = '1.4.0'
+  assert.deepEqual(correctifsDe(pareil), [])
+})
+
+test('correctifsDe : un majeur ADMIS a lui aussi ses correctifs', () => {
+  // TypeScript 6 n'est pas en retard sous une 7 (typescript-eslint interdit la
+  // 7), mais une 6.0.4 serait bien à monter.
+  const l = lib('typescript', '7.0.2', [['6.0.3', ['a']]])
+  l.versions[0].derniere = '6.0.4'
+  assert.equal(graviteRetard(l), null)
+  assert.equal(demandeMontee(l), null)
+  assert.deepEqual(
+    correctifsDe(l).map((d) => [d.cible, d.serie, d.gravite]),
+    [['6.0.4', '6', 'patch']],
+  )
+})
+
+test('@types/vscode se mesure au plafond de engines.vscode, pas à l’amont', () => {
+  // vscode-sops-diff : engines ^1.90.0, types 1.125.0 au lock, amont 1.138.0.
+  const au = lib('@types/vscode', '1.138.0', [['1.125.0', [{ depot: 'vscode-sops-diff', plafond: '1.90.0' }]]])
+  assert.equal(graviteRetard(au), null)
+  assert.equal(demandeMontee(au), null)
+  assert.deepEqual(correctifsDe(au), [])
+  // Resté SOUS son plafond, il se monte jusqu'à lui — pas jusqu'à l'amont.
+  const sous = lib('@types/vscode', '1.138.0', [['1.85.0', [{ depot: 'ext', plafond: '1.90.0' }]]])
+  assert.equal(graviteRetard(sous), 'mineure')
+  assert.equal(demandeMontee(sous), null)
+  assert.deepEqual(
+    correctifsDe(sous).map((d) => [d.cible, d.plafond, d.gravite, d.depots.map((x) => x.depot)]),
+    [['1.90.0', true, 'mineure', ['ext']]],
+  )
+  assert.equal(moteurDe('@types/vscode'), 'engines.vscode')
+})
+
+test('un paquet figé dans un DOSSIER se nomme par lui, et compte pour son dépôt', () => {
+  const l = lib('wrangler', '4.137.0', [['4.135.0', [{ depot: 'miss-genius', dossier: 'worker' }, 'miss-genius', { depot: 'mister-cim10', dossier: 'workers' }]]])
+  const dm = demandeMontee(l)
+  assert.deepEqual(dm.depots.map(nomUnite), ['miss-genius', 'miss-genius/worker', 'mister-cim10/workers'])
+  // Deux dossiers d'un même dépôt font deux lignes à monter, mais un seul dépôt.
+  assert.equal(nbDepotsDe(dm), 2)
+  assert.equal(nomUnite({ depot: 'a' }), 'a')
+})
+
+test('nomDemande dit le fichier quand la ligne n’est pas un paquet — Node et son .nvmrc', () => {
+  assert.equal(nomDemande({ paquet: 'Node.js', fichier: '.nvmrc' }), 'Node.js (.nvmrc)')
+  assert.equal(nomDemande({ paquet: 'vite', fichier: null }), 'vite')
+  const node = { ...lib('Node.js', '26.10.0', [['26.9.0', ['a', 'b']]]), fichier: '.nvmrc' }
+  assert.deepEqual([demandeMontee(node).fichier, demandeMontee(node).gravite], ['.nvmrc', 'mineure'])
+  assert.equal(groupeDe('Node.js'), 'lang')
+})
+
+test('aFaire range le correctif caché parmi les correctifs, et laisse le majeur aux décisions', () => {
+  const sentry = { ...lib('@sentry/react', '11.0.0', [['10.75.2', ['a', 'b']]]), enRetard: 2 }
+  sentry.versions[0].derniere = '10.75.3'
+  // un majeur admis : `enRetard` à zéro, et pourtant un correctif à monter
+  const ts = { ...lib('typescript', '7.0.2', [['6.0.3', ['a']]]), enRetard: 0 }
+  ts.versions[0].derniere = '6.0.4'
+  const r = aFaire({ depots: [depotAFaire('a'), depotAFaire('b')], libs: [sentry, ts], kpi: {} })
+  const de = (cle) => r.find((x) => x.cle === cle).details.map((d) => `${d.paquet} → ${d.cible}`)
+  assert.deepEqual(de('majeures'), ['@sentry/react → 11.0.0'])
+  assert.deepEqual(de('correctifs'), ['@sentry/react → 10.75.3', 'typescript → 6.0.4'])
 })
 
 /* ── Le bloc « À faire » ────────────────────────────────────────────────── */

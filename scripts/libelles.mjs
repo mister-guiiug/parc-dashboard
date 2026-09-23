@@ -565,6 +565,26 @@ const LIBELLES_FR = {
   'libs.transitifs.titre': "Dépôts qui ne déclarent pas ce paquet : c'est une pair du socle, installée d'office, et c'est leur lockfile qui fixe la version qui tourne.",
   'libs.detail.transitif': 'Non déclaré : pair du socle, figée par le lockfile',
 
+  /* ── correctifs de série, plafonds, Node ── */
+  'libs.serie': 'correctif {cible} dans la {serie}',
+  'libs.serie.titre': "La dernière version de la série en cours : elle se monte sans attendre la décision sur l'amont.",
+  'libs.detail.derniere': 'dernière de la {serie} : {version}',
+  'libs.plafond': 'plafonné par {moteur}',
+  'libs.plafond.titre':
+    "Ces types suivent la version que déclare {moteur} ({plafond}) : plus récents, ils décriraient une API que le moteur promis n'a pas. On les compare à ce plafond, pas à l'amont.",
+  'libs.detail.plafond': 'plafond {moteur} : {plafond}',
+  'libs.nvmrc.titre': "La version de Node qu'épingle le .nvmrc de chaque dépôt ; l'amont est la dernière publiée sur nodejs.org.",
+  'afaire.detail.serie': 'sans quitter la {serie}',
+  'afaire.detail.plafond': 'plafond {moteur}',
+  'demande.montee.serie': {
+    one: 'Monter {paquet} en {cible} ({gravite}, sans quitter la {serie} ; la {amont} se décide à part) dans {n} dépôt :',
+    other: 'Monter {paquet} en {cible} ({gravite}, sans quitter la {serie} ; la {amont} se décide à part) dans {n} dépôts :',
+  },
+  'demande.montee.plafond': {
+    one: 'Monter {paquet} en {cible} ({gravite}, plafond de {moteur}) dans {n} dépôt :',
+    other: 'Monter {paquet} en {cible} ({gravite}, plafond de {moteur}) dans {n} dépôts :',
+  },
+
   /* ── production, Renovate (cartes) ── */
   'carte.prod': 'Production · ',
   'carte.prod.aJour': '{commit} = {branche}, construite {quand}',
@@ -1070,6 +1090,26 @@ const LIBELLES_EN = {
   'libs.transitifs': { one: '{n} transitive', other: '{n} transitive' },
   'libs.transitifs.titre': 'Repositories that do not declare this package: it is a peer of the core, installed regardless, and their lockfile sets the version that runs.',
   'libs.detail.transitif': 'Not declared: a peer of the core, pinned by the lockfile',
+
+  /* ── series fixes, caps, Node ── */
+  'libs.serie': 'fix {cible} on {serie}.x',
+  'libs.serie.titre': 'The latest release of the current series: it can be upgraded without waiting for the decision on upstream.',
+  'libs.detail.derniere': 'latest {serie}.x: {version}',
+  'libs.plafond': 'capped by {moteur}',
+  'libs.plafond.titre':
+    'These types follow the version {moteur} declares ({plafond}): newer ones would describe an API the promised engine lacks. They are compared with that cap, not with upstream.',
+  'libs.detail.plafond': '{moteur} cap: {plafond}',
+  'libs.nvmrc.titre': "The Node version each repository's .nvmrc pins; upstream is the latest release on nodejs.org.",
+  'afaire.detail.serie': 'staying on {serie}.x',
+  'afaire.detail.plafond': '{moteur} cap',
+  'demande.montee.serie': {
+    one: 'Upgrade {paquet} to {cible} ({gravite}, staying on {serie}.x; {amont} is a separate decision) in {n} repository:',
+    other: 'Upgrade {paquet} to {cible} ({gravite}, staying on {serie}.x; {amont} is a separate decision) in {n} repositories:',
+  },
+  'demande.montee.plafond': {
+    one: 'Upgrade {paquet} to {cible} ({gravite}, capped by {moteur}) in {n} repository:',
+    other: 'Upgrade {paquet} to {cible} ({gravite}, capped by {moteur}) in {n} repositories:',
+  },
 
   /* ── production, Renovate (cards) ── */
   'carte.prod': 'Production · ',

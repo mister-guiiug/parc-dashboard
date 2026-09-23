@@ -8,7 +8,7 @@
 // des compteurs que rien ne recoupe.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MAJEURS_ADMIS, PLAFONDS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, etatPublie, fond, fusionneHistoriques, fusionnePoint, joursAbsents, majeurAdmis, majeurDe, nettoie, paquetReel } from '../scripts/regles.mjs'
+import { MAJEURS_ADMIS, PLAFONDS, PLAFONDS_ENGINES, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, estEnRetard, etatDe, etatPublie, fond, fusionneHistoriques, fusionnePoint, joursAbsents, majeurAdmis, majeurDe, nettoie, paquetReel, serieDe } from '../scripts/regles.mjs'
 
 test('nettoie retire la plage et la préversion', () => {
   assert.equal(nettoie('^4.7.0'), '4.7.0')
@@ -437,6 +437,40 @@ test('changementsDepuis marque un nouveau MAJEUR amont, et le fait passer devant
       ['prettier', false],
     ],
   )
+})
+
+test('changementsDepuis : en 0.x, changer de mineure est un nouveau majeur', () => {
+  const av = avec([], [{ paquet: 'rusqlite', amont: '0.32.1' }, { paquet: 'reqwest', amont: '0.13.4' }])
+  const ap = avec([], [{ paquet: 'rusqlite', amont: '0.40.2' }, { paquet: 'reqwest', amont: '0.13.5' }])
+  assert.deepEqual(
+    changementsDepuis(av, ap).map((x) => [x.paquet, x.majeur]),
+    [
+      ['rusqlite', true],
+      ['reqwest', false],
+    ],
+  )
+})
+
+test('serieDe : le majeur au-dessus de 1.0.0, la mineure en 0.x, le correctif en 0.0.z', () => {
+  assert.equal(serieDe('10.75.2'), '10')
+  assert.equal(serieDe('^6.0.3'), '6')
+  assert.equal(serieDe('0.32.1'), '0.32')
+  assert.equal(serieDe('~0.13.4'), '0.13')
+  assert.equal(serieDe('0.0.3'), '0.0.3')
+  // `majeurDe` reste ce qu'il dit : les majeurs admis nomment des majeurs.
+  assert.equal(majeurDe('0.32.1'), '0')
+})
+
+test('estEnRetard : l’amont, les majeurs admis, et le plafond d’un moteur', () => {
+  assert.equal(estEnRetard('vite', '8.2.9', '8.3.0', { depot: 'a' }), true)
+  assert.equal(estEnRetard('vite', '8.3.0', '8.3.0', { depot: 'a' }), false)
+  assert.equal(estEnRetard('vite', '8.2.9', null, { depot: 'a' }), false)
+  // TypeScript 6 sous une 7 : admis, donc pas en retard.
+  assert.equal(estEnRetard('typescript', '6.0.3', '7.0.2', { depot: 'a' }), false)
+  // Un dépôt plafonné se juge sur son plafond : au-delà, à l'heure ; en deçà, en retard.
+  assert.equal(estEnRetard('@types/vscode', '1.125.0', '1.138.0', { depot: 'x', plafond: '1.90.0' }), false)
+  assert.equal(estEnRetard('@types/vscode', '1.85.0', '1.138.0', { depot: 'x', plafond: '1.90.0' }), true)
+  assert.deepEqual(PLAFONDS_ENGINES, { '@types/vscode': 'vscode' })
 })
 
 test('fond ignore le journal, comme l’historique', () => {
