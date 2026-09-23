@@ -2,9 +2,15 @@ name: Relevé du parc
 
 on:
   schedule:
-    # 05:17 UTC : après la nuit, et à une minute qui n'est pas ronde — GitHub
-    # étale mal les crons de début d'heure, ils partent souvent en retard.
-    - cron: '17 5 * * *'
+    # CHAQUE HEURE depuis le 23/09/2026 — il passait une fois par jour, à 05:17
+    # UTC, et partait en réalité vers 09:55 : le cron de GitHub est un « au
+    # mieux », qui prend des heures de retard aux moments de charge. La page
+    # avait donc jusqu'à une journée et demie de retard sur le parc. À :17 et
+    # pas à :00 : GitHub étale mal les crons de début d'heure.
+    #
+    # Le coût reste bas : un passage prend ~45 s et 343 appels d'API, quand le
+    # GITHUB_TOKEN en permet 1 000 par heure.
+    - cron: '17 * * * *'
   workflow_dispatch:
   push:
     # le gabarit ou le collecteur changent => on régénère tout de suite
@@ -21,16 +27,18 @@ on:
       - '.github/workflows/releve.yml'
 
 permissions:
-  contents: write
+  contents: read
 
+# Un seul relevé à la fois. Une rafale de déclenchements ne s'empile pas :
+# GitHub ne garde qu'UN passage en attente par groupe, le plus récent.
 concurrency:
   group: releve-du-parc
   cancel-in-progress: false
 
 jobs:
   # Les règles pures d'abord, et sans réseau : si `fond()` a une régression, le
-  # dépôt se met à commiter chaque nuit pour rien. Autant le savoir avant de
-  # publier, pas trois semaines plus tard.
+  # relevé se met à republier à chaque passage pour rien. Autant le savoir avant
+  # de publier, pas trois semaines plus tard.
   regles:
     name: Règles du relevé
     runs-on: ubuntu-latest
@@ -48,6 +56,9 @@ jobs:
     needs: regles
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      # pour l'instantané du jour, et pour lui seul
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -55,6 +66,10 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # LA PAGE N'EST PLUS COMMITÉE : elle part sur Pages comme artefact (job
+      # suivant). L'état précédent — ce qui décide s'il y a quelque chose à
+      # republier — est donc lu sur la page EN LIGNE, et non dans le dépôt.
+      # Voir l'en-tête de `scripts/releve.mjs`.
       - name: Relever l'état du parc
         id: releve
         env:
@@ -62,20 +77,52 @@ jobs:
           # pas à lire l'API Actions des autres dépôts ; sinon GITHUB_TOKEN.
           PARC_TOKEN: ${{ secrets.PARC_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/releve.mjs
+        run: >-
+          node scripts/releve.mjs
+          --precedente "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+          --publier _site
+          --instantane
 
-      - name: Publier si le fond a changé
-        if: steps.releve.outputs.change == 'oui'
+      # LA PHOTO DU JOUR : le premier passage qui voit un jour nouveau commite
+      # l'`index.html` et le `historique.json` du dépôt — repère de « ce qui a
+      # bougé », copie durable de l'historique, et activité qui empêche GitHub
+      # de désactiver ce cron au bout de soixante jours sans commit.
+      - name: Commiter l'instantané du jour
+        if: steps.releve.outputs.instantane == 'oui'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html historique.json
-          git commit -m "chore(releve): etat du parc au $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git commit -m "chore(releve): instantane du jour, etat du parc au $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # une PR fusionnée pendant le relevé ne doit pas faire refuser la poussée
+          git pull --rebase
           git push
 
-      - name: Rien à publier
-        if: steps.releve.outputs.change != 'oui'
+      - name: Rien à commiter
+        if: steps.releve.outputs.instantane != 'oui'
         # bloc littéral : un « : » suivi d'une espace dans un scalaire nu
         # coupe la valeur en clé, et GitHub rejette le fichier entier
         run: |
-          echo "Le fond du relevé n'a pas bougé : aucun commit (seul l'horodatage aurait changé)."
+          echo "Pas d'instantané à commiter (jour déjà photographié, ou rien de neuf aujourd'hui) — le site part seul. Fond changé : ${{ steps.releve.outputs.change }}."
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  # À CHAQUE PASSAGE, même quand rien n'a bougé : la page est alors republiée à
+  # l'identique, et seul `etat.json` change — c'est lui qui permet à la page de
+  # dire « vérifié il y a 12 minutes », et de signaler un relevé qui ne tourne
+  # plus.
+  publier:
+    needs: relever
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v5

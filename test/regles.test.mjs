@@ -1,14 +1,14 @@
 // Les règles pures du relevé — aucun réseau, aucun jeton.
 //
 // Ce qui est éprouvé ici n'est pas choisi au hasard : ce sont les fonctions
-// dont une régression se voit LE PLUS TARD. `fond()` décide si la CI commite ;
-// une erreur y ferait réécrire `index.html` toutes les nuits sans que rien
-// n'ait bougé, et personne ne le remarquerait avant des semaines de commits
-// vides. `classe()` range les vingt-huit dépôts, et un dépôt mal rangé change
+// dont une régression se voit LE PLUS TARD. `fond()` décide si le relevé
+// publie une page neuve ; une erreur y ferait republier à chaque passage
+// horaire sans que rien n'ait bougé — et annoncer à chaque lecteur « un relevé
+// plus récent » qui n'apporte rien. `classe()` range les vingt-huit dépôts, et un dépôt mal rangé change
 // des compteurs que rien ne recoupe.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MAJEURS_ADMIS, PLAFONDS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, majeurDe, nettoie, paquetReel } from '../scripts/regles.mjs'
+import { MAJEURS_ADMIS, PLAFONDS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, etatPublie, fond, fusionneHistoriques, fusionnePoint, joursAbsents, majeurAdmis, majeurDe, nettoie, paquetReel } from '../scripts/regles.mjs'
 
 test('nettoie retire la plage et la préversion', () => {
   assert.equal(nettoie('^4.7.0'), '4.7.0')
@@ -344,4 +344,62 @@ test('amontAdmis rend latest quand aucune version ne tient le plafond', () => {
   // référence fausse mais AFFICHÉE qu'un `null` qui éteindrait la colonne.
   assert.equal(amontAdmis('typescript-7', ['8.0.0', '8.1.0'], '8.1.0'), '8.1.0')
   assert.equal(amontAdmis('typescript-7', undefined, '8.1.0'), '8.1.0')
+})
+
+/* ── Relevé horaire : l'historique à deux sources, l'instantané, etat.json ── */
+
+test('fusionneHistoriques unit les jours des deux sources sans en perdre un', () => {
+  // Le dépôt a le 21 et le 22 ; la page en ligne a le 22 (plus frais) et le 23.
+  const depot = [
+    { jour: '2026-09-21', taux: 95 },
+    { jour: '2026-09-22', taux: 96, alertes: 0 },
+  ]
+  const enLigne = [
+    { jour: '2026-09-22', taux: 97, alertes: null },
+    { jour: '2026-09-23', taux: 99 },
+  ]
+  assert.deepEqual(fusionneHistoriques(depot, enLigne), [
+    { jour: '2026-09-21', taux: 95 },
+    // la source la plus fraîche l'emporte — sauf là où elle ne sait rien
+    { jour: '2026-09-22', taux: 97, alertes: 0 },
+    { jour: '2026-09-23', taux: 99 },
+  ])
+})
+
+test('fusionneHistoriques tient une source absente ou illisible pour vide', () => {
+  const h = [{ jour: '2026-09-23', taux: 99 }]
+  // La page en ligne illisible : le dépôt suffit, rien ne lève.
+  assert.deepEqual(fusionneHistoriques(h, undefined), h)
+  assert.deepEqual(fusionneHistoriques(null, h), h)
+  assert.deepEqual(fusionneHistoriques('pas un tableau', h), h)
+  // Un point sans jour n'a pas de place dans une courbe datée.
+  assert.deepEqual(fusionneHistoriques([null, { taux: 1 }, { jour: 3 }], h), h)
+})
+
+test('fusionneHistoriques rend l’ordre du calendrier, quel que soit celui des sources', () => {
+  const r = fusionneHistoriques([{ jour: '2026-09-23' }, { jour: '2026-09-01' }], [{ jour: '2026-09-12' }])
+  assert.deepEqual(
+    r.map((p) => p.jour),
+    ['2026-09-01', '2026-09-12', '2026-09-23'],
+  )
+})
+
+test('joursAbsents déclenche l’instantané au premier point d’un jour, et plus ensuite', () => {
+  const depot = [{ jour: '2026-09-22' }]
+  // Premier passage qui change quelque chose le 23 : le jour manque au dépôt.
+  assert.deepEqual(joursAbsents(depot, [{ jour: '2026-09-22' }, { jour: '2026-09-23' }]), ['2026-09-23'])
+  // Une fois l'instantané commité, les passages du même jour ne commitent plus.
+  assert.deepEqual(joursAbsents([...depot, { jour: '2026-09-23' }], [{ jour: '2026-09-22' }, { jour: '2026-09-23' }]), [])
+  // Un dépôt sans historique : tout est à écrire.
+  assert.deepEqual(joursAbsents(undefined, [{ jour: '2026-09-23' }]), ['2026-09-23'])
+})
+
+test('etatPublie date la page publiée ET le passage, séparément', () => {
+  const maintenant = Date.parse('2026-09-23T14:17:30Z')
+  assert.deepEqual(etatPublie({ genere: '2026-09-23T09:57:45.678Z' }, maintenant), {
+    genere: '2026-09-23T09:57:45.678Z',
+    verifie: '2026-09-23T14:17:30.000Z',
+  })
+  // Sans page à décrire, `genere` reste nul plutôt qu'inventé.
+  assert.equal(etatPublie(null, maintenant).genere, null)
 })

@@ -7,7 +7,7 @@ verrouillées dans les lockfiles.
 
 **→ https://mister-guiiug.github.io/parc-dashboard/**
 
-Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github/workflows/releve.yml), 05:17 UTC).
+Elle se régénère **toute seule chaque heure** (workflow [`releve.yml`](.github/workflows/releve.yml), à :17), et **dit elle-même depuis quand elle est juste** : « Vérifié il y a 12 minutes » sous le titre, un bandeau quand un relevé plus récent est en ligne, une alerte si le relevé ne passe plus. Voir « Comment la page est publiée ».
 
 ## Ce que la page répond
 
@@ -20,7 +20,8 @@ Elle se régénère **toute seule chaque jour** (workflow [`releve.yml`](.github
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
 | Qui est en retard sur quelle librairie ? | section « Librairies », ligne dépliable |
 | Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
-| Qu'est-ce qui a changé depuis hier ? | bandeau « Ce qui a bougé », sous les tuiles |
+| Qu'est-ce qui a changé depuis la photo du jour ? | bandeau « Ce qui a bougé », sous les tuiles |
+| La page est-elle à jour ? | ligne « Vérifié il y a … » sous le titre, et bandeau « relevé plus récent » en tête |
 | Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
 | Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
@@ -208,9 +209,10 @@ séparées du script qui les applique : `releve.mjs` s'exécute à l'import et p
 chercher l'API, rien n'y serait testable autrement. Aucune dépendance, aucun
 jeton, `node:test` suffit.
 
-C'est `fond()` qui justifie surtout ces tests : elle décide si la CI commite. Une
-régression y ferait réécrire `index.html` toutes les nuits sans que rien n'ait
-bougé, et personne ne le verrait avant des semaines de commits vides.
+C'est `fond()` qui justifie surtout ces tests : elle décide si le relevé publie
+une page neuve. Une régression y ferait republier à chaque passage horaire sans
+que rien n'ait bougé — et annoncer à chaque lecteur « un relevé plus récent »
+qui n'apporte rien.
 
 [`test/libelles.test.mjs`](test/libelles.test.mjs) garde les traductions, dont
 les défauts sont **tous silencieux** : un oubli ne lève rien, ne rougit rien, et
@@ -229,14 +231,50 @@ node scripts/releve.mjs
 ```
 
 Un seul script, sans dépendance : `GITHUB_TOKEN` (ou `PARC_TOKEN`) dans
-l'environnement, environ 320 appels d'API, et `index.html` est réécrit.
+l'environnement, 343 appels d'API, et `index.html` est réécrit.
 
 | Option | Effet | Écrit dans |
 |---|---|---|
-| *(rien)* | ce que fait la CI : dépôts publics, tout depuis l'API | `index.html` |
+| *(rien)* | relevé local : dépôts publics, tout depuis l'API | `index.html` |
 | `--local <racine>` | ajoute ce que l'API ignore : branche courante et fichiers non commités des copies de travail | `index.local.html` (ignoré par git) |
 | `--prives` | inclut les dépôts privés du compte (demande un PAT, pas le `GITHUB_TOKEN`) | — |
 | `--sortie <chemin>` | force le fichier de sortie | — |
+| `--precedente <url>` | prend la page **en ligne** pour état précédent — voir ci-dessous | — |
+| `--publier <dossier>` | écrit le site à déployer : `index.html`, `etat.json`, `historique.json` | `<dossier>` |
+| `--instantane` | avec `--publier`, écrit aussi la photo du jour dans le dépôt, quand un jour nouveau apparaît | `index.html`, `historique.json` |
+
+La CI lance `--precedente <url de la page> --publier _site --instantane`.
+
+### Comment la page est publiée
+
+Depuis le 23/09/2026, **chaque heure**, et sans commit — la page part sur Pages
+comme artefact (`upload-pages-artifact`, puis `deploy-pages`). Elle passait une
+fois par jour, et le cron « 05:17 UTC » partait en réalité vers 09:55 : GitHub
+ne tient ses crons qu'au mieux. Un passage coûte ~45 s et 343 appels, quand le
+`GITHUB_TOKEN` en permet 1 000 par heure.
+
+- **L'état précédent est la page EN LIGNE**, relue à chaque passage avec un
+  paramètre inédit (le CDN garde une page dix minutes). C'est elle qui dit s'il
+  y a quelque chose à republier. Illisible, le relevé se replie sur la photo du
+  dépôt et le dit (`::warning::` dans le journal) — sans rien perdre.
+- **Chaque passage déploie**, même quand rien n'a bougé : la page part alors à
+  l'identique, et seul `etat.json` avance. `genere` y date le relevé que porte la
+  page, `verifie` le passage. C'est ce qui permet à la page de dire « Vérifié il
+  y a 12 minutes », d'annoncer un relevé plus récent que celle qu'on a ouverte,
+  et de signaler un relevé qui ne passe plus depuis six heures. Cette lecture
+  est **la seule requête réseau de la page**, et elle est facultative : en
+  `file://`, rien ne s'affiche de plus.
+- **La photo du jour** : le premier passage qui voit un jour nouveau commite
+  `index.html` et `historique.json` dans le dépôt. C'est le repère de « Ce qui a
+  bougé » (sinon le bandeau ne couvrirait que la dernière heure), la copie
+  durable de l'historique, et l'activité qui empêche GitHub de désactiver le
+  cron d'un dépôt public resté soixante jours sans commit.
+- **L'historique est recomposé jour par jour** depuis la page en ligne et le
+  dépôt (`fusionneHistoriques`) : aucune des deux sources ne peut en faire
+  perdre un point à l'autre.
+
+**Revenir en arrière** tient en un réglage : repasser la source Pages sur
+« branche `main`, racine » sert la dernière photo du jour, déjà dans le dépôt.
 
 Le mode `--local` écrit volontairement ailleurs : sa page porte l'état d'une
 copie de travail, qui n'a rien à faire en ligne et que le relevé suivant
@@ -247,15 +285,17 @@ exécution, son workflow serait toujours « en cours » et ses numéros de run
 changeraient à chaque passage — il se rendrait éternellement différent de
 lui-même.
 
-Le fichier n'est réécrit que si le **fond** a bougé : sans cette comparaison, la
-CI commiterait chaque jour un diff d'une ligne où seul l'horodatage change.
+Une page neuve n'est produite que si le **fond** a bougé : sans cette
+comparaison, chaque passage publierait une page qui ne diffère que par son
+horodatage — et la page ouverte annoncerait sans cesse « un relevé plus
+récent ».
 
-`historique.json` reçoit son point dans le même mouvement, et seulement pour le
+L'historique reçoit son point dans le même mouvement, et seulement pour le
 relevé publié : ni `--local` ni `--sortie` n'y touchent, une sonde n'a rien à
 laisser dans une série qui se lit sur un an. S'il est perdu,
 [`scripts/historique-depuis-git.mjs`](scripts/historique-depuis-git.mjs) le
-reconstruit depuis les révisions de `index.html`, qui portent chacune leurs
-propres compteurs.
+reconstruit depuis les révisions de `index.html` — une par jour depuis le
+23/09/2026, les photos du jour —, qui portent chacune leurs propres compteurs.
 
 Si le `GITHUB_TOKEN` du dépôt ne suffit pas à lire l'API Actions des autres
 dépôts, le relevé s'arrête avec un message explicite plutôt que de publier une

@@ -145,6 +145,42 @@ h3 {
   font-size: 13px;
   margin-top: 5px;
 }
+.chapeau .fraicheur {
+  margin-top: 3px;
+}
+/* La panne se dit par le TEXTE, pas par la couleur : `--critical` ne tient pas
+   le 4,5:1 sur le fond sombre. L'encre pleine et la graisse suffisent ; le
+   pictogramme, lui, est décoratif (`aria-hidden`). */
+.panneFraicheur {
+  color: var(--ink);
+  font-weight: 600;
+}
+.alerteFraicheur {
+  color: var(--serious);
+}
+
+/* ---------- relevé plus récent en ligne ---------- */
+.bandeauNouveau {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 10px 16px;
+  border: 1px solid var(--series1);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+}
+/* Vide, la région ne prend AUCUNE place — mais reste dans l'arbre
+   d'accessibilité, ce que `display: none` lui aurait retiré : ce qu'on y écrit
+   ensuite doit être annoncé. */
+.bandeauNouveau:empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .outils {
   display: flex;
   gap: 8px;
