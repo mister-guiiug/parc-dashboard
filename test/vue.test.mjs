@@ -32,6 +32,14 @@ import {
   symboles,
   SEUIL_PANNE_MIN,
   fraicheur,
+  FRAICHE_H,
+  ORDRE_A_FAIRE,
+  aFaire,
+  chercheCibles,
+  demandeMontee,
+  graviteRetard,
+  heuresDepuis,
+  phraseChangement,
 } from '../scripts/vue.mjs'
 import { cmpVersion, etatPublie } from '../scripts/regles.mjs'
 
@@ -425,4 +433,119 @@ test('etatPublie et fraicheur parlent le même contrat', () => {
   // publiée est à jour, vérifiée à l'instant, et rien n'est à recharger.
   const genere = '2026-09-23T14:17:00Z'
   assert.deepEqual(fraicheur(genere, etatPublie({ genere }, T0), T0), { minutes: 0, panne: false, nouveau: null })
+})
+
+/* ── Gravité, âge et demande de montée ──────────────────────────────────── */
+
+const lib = (paquet, amont, versions) => ({ paquet, amont, versions: versions.map(([version, depots]) => ({ version, depots: depots.map((d) => (typeof d === 'string' ? { depot: d } : d)) })) })
+
+test('graviteRetard sépare le correctif du nouveau majeur — le défaut du 23/09/2026', () => {
+  assert.equal(graviteRetard(lib('prettier', '3.9.9', [['3.9.8', ['a', 'b']]])), 'patch')
+  assert.equal(graviteRetard(lib('@sentry/react', '11.0.0', [['10.75.2', ['a']]])), 'majeure')
+  // La PIRE version décide : un seul dépôt resté en arrière d'un majeur suffit.
+  assert.equal(graviteRetard(lib('vite', '8.3.0', [['8.2.9', ['a']], ['7.4.0', ['b']]])), 'majeure')
+  assert.equal(graviteRetard(lib('vite', '8.3.0', [['8.3.0', ['a']]])), null)
+  assert.equal(graviteRetard(lib('vite', null, [['8.3.0', ['a']]])), null)
+})
+
+test('graviteRetard ne compte pas un majeur ADMIS', () => {
+  // TypeScript 6 sous une amont en 7 : typescript-eslint interdit la 7.
+  assert.equal(graviteRetard(lib('typescript', '7.0.2', [['6.0.3', ['a', 'b']]])), null)
+})
+
+test('heuresDepuis : des heures, jamais négatives, et null sur l’illisible', () => {
+  const t = Date.parse('2026-09-23T20:00:00Z')
+  assert.equal(heuresDepuis('2026-09-23T17:00:00Z', t), 3)
+  assert.equal(heuresDepuis('2026-09-23T21:00:00Z', t), 0)
+  assert.equal(heuresDepuis(null, t), null)
+  assert.equal(heuresDepuis('hier', t), null)
+  assert.equal(FRAICHE_H, 24)
+})
+
+test('demandeMontee nomme le paquet EXACT, la cible, et chaque dépôt en retard', () => {
+  const l = lib('@sentry/react', '11.0.0', [
+    ['11.0.0', ['a-jour']],
+    ['10.75.2', ['zeta', 'alpha', { depot: 'bac-sable', transitif: true }]],
+  ])
+  assert.deepEqual(demandeMontee(l), {
+    paquet: '@sentry/react',
+    alias: null,
+    cible: '11.0.0',
+    gravite: 'majeure',
+    depots: [
+      { depot: 'alpha', version: '10.75.2', transitif: false },
+      { depot: 'bac-sable', version: '10.75.2', transitif: true },
+      { depot: 'zeta', version: '10.75.2', transitif: false },
+    ],
+  })
+  // rien à monter, rien à demander
+  assert.equal(demandeMontee(lib('vite', '8.3.0', [['8.3.0', ['a']]])), null)
+})
+
+/* ── Le bloc « À faire » ────────────────────────────────────────────────── */
+
+const depotAFaire = (nom, extra = {}) => ({ nom, compte: { rouge: 0 }, pages: null, prs: [], ...extra })
+
+test('aFaire range du cassé à l’entretien, et tait ce qui est vide', () => {
+  const D = {
+    socle: '@s/socle',
+    kpi: { alertesLisibles: true },
+    depots: [
+      depotAFaire('a', { compte: { rouge: 2 }, prod: { etat: 'retard', retard: 3 } }),
+      depotAFaire('b', { pages: { url: 'https://b/', ok: false }, prs: [{ num: 7, titre: 'fix', brouillon: false }, { num: 8, titre: 'wip', brouillon: true }] }),
+      depotAFaire('c', { renovate: { enAttente: 5, majeures: 2, introuvables: ['@s/socle'], issue: 'https://i' } }),
+    ],
+    libs: [lib('prettier', '3.9.9', [['3.9.8', ['a', 'b']]]), lib('@sentry/react', '11.0.0', [['10.75.2', ['a']]]), lib('@s/socle', '6.10.0', [['6.7.1', ['a', 'b', 'c']]])].map((l) => ({
+      ...l,
+      enRetard: 1,
+    })),
+  }
+  const r = aFaire(D)
+  assert.deepEqual(
+    r.map((x) => x.cle),
+    ['rouges', 'sites', 'prod', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables'],
+  )
+  // un brouillon n'est pas « à relire »
+  assert.equal(r.find((x) => x.cle === 'prs').n, 1)
+  // le socle compte ses DÉPÔTS en retard, pas ses lignes ; Renovate ses mises à jour
+  assert.equal(r.find((x) => x.cle === 'socle').n, 3)
+  assert.equal(r.find((x) => x.cle === 'renovate').n, 5)
+  // le socle n'apparaît pas aussi parmi les correctifs
+  assert.ok(!r.find((x) => x.cle === 'correctifs').details.some((d) => d.paquet === '@s/socle'))
+  // l'ordre du bloc est bien celui qu'annonce ORDRE_A_FAIRE
+  const rangs = r.map((x) => ORDRE_A_FAIRE.indexOf(x.cle))
+  assert.deepEqual(rangs, [...rangs].sort((a, b) => a - b))
+})
+
+test('aFaire est vide pour un parc sain, sans lever sur un modèle incomplet', () => {
+  assert.deepEqual(aFaire({ depots: [depotAFaire('a')], libs: [], kpi: {} }), [])
+  assert.deepEqual(aFaire(null), [])
+})
+
+/* ── La recherche de la barre ───────────────────────────────────────────── */
+
+test('chercheCibles : début de nom, puis début de mot, puis le reste', () => {
+  const D = {
+    depots: [{ nom: 'mister-qowa' }, { nom: 'preact-render' }],
+    libs: [{ paquet: '@sentry/react' }, { paquet: 'react' }, { paquet: 'react-dom' }],
+  }
+  assert.deepEqual(
+    chercheCibles('react', D).map((c) => c.nom),
+    ['react', 'react-dom', '@sentry/react', 'preact-render'],
+  )
+  assert.deepEqual(chercheCibles('  QOWA ', D), [{ type: 'depot', nom: 'mister-qowa' }])
+  assert.deepEqual(chercheCibles('', D), [])
+  assert.equal(chercheCibles('r', D, 2).length, 2)
+})
+
+/* ── Les phrases de changement, partagées avec le flux Atom ─────────────── */
+
+test('phraseChangement : le nom propre d’abord, et un nouveau majeur se dit', () => {
+  const T = (cle, p = {}) => `[${cle}${Object.keys(p).length ? ' ' + JSON.stringify(p) : ''}]`
+  assert.deepEqual(phraseChangement({ type: 'ci-rouge', depot: 'a', workflow: 'CI' }, T), ['a', '[changements.ci-rouge {"workflow":"CI"}]'])
+  const amont = phraseChangement({ type: 'amont', paquet: '@sentry/react', de: '10.75.2', a: '11.0.0', majeur: true, nbDepots: 18 }, T)
+  assert.equal(amont[0], '@sentry/react')
+  assert.ok(amont.includes('[changements.amont.majeur]'))
+  assert.deepEqual(phraseChangement({ type: 'site-tombe', depot: 'b' }, T), ['b', '[changements.site-tombe]'])
+  assert.deepEqual(phraseChangement({ type: 'prod-retard', depot: 'c', retard: 2 }, T), ['c', '[changements.prod-retard {"n":2}]'])
 })

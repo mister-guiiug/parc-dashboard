@@ -9,6 +9,9 @@
          document tel qu'il arrive, et `noscript` n'aurait plus rien à dire. -->
     <title data-t="page.titre">Parc mister-guiiug — dépôts, pipelines, librairies</title>
     <meta name="description" data-t-content="page.description" content="État des dépôts git du parc : pipelines GitHub Actions, dernier CI/CD, versions des librairies." />
+    <!-- Le flux des changements, publié à côté de la page à chaque relevé :
+         un lecteur de flux le découvre ici, sans qu'on ait à le lui donner. -->
+    <link rel="alternate" type="application/atom+xml" href="changements.xml" title="Parc mister-guiiug — ce qui a bougé" />
     <style>
       __STYLE__
     </style>
@@ -47,6 +50,18 @@
             <a class="bouton" href="#librairies" data-t="outils.librairies">Librairies</a>
           </div>
         </div>
+
+        <!-- CE QUE LA PAGE DEMANDE DE FAIRE, avant ce qu'elle constate. Le
+             23/09/2026, tirer d'un relevé les montées à faire demandait de lire
+             onze écrans puis de recopier à la main — deux erreurs sur cinq
+             lignes. Les règles vivent dans `aFaire()` de `vue.mjs`. -->
+        <section class="carte aFaire" id="afaire" aria-labelledby="titreAFaire">
+          <div class="titreSection">
+            <h2 id="titreAFaire" data-t="afaire.h2">À faire</h2>
+            <span class="compteur" id="compteurAFaire"></span>
+          </div>
+          <ul class="listeAFaire" id="listeAFaire"></ul>
+        </section>
 
         <div class="bandeau">
           <div class="hero">
@@ -100,6 +115,35 @@
         <nav class="sommaire" id="sommaire" data-t-aria-label="sommaire.al" aria-label="Chapitres de la page"></nav>
         <button class="bouton" type="button" id="retourHaut" hidden data-t="sommaire.haut">↑ Haut de page</button>
       </div>
+
+      <!-- LA BARRE QUI RESTE : onze écrans se parcourent mal à la molette. Elle
+           colle en haut dès qu'on la dépasse, porte les chapitres et une
+           recherche qui MÈNE à un dépôt ou à une librairie — le filtre de chaque
+           section, lui, ne fait que masquer. « / » y amène le curseur. -->
+      <div class="barreNav" id="barreNav">
+        <div class="rechercheGlobale">
+          <input
+            class="champ"
+            id="rechercheGlobale"
+            type="search"
+            role="combobox"
+            aria-expanded="false"
+            aria-controls="resultatsGlobaux"
+            aria-autocomplete="list"
+            autocomplete="off"
+            spellcheck="false"
+            data-t-placeholder="nav.recherche"
+            data-t-aria-label="nav.recherche.al"
+            placeholder="Aller à un dépôt, une librairie… ( / )"
+            aria-label="Aller à un dépôt ou à une librairie"
+          />
+          <ul class="resultatsGlobaux" id="resultatsGlobaux" role="listbox" hidden></ul>
+        </div>
+        <nav class="liensSections" id="liensSections" data-t-aria-label="nav.sections" aria-label="Sections de la page"></nav>
+      </div>
+      <!-- Ce que la page annonce sans le montrer : « Copié », pour qui ne voit
+           pas le bouton changer. -->
+      <div class="sr" role="status" id="annonce"></div>
 
       <main id="contenu" tabindex="-1">
         <section id="echecs">
@@ -275,11 +319,17 @@
           <p class="vide" id="aucuneLigne" hidden data-t="matrice.aucuneLigne">Aucun dépôt ne répond à ces filtres.</p>
         </section>
 
-        <section id="elements">
+        <!-- DEUX SECTIONS REPLIÉES PAR DÉFAUT, les moins consultées et les plus
+             longues : la page tenait onze écrans. `until-found` et non `hidden`
+             nu — le Ctrl+F du navigateur les ouvre sur le mot cherché, comme les
+             cartes de dépôt. L'état se retient d'une visite à l'autre. -->
+        <section id="elements" data-repliable>
           <div class="titreSection">
             <h2 data-t="elements.h2">Table des éléments</h2>
             <span class="compteur" id="compteurElements"></span>
+            <button class="bouton pliSection" type="button" aria-expanded="false" aria-controls="corps-elements" data-t="section.deplier">Déplier</button>
           </div>
+          <div class="corpsSection" id="corps-elements" hidden="until-found">
           <p class="chapo" data-th="elements.chapo">
             La section « librairies » les liste, la matrice les croise avec les dépôts ; celle-ci répond à une autre question — <strong>de quoi ce parc est-il fait ?</strong> Une
             <strong>période</strong> (une ligne) dit combien de dépôts portent l'élément, en part du parc et non en nombre figé. Un <strong>groupe</strong> (une couleur) dit à quoi il sert. Le nombre
@@ -293,13 +343,16 @@
           <div class="filtres" id="legendeGroupes" role="group" data-t-aria-label="elements.groupes.al" aria-label="Filtrer par groupe"></div>
           <div id="periodes"></div>
           <p class="vide" id="aucunElement" hidden data-t="elements.aucun">Aucun élément ne répond à ces filtres.</p>
+          </div>
         </section>
 
-        <section id="activite">
+        <section id="activite" data-repliable>
           <div class="titreSection">
             <h2 data-t="activite.h2">Jours depuis le dernier commit local</h2>
             <span class="compteur" id="compteurActivite"></span>
+            <button class="bouton pliSection" type="button" aria-expanded="false" aria-controls="corps-activite" data-t="section.deplier">Déplier</button>
           </div>
+          <div class="corpsSection" id="corps-activite" hidden="until-found">
           <p class="chapo" data-t="activite.chapo">Mesuré sur la copie de travail, pas sur GitHub.</p>
           <div class="filtres">
             <!-- La clé est POSÉE PAR LE CODE à chaque bascule (`activite.tableau`
@@ -322,6 +375,7 @@
               </thead>
               <tbody id="corpsActivite"></tbody>
             </table>
+          </div>
           </div>
         </section>
       </main>
@@ -608,6 +662,9 @@
         amont: { p: '↑', c: 'var(--ink2)' },
         'depot-entre': { p: '+', c: 'var(--goodInk)' },
         'depot-sorti': { p: '−', c: 'var(--critical)' },
+        'site-tombe': { p: '✕', c: 'var(--critical)' },
+        'site-revenu': { p: '✓', c: 'var(--goodInk)' },
+        'prod-retard': { p: '!', c: 'var(--serious)' },
       }
 
       function rendChangements() {
@@ -617,22 +674,9 @@
         ul.textContent = ''
         if (!ch.length) return
         // Le premier bout est un nom propre — dépôt ou paquet — et reste en
-        // mono ; les suivants sont de la phrase, et se traduisent.
-        const phrase = (c) => {
-          if (c.type === 'ci-rouge' || c.type === 'ci-vert') return [c.depot, T('changements.' + c.type, { workflow: c.workflow })]
-          if (c.type === 'amont')
-            return [
-              c.paquet,
-              T('changements.amont', { a: c.a }),
-              c.de ? T('changements.amont.de', { de: c.de }) : '',
-              c.nbDepots ? T('changements.amont.depots', { n: c.nbDepots }) : '',
-            ]
-          if (c.type === 'dormante') return [c.paquet, T('changements.dormante')]
-          if (c.type === 'reveillee') return [c.paquet, T('changements.reveillee')]
-          if (c.type === 'alertes') return [T('changements.alertes'), T('changements.alertes.suite', { de: c.de, a: c.a })]
-          if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
-          return [c.depot, T('changements.depot-sorti')]
-        }
+        // mono ; les suivants sont de la phrase, et se traduisent. La phrase
+        // vit dans `phraseChangement` de `vue.mjs` : le flux Atom la partage.
+        const phrase = (c) => phraseChangement(c, T)
         for (const c of ch) {
           const li = el('li')
           const puce = PUCES_CHANGEMENT[c.type] || { p: '·', c: 'var(--muted)' }
@@ -647,6 +691,189 @@
           ul.append(li)
         }
         $('#compteurChangements').textContent = T('changements.compteur', { n: ch.length, quand: fmtHeure(D.compareA) })
+      }
+
+      /* ---------------- à faire ---------------- */
+
+      // Le NIVEAU d'une entrée, du cassé à l'entretien : il donne la couleur et
+      // le glyphe. Le glyphe est décoratif — la phrase dit toujours de quoi il
+      // s'agit, en toutes lettres.
+      const NIVEAU_A_FAIRE = {
+        rouges: 'critique',
+        sites: 'critique',
+        mortes: 'critique',
+        prod: 'attention',
+        fugaces: 'attention',
+        alertes: 'attention',
+        introuvables: 'attention',
+        prs: 'decision',
+        majeures: 'decision',
+        correctifs: 'entretien',
+        socle: 'entretien',
+        renovate: 'entretien',
+      }
+      const GLYPHES_A_FAIRE = { critique: '✕', attention: '!', decision: '◆', entretien: '↑' }
+      // au-delà, une rubrique se replie derrière « + N autres »
+      const DETAILS_VISIBLES = 5
+
+      /** Une pastille qui MÈNE quelque part : une carte, une ligne, une PR. */
+      function puceLien(texte, href, externe = false) {
+        const a = el('a', 'chipDepot', texte)
+        a.href = href
+        if (externe) {
+          a.target = '_blank'
+          a.rel = 'noopener'
+        }
+        return a
+      }
+
+      /** L'état de CI d'une PR : un glyphe, et le mot pour le lecteur d'écran. */
+      function pastilleCi(ci) {
+        const etat = ci === 'vert' || ci === 'rouge' || ci === 'encours' ? ci : 'jamais'
+        const s = el('span', 'etat')
+        const g = el('span', 'glyphe g-' + etat, GLYPHES[etat])
+        g.setAttribute('aria-hidden', 'true')
+        s.append(g, el('span', 'sr', T('pr.ci.' + etat)))
+        return s
+      }
+
+      /**
+       * LE TEXTE D'UNE DEMANDE DE MONTÉE, prêt à coller : le nom EXACT du paquet,
+       * la version cible, la gravité, puis chaque dépôt avec sa version — et
+       * « au lockfile seulement » quand il ne la déclare pas. Écrit pour qu'on ne
+       * puisse plus lire « react » là où il y avait `@sentry/react`.
+       */
+      function texteDemande(dm) {
+        const tete = T('demande.montee', { paquet: dm.paquet, cible: dm.cible, gravite: T('gravite.' + dm.gravite), n: dm.depots.length })
+        const lignes = dm.depots.map((x) => '- ' + T(x.transitif ? 'demande.depot.transitif' : 'demande.depot', { depot: x.depot, version: x.version }))
+        return [tete, ...lignes].join('\n')
+      }
+      /** Plusieurs demandes, datées par le relevé dont elles viennent. */
+      const texteDemandes = (liste) => [T('demande.entete', { quand: fmtHeure(D.genere) }), ...liste.map(texteDemande)].join('\n\n')
+
+      /**
+       * Copier, et le DIRE : le bouton change de libellé deux secondes, et la
+       * région `#annonce` le fait entendre. En `file://` ou quand le
+       * presse-papiers est refusé, l'ancien chemin — une zone de texte hors écran.
+       */
+      async function copie(texte, bouton) {
+        let ok = false
+        try {
+          await navigator.clipboard.writeText(texte)
+          ok = true
+        } catch {
+          const z = el('textarea')
+          z.value = texte
+          z.setAttribute('readonly', '')
+          z.style.position = 'fixed'
+          z.style.opacity = '0'
+          document.body.append(z)
+          z.select()
+          try {
+            ok = document.execCommand('copy')
+          } catch {
+            ok = false
+          }
+          z.remove()
+        }
+        const cle = ok ? 'demande.copiee' : 'demande.echec'
+        const avant = bouton.dataset.t
+        bouton.dataset.t = cle
+        bouton.textContent = T(cle)
+        $('#annonce').textContent = T(cle)
+        setTimeout(() => {
+          bouton.dataset.t = avant
+          bouton.textContent = T(avant)
+        }, 2000)
+      }
+
+      /**
+       * Un bouton « Copier la demande ». Le texte est calculé AU CLIC, dans la
+       * langue du moment ; la clé du libellé reste dans le DOM, comme ailleurs.
+       */
+      function boutonCopie(texte) {
+        const b = el('button', 'bouton copier', T('demande.copier'))
+        b.type = 'button'
+        b.dataset.t = 'demande.copier'
+        b.addEventListener('click', (e) => {
+          e.stopPropagation()
+          copie(texte(), b)
+        })
+        return b
+      }
+
+      /** Les versions d'où l'on part, sans doublon, de la plus récente à la plus ancienne. */
+      const versionsDe = (dm) => [...new Set(dm.depots.map((x) => x.version))].sort((a, b) => cmpVersion(b, a)).join(T('liste'))
+
+      function detailAFaire(cle, x) {
+        const carte = '#depot-' + x.depot
+        if (cle === 'rouges' || cle === 'alertes') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
+        if (cle === 'sites') return puceLien(x.depot, carte)
+        if (cle === 'prod') return puceLien(T('afaire.detail.prod', { depot: x.depot, n: x.retard }), carte)
+        if (cle === 'mortes' || cle === 'fugaces') return puceLien(T('afaire.detail.fichiers', { depot: x.depot, fichiers: x.fichiers.join(T('liste')) }), carte)
+        if (cle === 'prs') {
+          const a = puceLien('', x.url || carte, Boolean(x.url))
+          a.append(pastilleCi(x.ci), document.createTextNode(' ' + T('afaire.detail.pr', { depot: x.depot, num: x.num, titre: x.titre })))
+          if (x.robot) a.append(document.createTextNode(' '), el('span', 'badge', T('pr.robot')))
+          return a
+        }
+        if (cle === 'renovate')
+          return puceLien(T('afaire.detail.renovate', { depot: x.depot, n: x.n }) + (x.majeures ? T('afaire.detail.renovate.majeures', { n: x.majeures }) : ''), x.url, true)
+        if (cle === 'introuvables') return el('span', 'chipDepot', T('afaire.detail.introuvable', { paquet: x.paquet, n: x.depots.length }))
+        // majeures, correctifs, socle : une demande de montée, qui mène à sa ligne
+        const a = puceLien(T('afaire.detail.lib', { paquet: x.paquet, de: versionsDe(x), cible: x.cible, n: x.depots.length }), '#lib-' + x.paquet)
+        const lib = D.libs.find((l) => l.paquet === x.paquet)
+        const h = heuresDepuis(lib?.publieAmont, Date.now())
+        if (h !== null && h < FRAICHE_H) a.append(document.createTextNode(' '), el('span', 'badge fraiche', T('libs.fraiche')))
+        return a
+      }
+
+      function rendAFaire() {
+        const items = aFaire(D)
+        const ul = $('#listeAFaire')
+        ul.textContent = ''
+        $('#compteurAFaire').textContent = items.length ? T('afaire.compteur', { n: items.length }) : ''
+        if (!items.length) {
+          ul.append(el('li', 'aFaireVide', T('afaire.vide')))
+          return
+        }
+        for (const it of items) {
+          const niveau = NIVEAU_A_FAIRE[it.cle]
+          const li = el('li', 'aFaireLigne niv-' + niveau)
+          const g = el('span', 'aFaireGlyphe', GLYPHES_A_FAIRE[niveau])
+          g.setAttribute('aria-hidden', 'true')
+          const corps = el('div', 'aFaireCorps')
+          const tete = el('div', 'aFaireTete')
+          tete.append(el('strong', null, T('afaire.' + it.cle, { n: it.n })))
+          if (it.cle === 'majeures' || it.cle === 'correctifs' || it.cle === 'socle') tete.append(boutonCopie(() => texteDemandes(it.details)))
+          // CINQ DÉTAILS, PUIS UN BOUTON. Tout déplié, le bloc mesurait 2 274 px
+          // en largeur de téléphone : trois écrans de pastilles avant la
+          // première donnée, pour une rubrique dont la ligne de tête dit déjà
+          // l'essentiel.
+          const details = el('div', 'aFaireDetails')
+          const pastilles = it.details.map((x) => detailAFaire(it.cle, x))
+          pastilles.forEach((p, i) => {
+            if (i >= DETAILS_VISIBLES) p.hidden = true
+            details.append(p)
+          })
+          if (pastilles.length > DETAILS_VISIBLES) {
+            const reste = pastilles.length - DETAILS_VISIBLES
+            const plus = el('button', 'bouton plusDetails', T('afaire.plus', { n: reste }))
+            plus.type = 'button'
+            plus.setAttribute('aria-expanded', 'false')
+            plus.addEventListener('click', () => {
+              const ouvrir = plus.getAttribute('aria-expanded') !== 'true'
+              for (const p of pastilles.slice(DETAILS_VISIBLES)) p.hidden = !ouvrir
+              plus.setAttribute('aria-expanded', String(ouvrir))
+              plus.textContent = ouvrir ? T('afaire.moins') : T('afaire.plus', { n: reste })
+            })
+            details.append(plus)
+          }
+          corps.append(tete, details)
+          if (it.cle === 'introuvables') corps.append(el('p', 'aFaireAide', T('afaire.introuvables.aide')))
+          li.append(g, corps)
+          ul.append(li)
+        }
       }
 
       // --- petits multiples : un état par famille, sur la même échelle ---
@@ -806,6 +1033,11 @@
           b.title = T('carte.malLu.titre')
           tete.append(b)
         }
+        // LA PRODUCTION, dans la tête aussi : une carte pliée ne doit pas taire
+        // un site qui sert autre chose que `main`, ni une URL qui va mourir.
+        if (d.prod?.etat === 'retard') tete.append(el('span', 'badge alerte', T('carte.prod.badge')))
+        if (d.prod?.mortes?.length) tete.append(el('span', 'badge alerte grave', T('carte.mortes.badge')))
+        else if (d.prod?.fugaces?.length) tete.append(el('span', 'badge alerte', T('carte.fugaces.badge')))
         tete.append(resumeDepot(d))
         // Toute la tête déplie, pas seulement le bouton : à la souris, viser un
         // nom de dix caractères serait une cible étroite pour le geste le plus
@@ -874,7 +1106,43 @@
         l2.append(el('span', null, `${depuis(d.commit.jours)} · `), el('code', null, d.commit.sha), el('span', null, ' ' + d.commit.sujet.slice(0, 68) + (d.commit.sujet.length > 68 ? '…' : '')))
         l2.title = `${fmtDate(d.commit.date)} — ${d.commit.auteur} — ${d.commit.sujet}`
         meta.append(l1, l2)
+        const lp = ligneProd(d)
+        if (lp) meta.append(lp)
+        if (d.renovate) meta.append(ligneRenovate(d))
         corps.append(meta)
+
+        // Les URL de production qui meurent (ou mourront) : un bloc, comme les
+        // alertes, parce que c'est un défaut en ligne et pas une statistique.
+        if (d.prod?.mortes?.length) {
+          const b = el('div', 'malLu', T('carte.mortes', { fichiers: d.prod.mortes.join(T('liste')) }))
+          b.style.borderLeftColor = 'var(--critical)'
+          corps.append(b)
+        }
+        if (d.prod?.fugaces?.length) {
+          const b = el('div', 'malLu', T('carte.fugaces', { fichiers: d.prod.fugaces.join(T('liste')) }))
+          b.style.borderLeftColor = 'var(--warning)'
+          corps.append(b)
+        }
+
+        // Les PR ouvertes, nommées, avec leur CI : la tête ne disait qu'un nombre.
+        if (d.prs.length) {
+          const liste = el('ul', 'prListe')
+          for (const p of d.prs) {
+            const li = el('li')
+            const a = el('a', null, '')
+            if (p.url) {
+              a.href = p.url
+              a.target = '_blank'
+              a.rel = 'noopener'
+            }
+            a.append(pastilleCi(p.ci), document.createTextNode(` #${p.num} ${p.titre}`))
+            li.append(a)
+            if (p.robot) li.append(document.createTextNode(' '), el('span', 'badge', T('pr.robot')))
+            if (p.brouillon) li.append(document.createTextNode(' '), el('span', 'badge', T('pr.brouillon')))
+            liste.append(li)
+          }
+          corps.append(liste)
+        }
 
         if (d.workflows.length) {
           const liste = el('div', 'wfListe')
@@ -998,6 +1266,51 @@
         return r
       }
 
+      // L'état de la production et son glyphe : servie = `main` (ou n'en diffère
+      // que hors build), en train de partir, en retard, ou impossible à juger.
+      const GLYPHE_PROD = { aJour: 'vert', equivalent: 'vert', deploiement: 'encours', retard: 'rouge', inconnu: 'neutre', absente: 'neutre' }
+
+      /**
+       * « Production · 9fb31f7 = main, construite il y a 2 heures » — ce que
+       * l'app sert EN LIGNE, comparé à ce qui est fusionné. Aucune CI ne le
+       * dit : un déploiement bloqué laisse un vert et une production d'hier.
+       */
+      function ligneProd(d) {
+        const p = d.prod
+        if (!p) return null
+        const etat = p.etat === 'inconnu' && !p.commit ? 'absente' : p.etat
+        const l = el('div')
+        l.append(el('span', 'cle', T('carte.prod')))
+        const g = el('span', 'glyphe g-' + GLYPHE_PROD[etat], GLYPHES[GLYPHE_PROD[etat]])
+        g.style.display = 'inline-grid'
+        g.setAttribute('aria-hidden', 'true')
+        const construite = p.construit ? heuresDepuis(p.construit, Date.now()) : null
+        const params = {
+          commit: p.commit,
+          branche: d.brancheDefaut,
+          n: p.retard ?? 0,
+          quand: construite === null ? T('temps.rien') : ilYa(Math.floor(construite * 60)),
+        }
+        l.append(g, document.createTextNode(' ' + T('carte.prod.' + etat, params)))
+        if (p.construit) l.title = T('carte.prod.titre', { quand: fmtHeure(p.construit) })
+        return l
+      }
+
+      /** « Renovate · 5 mises à jour en attente, dont 3 majeures » — et ce qu'il ne sait pas résoudre. */
+      function ligneRenovate(d) {
+        const r = d.renovate
+        const l = el('div')
+        l.append(el('span', 'cle', T('carte.renovate')))
+        const a = el('a', null, T('carte.renovate.attente', { n: r.enAttente }) + (r.majeures ? T('carte.renovate.majeures', { n: r.majeures }) : ''))
+        a.href = r.issue
+        a.target = '_blank'
+        a.rel = 'noopener'
+        if (r.mises?.length) a.title = r.mises.map((m) => (m.majeure ? '◆ ' : '· ') + m.titre).join('\n')
+        l.append(a)
+        if (r.introuvables?.length) l.append(el('span', null, T('carte.renovate.introuvables', { paquets: r.introuvables.join(T('liste')) })))
+        return l
+      }
+
       /** Met la carte en accord avec l'ensemble `ouverts`. */
       function appliquePli(article) {
         const ouvert = ouverts.has(article.dataset.depot)
@@ -1087,13 +1400,54 @@
        * aurait fait atterrir chacun de ces liens sur un titre muet.
        */
       function ouvreDepuisAncre() {
-        const m = /^#depot-(.+)$/.exec(decodeURIComponent(location.hash))
+        const h = decodeURIComponent(location.hash)
+        // une section repliée s'ouvre quand on y va — par le sommaire, la barre
+        const section = /^#([\w-]+)$/.exec(h)
+        if (section && document.getElementById(section[1])?.hasAttribute('data-repliable')) {
+          ouvreSection(section[1], true)
+          return
+        }
+        // une librairie : le flux Atom et la recherche de la barre y mènent
+        const lib = /^#lib-(.+)$/.exec(h)
+        if (lib) {
+          allerLib(lib[1])
+          return
+        }
+        const m = /^#depot-(.+)$/.exec(h)
         if (!m) return
         if (!ouverts.has(m[1])) {
           ouverts.add(m[1])
           rendDepots()
         }
-        document.getElementById('depot-' + m[1])?.scrollIntoView({ block: 'start' })
+        let carte = document.getElementById('depot-' + m[1])
+        // UN LIEN NE DOIT PAS MENER NULLE PART : si un filtre masque la carte,
+        // on lève les filtres plutôt que de laisser le lecteur sur place.
+        if (!carte && D.depots.some((d) => d.nom === m[1])) {
+          remetDepots()
+          ouverts.add(m[1])
+          rendDepots()
+          carte = document.getElementById('depot-' + m[1])
+        }
+        carte?.scrollIntoView({ block: 'start' })
+      }
+
+      /**
+       * Mener à la ligne d'une librairie, et l'ouvrir. La ligne doit exister :
+       * les filtres qui la masqueraient sont levés, et une librairie d'un seul
+       * dépôt — cachée par défaut — fait presser « Mono-dépôt compris ».
+       */
+      function allerLib(paquet) {
+        const l = D.libs.find((x) => x.paquet === paquet)
+        if (!l) return
+        for (const b of document.querySelectorAll('#filtreRetard, #filtreEclate')) b.setAttribute('aria-pressed', 'false')
+        if (l.nbDepots < 2) $('#filtreToutes').setAttribute('aria-pressed', 'true')
+        $('#rechercheLib').value = paquet
+        rendLibs()
+        const tr = document.getElementById('lib-' + paquet)
+        if (!tr) return
+        if (tr.nextElementSibling?.hidden) tr.click()
+        tr.scrollIntoView({ block: 'start' })
+        tr.focus({ preventScroll: true })
       }
       window.addEventListener('hashchange', ouvreDepuisAncre)
       // chips de famille, construits d'après les données : une famille vide
@@ -1224,6 +1578,8 @@
         tb.textContent = ''
         for (const l of liste) {
           const tr = el('tr', 'libLigne')
+          // l'ancre d'une librairie : la recherche de la barre et le flux Atom y mènent
+          tr.id = 'lib-' + l.paquet
           tr.tabIndex = 0
           const c0 = el('td', null, '')
           c0.append(el('span', 'flecheDetail', '▸'))
@@ -1239,6 +1595,13 @@
             c1.append(document.createTextNode(' '), b)
           }
           if (l.paquet === D.socle) c1.append(document.createTextNode(' '), el('span', 'badge', T('pile.socle')))
+          // LES TRANSITIFS COMPTENT, ET SE DISENT. Une pair du socle que le dépôt
+          // ne déclare pas tourne quand même — c'est son lockfile qui la fige.
+          if (l.nbTransitifs) {
+            const b = el('span', 'badge', T('libs.transitifs', { n: l.nbTransitifs }))
+            b.title = T('libs.transitifs.titre')
+            c1.append(document.createTextNode(' '), b)
+          }
           const c2 = el('td', 'num', String(l.nbDepots))
           const c3 = el('td')
           const bar = el('div', 'repartition')
@@ -1258,6 +1621,16 @@
           bar.setAttribute('aria-label', T('libs.barre.al', { paquet: l.paquet, detail: segs.map((s) => T('libs.barre.al.seg', { n: s.n, version: s.v })).join(T('liste')) }))
           c3.append(bar)
           const c4 = el('td', 'num', l.amont || T('temps.rien'))
+          // L'ÂGE DE L'AMONT sous le numéro : une version de moins de 24 h est
+          // FRAÎCHE — pnpm 12 refuse de l'installer, et un correctif du
+          // correctif sort souvent le lendemain.
+          const heures = l.amont ? heuresDepuis(l.publieAmont, Date.now()) : null
+          if (heures !== null) {
+            const fraiche = heures < FRAICHE_H
+            const age = el('span', 'ageAmont' + (fraiche ? ' fraiche' : ''), fraiche ? T('libs.fraiche') : ilYa(Math.floor(heures * 60)))
+            age.title = T(fraiche ? 'libs.fraiche.titre' : 'libs.publiee', { quand: fmtHeure(l.publieAmont) })
+            c4.append(age)
+          }
           const c5 = el('td', 'num')
           if (l.enRetard == null) c5.textContent = T('temps.rien')
           else {
@@ -1267,8 +1640,13 @@
             const g = el('span', 'glyphe ' + (enRetard ? 'g-encours' : 'g-vert'), enRetard ? '!' : '✓')
             g.setAttribute('aria-hidden', 'true')
             m.append(g)
-            if (enRetard) m.append(el('span', 'sr', T('libs.retard.sr')), el('span', null, `${l.enRetard}/${l.nbDepots}`))
-            else if (l.majeursAdmis) {
+            if (enRetard) {
+              m.append(el('span', 'sr', T('libs.retard.sr')), el('span', null, `${l.enRetard}/${l.nbDepots}`))
+              // LA GRAVITÉ, à côté du compte : « 23/23 » pour un correctif et
+              // « 18/18 » pour un nouveau majeur ne se lisaient pas autrement.
+              const g2 = graviteRetard(l)
+              if (g2) m.append(el('span', 'badge gravite gravite-' + g2, T('gravite.' + g2)))
+            } else if (l.majeursAdmis) {
               // SANS CETTE LIGNE, LE VERT MENT PAR OMISSION. Vingt-deux dépôts
               // en 6.0.3 sous un amont en 7.0.2 affichés « à jour » se lisent
               // comme une erreur de mesure. Le tableau dit donc quels majeurs
@@ -1283,14 +1661,27 @@
           detail.hidden = true
           const dc = el('td')
           dc.colSpan = 6
+          // Ce qu'on FAIT d'une ligne : copier la demande de montée, lire ce que
+          // la version amont change.
+          const actions = el('div', 'actionsLib')
+          const dm = demandeMontee(l)
+          if (dm) actions.append(boutonCopie(() => texteDemandes([dm])))
+          if (l.depotAmont) {
+            const notes = el('a', null, T('libs.notes'))
+            notes.href = `https://github.com/${l.depotAmont}/releases`
+            notes.target = '_blank'
+            notes.rel = 'noopener'
+            actions.append(notes)
+          }
+          if (actions.childNodes.length) dc.append(actions)
           for (const v of l.versions) {
             const b = el('div', 'versionBloc')
             b.append(el('span', 'versionCle', v.version))
             if (l.amont && v.version !== l.amont) b.append(el('span', 'badge', T('libs.detail.amont', { amont: l.amont })))
             for (const dep of v.depots) {
-              const ch = el('a', 'chipDepot', dep.depot)
+              const ch = el('a', 'chipDepot' + (dep.transitif ? ' transitif' : ''), dep.depot)
               ch.href = '#depot-' + dep.depot
-              ch.title = T(dep.verrouille ? 'libs.detail.plage' : 'libs.detail.plageSeule', { plage: dep.plage })
+              ch.title = dep.transitif ? T('libs.detail.transitif') : T(dep.verrouille ? 'libs.detail.plage' : 'libs.detail.plageSeule', { plage: dep.plage })
               b.append(ch)
             }
             dc.append(b)
@@ -1542,6 +1933,13 @@
           a.target = '_blank'
           a.rel = 'noopener'
           ligne.append(a)
+          // Le flux n'existe que là où `etat.json` existe — sur le site publié :
+          // l'offrir en `file://` mènerait à un fichier absent.
+          ligne.append(' · ')
+          const flux = el('a', null, T('fraicheur.flux'))
+          flux.href = 'changements.xml'
+          flux.type = 'application/atom+xml'
+          ligne.append(flux)
         }
 
         const annonce = f?.nouveau ?? null
@@ -1936,6 +2334,8 @@
       const chapitres = [...document.querySelectorAll('#familles, main section[id]')].filter((s) => s.querySelector('h2'))
       const nav = $('#sommaire')
       const liens = new Map()
+      // les mêmes chapitres, dans la barre fixe ; même règle que `liens`
+      const liensBarre = new Map()
 
       // `liens` est VIDÉE et remplie, jamais remplacée : l'observateur
       // d'intersection ferme sur cette Map-là, et lui en substituer une autre
@@ -1951,6 +2351,22 @@
           a.href = '#' + s.id
           liens.set(s.id, a)
           nav.append(a)
+        }
+      }
+
+      /** Les chapitres dans la barre fixe, précédés du bloc « À faire ». */
+      function rendLiensSections() {
+        const barre = $('#liensSections')
+        barre.textContent = ''
+        liensBarre.clear()
+        const aFaireLien = el('a', null, T('afaire.h2'))
+        aFaireLien.href = '#afaire'
+        barre.append(aFaireLien)
+        for (const s of chapitres) {
+          const a = el('a', null, s.querySelector('h2').textContent.trim())
+          a.href = '#' + s.id
+          liensBarre.set(s.id, a)
+          barre.append(a)
         }
       }
 
@@ -1973,6 +2389,7 @@
             }
             const courant = chapitres.map((s) => s.id).find((id) => vus.has(id))
             for (const [id, a] of liens) a.setAttribute('aria-current', String(id === courant))
+            for (const [id, a] of liensBarre) a.setAttribute('aria-current', String(id === courant))
           },
           { rootMargin: '-10% 0px -70% 0px' },
         )
@@ -2187,15 +2604,23 @@
         for (const b of document.querySelectorAll(sel)) b.setAttribute('aria-pressed', 'false')
       }
 
+      /** Ramène la section « Dépôts » à son état de départ — les boutons ET les ensembles. */
+      function remetDepots() {
+        $('#recherche').value = ''
+        relache('#filtresFamilles button, [data-filtre]')
+        // Relâcher les boutons ne suffisait pas : `rendDepots` lit ces deux
+        // ensembles, pas l'état des boutons. « Tout réafficher » laissait donc
+        // les cartes filtrées sous des boutons qui disaient le contraire.
+        famillesActives.clear()
+        filtresActifs.clear()
+        $('#tri').value = 'echecs'
+        ouverts.clear()
+      }
+
       const razDepots = brancheRaz(
         'depots',
         () => !$('#recherche').value && !presse('#filtresFamilles button, [data-filtre]') && $('#tri').value === 'echecs' && ouverts.size === 0,
-        () => {
-          $('#recherche').value = ''
-          relache('#filtresFamilles button, [data-filtre]')
-          $('#tri').value = 'echecs'
-          ouverts.clear()
-        },
+        remetDepots,
         () => rendDepots(),
       )
 
@@ -2386,6 +2811,7 @@
        */
       function rendTout() {
         rendEntete()
+        rendAFaire()
         rendChangements()
         rendFamilles()
         rendEchecs()
@@ -2394,6 +2820,7 @@
         rendFraicheur()
         rendActiviteGraphe()
         rendSommaire()
+        rendLiensSections()
         rendDepots()
         rendLibs()
         rendMatrice()
@@ -2429,6 +2856,132 @@
       }
       $('#langue').value = LANGUE
       $('#langue').addEventListener('change', () => appliqueLangue($('#langue').value))
+
+      /* ---------------- sections repliables ---------------- */
+
+      const CLE_SECTIONS = 'parc-dashboard:sections-ouvertes'
+      const sectionsOuvertes = new Set(
+        (() => {
+          try {
+            return JSON.parse(localStorage.getItem(CLE_SECTIONS) || '[]')
+          } catch {
+            return []
+          }
+        })(),
+      )
+      /** Ouvre ou replie une section `data-repliable`, et s'en souvient. */
+      function ouvreSection(id, ouvrir) {
+        const corps = document.getElementById('corps-' + id)
+        const b = document.getElementById(id)?.querySelector('.pliSection')
+        if (!corps || !b) return
+        if (ouvrir) {
+          corps.removeAttribute('hidden')
+          sectionsOuvertes.add(id)
+        } else {
+          corps.setAttribute('hidden', 'until-found')
+          sectionsOuvertes.delete(id)
+        }
+        b.setAttribute('aria-expanded', String(ouvrir))
+        // la clé suit l'état, comme ailleurs : la traduction relit le bon libellé
+        b.dataset.t = ouvrir ? 'section.replier' : 'section.deplier'
+        b.textContent = T(b.dataset.t)
+        try {
+          localStorage.setItem(CLE_SECTIONS, JSON.stringify([...sectionsOuvertes]))
+        } catch {
+          // stockage refusé : l'état ne survivra pas à la visite, sans plus
+        }
+      }
+      for (const s of document.querySelectorAll('section[data-repliable]')) {
+        const b = s.querySelector('.pliSection')
+        b.addEventListener('click', () => ouvreSection(s.id, b.getAttribute('aria-expanded') !== 'true'))
+        // le Ctrl+F du navigateur ouvre la section qui porte le mot cherché
+        document.getElementById('corps-' + s.id).addEventListener('beforematch', () => ouvreSection(s.id, true))
+        ouvreSection(s.id, sectionsOuvertes.has(s.id))
+      }
+
+      /* ---------------- recherche de la barre ---------------- */
+
+      /**
+       * UNE RECHERCHE QUI MÈNE, et non qui masque : les filtres de section
+       * cachent ce qui ne correspond pas ; celle-ci conduit au dépôt ou à la
+       * librairie choisie, l'ouvre, et lève au besoin ce qui la cachait.
+       * Motif ARIA « combobox » : les flèches parcourent, Entrée choisit,
+       * Échap referme. Le classement vit dans `chercheCibles` de `vue.mjs`.
+       */
+      const champGlobal = $('#rechercheGlobale')
+      const listeGlobale = $('#resultatsGlobaux')
+      let resultatsGlobaux = []
+      let actifGlobal = -1
+      function fermeResultats() {
+        resultatsGlobaux = []
+        actifGlobal = -1
+        listeGlobale.textContent = ''
+        listeGlobale.hidden = true
+        champGlobal.setAttribute('aria-expanded', 'false')
+        champGlobal.removeAttribute('aria-activedescendant')
+      }
+      function rendResultats() {
+        resultatsGlobaux = chercheCibles(champGlobal.value, D)
+        listeGlobale.textContent = ''
+        listeGlobale.hidden = !resultatsGlobaux.length
+        champGlobal.setAttribute('aria-expanded', String(resultatsGlobaux.length > 0))
+        resultatsGlobaux.forEach((c, i) => {
+          const li = el('li', 'resultat')
+          li.id = 'resultat-' + i
+          li.setAttribute('role', 'option')
+          li.setAttribute('aria-selected', String(i === actifGlobal))
+          li.append(el('span', 'badge', T(c.type === 'depot' ? 'nav.type.depot' : 'nav.type.lib')), document.createTextNode(' '), el('span', 'mono', c.nom))
+          // `mousedown` et non `click` : le clic arriverait après le `blur` du
+          // champ, qui a déjà refermé la liste.
+          li.addEventListener('mousedown', (e) => {
+            e.preventDefault()
+            allerA(c)
+          })
+          listeGlobale.append(li)
+        })
+        if (resultatsGlobaux[actifGlobal]) champGlobal.setAttribute('aria-activedescendant', 'resultat-' + actifGlobal)
+        else champGlobal.removeAttribute('aria-activedescendant')
+      }
+      function allerA(c) {
+        fermeResultats()
+        champGlobal.value = ''
+        champGlobal.blur()
+        // par l'ancre : le lien est partageable, et `hashchange` fait le reste
+        const cible = (c.type === 'depot' ? '#depot-' : '#lib-') + c.nom
+        if (location.hash === cible) ouvreDepuisAncre()
+        else location.hash = cible
+      }
+      champGlobal.addEventListener('input', () => {
+        actifGlobal = -1
+        rendResultats()
+      })
+      champGlobal.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' && resultatsGlobaux.length) {
+          e.preventDefault()
+          actifGlobal = Math.min(resultatsGlobaux.length - 1, actifGlobal + 1)
+          rendResultats()
+        } else if (e.key === 'ArrowUp' && resultatsGlobaux.length) {
+          e.preventDefault()
+          actifGlobal = Math.max(0, actifGlobal - 1)
+          rendResultats()
+        } else if (e.key === 'Enter') {
+          const c = resultatsGlobaux[Math.max(0, actifGlobal)]
+          if (c) {
+            e.preventDefault()
+            allerA(c)
+          }
+        } else if (e.key === 'Escape') {
+          fermeResultats()
+        }
+      })
+      champGlobal.addEventListener('blur', () => setTimeout(fermeResultats, 120))
+      // « / » amène le curseur dans la recherche — sauf quand on écrit ailleurs.
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+        if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return
+        e.preventDefault()
+        champGlobal.focus()
+      })
 
       litUrl()
 

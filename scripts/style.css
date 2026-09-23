@@ -1007,7 +1007,13 @@ footer {
   font-size: 13.5px;
   padding: 18px;
 }
-[hidden] {
+/* SAUF `hidden="until-found"`. Cette règle en faisait un `display: none`, et un
+   contenu en `display: none` échappe à la recherche du navigateur : le Ctrl+F
+   qui devait ouvrir la carte portant le mot cherché ne trouvait jamais rien.
+   Mesuré le 23/09/2026 — `display: none` sur chaque corps de carte replié.
+   Laissé au navigateur, `until-found` pose `content-visibility: hidden` : rien
+   ne se voit, et tout se trouve. */
+[hidden]:not([hidden='until-found']) {
   display: none !important;
 }
 
@@ -1391,4 +1397,226 @@ footer {
   .colonnes {
     display: none;
   }
+}
+
+/* ---------- à faire ---------- */
+.aFaire {
+  padding: 14px 18px;
+  margin: 0 0 18px;
+}
+.listeAFaire {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.aFaireLigne {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.aFaireGlyphe {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.niv-critique .aFaireGlyphe {
+  color: var(--critical);
+}
+.niv-attention .aFaireGlyphe {
+  color: var(--serious);
+}
+.niv-decision .aFaireGlyphe {
+  color: var(--series1);
+}
+.niv-entretien .aFaireGlyphe {
+  color: var(--muted);
+}
+.aFaireCorps {
+  flex: 1;
+  min-width: 0;
+}
+.aFaireTete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.aFaireDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.aFaireDetails .chipDepot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.aFaireAide {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink2);
+  max-width: 92ch;
+}
+.aFaireVide {
+  font-size: 13.5px;
+  color: var(--ink2);
+}
+.bouton.copier {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+/* ---------- gravité et âge d'un retard ---------- */
+/* L'encre reste celle du texte : c'est la BORDURE qui porte la couleur, et le
+   mot qui porte le sens — aucune de ces teintes ne tient le 4,5:1 en texte sur
+   les deux thèmes. */
+.badge.gravite {
+  margin-left: 6px;
+  color: var(--ink);
+}
+.badge.gravite-patch {
+  border-color: var(--baseline);
+}
+.badge.gravite-mineure {
+  border-color: var(--warning);
+}
+.badge.gravite-majeure {
+  border-color: var(--critical);
+  font-weight: 600;
+}
+.ageAmont {
+  display: block;
+  font-size: 11px;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.ageAmont.fraiche,
+.badge.fraiche {
+  color: var(--ink);
+  font-weight: 600;
+}
+.badge.fraiche {
+  border-color: var(--warning);
+}
+.actionsLib {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 2px 0 10px;
+  font-size: 12.5px;
+}
+/* Une pair du socle que le dépôt ne déclare pas : même pastille, trait tireté. */
+.chipDepot.transitif {
+  border-style: dashed;
+  font-style: italic;
+}
+
+/* ---------- les PR d'une carte ---------- */
+.prListe {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.prListe a {
+  color: var(--ink2);
+}
+.prListe .etat {
+  margin-right: 2px;
+}
+
+/* ---------- barre de navigation fixe ---------- */
+.barreNav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 -8px 12px;
+  padding: 8px;
+  background: var(--page);
+  border-bottom: 1px solid var(--border);
+}
+.rechercheGlobale {
+  position: relative;
+  flex: 0 1 340px;
+  min-width: 200px;
+}
+.rechercheGlobale .champ {
+  width: 100%;
+  max-width: none;
+}
+.resultatsGlobaux {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.resultat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.resultat[aria-selected='true'],
+.resultat:hover {
+  background: var(--ghost2);
+}
+.liensSections {
+  display: flex;
+  gap: 4px 14px;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 13px;
+  scrollbar-width: thin;
+}
+.liensSections a {
+  color: var(--ink2);
+  text-decoration: none;
+  padding: 2px 0;
+  border-bottom: 2px solid transparent;
+}
+.liensSections a:hover,
+.liensSections a[aria-current='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+/* La barre porte déjà les chapitres : sur un écran large, le sommaire flottant
+   ferait double emploi. Il reste utile là où la barre les fait défiler. */
+@media (min-width: 900px) {
+  #basculeSommaire,
+  #sommaire {
+    display: none;
+  }
+}
+
+/* ---------- sections repliables ---------- */
+.pliSection {
+  margin-left: auto;
+  padding: 3px 11px;
+  font-size: 12px;
 }

@@ -22,11 +22,56 @@ Elle se régénère **toute seule chaque heure** (workflow [`releve.yml`](.githu
 | Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
 | Qu'est-ce qui a changé depuis la photo du jour ? | bandeau « Ce qui a bougé », sous les tuiles |
 | La page est-elle à jour ? | ligne « Vérifié il y a … » sous le titre, et bandeau « relevé plus récent » en tête |
+| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, PR, majeurs, correctifs, socle, Renovate |
+| Comment demander une montée sans ambiguïté ? | bouton « Copier la demande » : nom exact, cible, gravité, chaque dépôt et sa version |
+| Ce qui tourne en ligne est-il ce qui est fusionné ? | ligne « Production » de chaque carte (`version.json` comparé à `main`) |
+| Une URL de production va-t-elle mourir ? | morceaux fugaces et URL mortes, sur la carte et dans « À faire » |
+| Qu'attend Renovate, et que ne voit-il pas ? | ligne « Renovate » de chaque carte, et deux rubriques de « À faire » |
+| Comment être prévenu sans ouvrir la page ? | flux Atom `changements.xml`, lien sous le titre |
+| Comment aller droit à un dépôt ou à une librairie ? | recherche de la barre fixe — touche `/` |
 | Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
 | Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
-| Où suis-je dans la page, et comment revenir en haut ? | sommaire flottant en bas à droite |
+| Où suis-je dans la page, et comment revenir en haut ? | barre fixe en haut, chapitre courant souligné ; sommaire flottant en bas à droite sur petit écran |
 | Et en anglais ? | liste déroulante en haut à droite — voir « Les deux langues » |
+
+## Ce que la page demande de faire
+
+Depuis le 23/09/2026, la page ne se contente plus de constater. Tirer d'un relevé
+la liste des montées à faire demandait de lire onze écrans puis de recopier à la
+main — et la recopie du matin même avait donné « node 26.6.1 » pour `@types/node`
+26.6.2, « react 10.75.1 » pour `@sentry/react`.
+
+- **« À faire »**, en tête, range du cassé à l'entretien (`aFaire` de
+  [`vue.mjs`](scripts/vue.mjs)) : cinq détails par rubrique, le reste derrière
+  « + N autres ».
+- **La gravité d'un retard** — correctif, mineure, majeure — et **l'âge de la
+  version amont** : « moins de 24 h » signale ce que pnpm 12 refuse encore.
+- **« Copier la demande »** : le nom exact du paquet, la cible, la gravité, puis
+  chaque dépôt avec sa version, « au lockfile seulement » pour un transitif.
+- **Les transitifs** : les pairs dures du socle sont suivies jusque dans les
+  lockfiles des dépôts qui ne les déclarent pas. `typescript-eslint` y était figé
+  dans 22 dépôts ; la page en comptait 5.
+- **La production** : le `version.json` que chaque app publie, comparé à `main`
+  — à jour, équivalente (seuls des fichiers hors build ont changé), déploiement
+  en cours (tête de moins de 30 min), en retard. Et ses **morceaux fugaces** :
+  la règle `chunk-hors-precache` du docteur, appliquée au site en ligne ; chaque
+  morceau hors précache est demandé pour de vrai, une URL qui ne répond pas est
+  MORTE.
+- **Renovate** : les « Dependency Dashboard » du compte, lus en une recherche —
+  ce qui attend le samedi, et ce que Renovate ne sait pas résoudre. Le socle,
+  publié sur GitHub Packages, en fait partie : Renovate ne proposera jamais sa
+  montée tant qu'on ne lui donne pas de jeton.
+- **Le flux Atom** `changements.xml` : chaque transition horaire, datée, avec les
+  phrases de la page (`phraseChangement`).
+- **La barre fixe** : les chapitres, et une recherche qui MÈNE au dépôt ou à la
+  librairie — la touche `/` y amène le curseur. Deux sections longues et peu
+  consultées se replient ; le Ctrl+F du navigateur les rouvre.
+
+Les règles de la collecte (production, fugaces, Renovate, pairs, journal, Atom)
+vivent dans [`scripts/collecte.mjs`](scripts/collecte.mjs), éprouvées par
+[`test/collecte.test.mjs`](test/collecte.test.mjs) — dont un extrait RÉEL d'un
+tableau Renovate. Ce module n'est pas inséré dans la page.
 
 ## La matrice des écarts
 
@@ -231,7 +276,7 @@ node scripts/releve.mjs
 ```
 
 Un seul script, sans dépendance : `GITHUB_TOKEN` (ou `PARC_TOKEN`) dans
-l'environnement, 343 appels d'API, et `index.html` est réécrit.
+l'environnement, environ 350 appels d'API (un de plus par PR ouverte, pour sa CI), et `index.html` est réécrit.
 
 | Option | Effet | Écrit dans |
 |---|---|---|
