@@ -30,7 +30,7 @@ import assert from 'node:assert/strict'
 
 import { DEFAUT, LANGUES, LIBELLES, choisitLangue, interpole, traducteur } from '../scripts/libelles.mjs'
 import { SOCLE, classe } from '../scripts/regles.mjs'
-import { GROUPES, PERIODES, elementsHorsNpm } from '../scripts/vue.mjs'
+import { GRAVITES, GROUPES, ORDRE_A_FAIRE, PERIODES, elementsHorsNpm } from '../scripts/vue.mjs'
 import { pileDuDepot } from '../scripts/modele.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
@@ -195,12 +195,22 @@ const FAMILLES_DYNAMIQUES = [
   { prefixe: 'maturite.', membres: ['alpha', 'beta', 'stable', 'aucune'] },
   // `rangEcart()` de vue.mjs, moins les deux rangs sans écart (`0`, `absent`).
   { prefixe: 'matrice.rang.', membres: ['majeure', 'mineure', 'patch'] },
-  // `changementsDepuis()` de regles.mjs — les huit types de son barème `rang`.
+  // `changementsDepuis()` de regles.mjs — les onze types de son barème `rang`.
   {
     prefixe: 'changements.',
-    membres: ['ci-rouge', 'ci-vert', 'alertes', 'dormante', 'reveillee', 'amont', 'depot-entre', 'depot-sorti'],
+    membres: ['ci-rouge', 'ci-vert', 'alertes', 'dormante', 'reveillee', 'amont', 'depot-entre', 'depot-sorti', 'site-tombe', 'site-revenu', 'prod-retard'],
     partielle: true,
   },
+  // `aFaire()` de vue.mjs : une entrée par clé de `ORDRE_A_FAIRE`, importé —
+  // une rubrique ajoutée demain n'aura pas à être recopiée ici.
+  { prefixe: 'afaire.', membres: ORDRE_A_FAIRE, partielle: true },
+  // `graviteRetard()` de vue.mjs.
+  { prefixe: 'gravite.', membres: GRAVITES },
+  // `etatProd()` de collecte.mjs, plus `absente` — une production sans
+  // `version.json`, que la page distingue d'une comparaison impossible.
+  { prefixe: 'carte.prod.', membres: ['aJour', 'equivalent', 'deploiement', 'retard', 'inconnu', 'absente'], partielle: true },
+  // `etatChecks()` de collecte.mjs, `jamais` quand une PR n'a aucun check.
+  { prefixe: 'pr.ci.', membres: ['vert', 'rouge', 'encours', 'jamais'] },
   // `FAMILLES` de releve.mjs, trois libellés chacune.
   { prefixe: 'famille.', membres: ['pwa', 'desktop', 'socle', 'autre'].flatMap((f) => [f + '.titre', f + '.sous', f + '.court']), partielle: true },
   // `GROUPES` de vue.mjs, importé : depuis qu'il ne porte plus que des clés
@@ -272,7 +282,9 @@ test('toute clé du dictionnaire est DEMANDÉE quelque part', () => {
   // Les clés écrites en littéral par les modules de calcul (`role.*`,
   // `pile.*`, `periode.*`, `element.ver.*`) et celles construites à
   // l'exécution.
-  const sources = GABARIT + lis('vue.mjs') + lis('modele.mjs') + lis('regles.mjs')
+  // `releve.mjs` en est depuis le flux Atom : il demande `flux.titre`, que la
+  // page ne dit jamais.
+  const sources = GABARIT + lis('vue.mjs') + lis('modele.mjs') + lis('regles.mjs') + lis('releve.mjs')
   for (const m of sources.matchAll(/'([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9-]+)+)'/g)) vues.add(m[1])
   for (const { prefixe, membres } of FAMILLES_DYNAMIQUES) for (const x of membres) vues.add(prefixe + x)
   const orphelines = Object.keys(LIBELLES[DEFAUT]).filter((c) => !vues.has(c))

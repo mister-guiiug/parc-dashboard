@@ -206,7 +206,9 @@ export function fond(modele) {
   delete o.compareA
   // L'historique est un JOURNAL : il grandit à chaque publication, donc le
   // compter reviendrait à publier une fois de plus chaque fois qu'on publie.
+  // Le journal des changements (flux Atom), pour la même raison.
   delete o.historique
+  delete o.journal
   for (const d of o.depots || []) {
     if (d.pages) delete d.pages.ms
   }
@@ -317,13 +319,25 @@ export function changementsDepuis(av, ap) {
       if (!p || !conclusif(p.etat) || !conclusif(w.etat) || p.etat === w.etat) continue
       out.push({ type: w.etat === 'rouge' ? 'ci-rouge' : 'ci-vert', depot: nom, workflow: w.nom, url: w.url })
     }
+    // Un site qui tombe, ou qui revient. Une mesure absente (`ok: null`) n'est
+    // ni l'un ni l'autre.
+    if (a.pages?.ok === true && d.pages?.ok === false) out.push({ type: 'site-tombe', depot: nom, url: d.pages.url })
+    if (a.pages?.ok === false && d.pages?.ok === true) out.push({ type: 'site-revenu', depot: nom, url: d.pages.url })
+    // La production décroche de `main`. Seulement si le relevé précédent la
+    // mesurait DÉJÀ : sans cette condition, le premier relevé qui la lit
+    // annoncerait d'un coup tous les retards comme des nouveautés.
+    if (a.prod && d.prod && a.prod.etat !== 'retard' && d.prod.etat === 'retard') out.push({ type: 'prod-retard', depot: nom, retard: d.prod.retard })
   }
 
   const lA = new Map((av.libs || []).map((l) => [l.paquet, l]))
   for (const l of ap.libs || []) {
     const p = lA.get(l.paquet)
     if (!p) continue
-    if (p.amont && l.amont && p.amont !== l.amont) out.push({ type: 'amont', paquet: l.paquet, de: p.amont, a: l.amont, nbDepots: l.nbDepots })
+    // Un nouveau MAJEUR amont se signale : c'est une décision à prendre, pas
+    // un correctif à reprendre — `@sentry/react` 11 est sorti le 23/09/2026 au
+    // milieu de trois correctifs, et rien ne l'en distinguait.
+    if (p.amont && l.amont && p.amont !== l.amont)
+      out.push({ type: 'amont', paquet: l.paquet, de: p.amont, a: l.amont, nbDepots: l.nbDepots, majeur: majeurDe(p.amont) !== majeurDe(l.amont) })
     if (!p.dormance && l.dormance) out.push({ type: 'dormante', paquet: l.paquet, depuis: l.publieLe })
     if (p.dormance && !l.dormance) out.push({ type: 'reveillee', paquet: l.paquet })
   }
@@ -333,6 +347,8 @@ export function changementsDepuis(av, ap) {
   if (ka.alertesLisibles && kb.alertesLisibles && ka.alertes !== kb.alertes) out.push({ type: 'alertes', de: ka.alertes, a: kb.alertes })
 
   // Le plus parlant d'abord : ce qui casse, puis ce qui se répare.
-  const rang = { 'ci-rouge': 0, alertes: 1, dormante: 2, 'depot-sorti': 3, 'ci-vert': 4, reveillee: 5, amont: 6, 'depot-entre': 7 }
-  return out.sort((x, y) => (rang[x.type] ?? 9) - (rang[y.type] ?? 9)).slice(0, 40)
+  const rang = { 'ci-rouge': 0, 'site-tombe': 0, alertes: 1, 'prod-retard': 1, dormante: 2, 'depot-sorti': 3, 'ci-vert': 4, 'site-revenu': 4, reveillee: 5, amont: 6, 'depot-entre': 7 }
+  // un nouveau majeur passe devant les autres versions amont, avec les dormantes
+  const rangDe = (x) => (x.type === 'amont' && x.majeur ? 2 : (rang[x.type] ?? 9))
+  return out.sort((x, y) => rangDe(x) - rangDe(y)).slice(0, 40)
 }

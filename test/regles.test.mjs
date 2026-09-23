@@ -403,3 +403,45 @@ test('etatPublie date la page publiée ET le passage, séparément', () => {
   // Sans page à décrire, `genere` reste nul plutôt qu'inventé.
   assert.equal(etatPublie(null, maintenant).genere, null)
 })
+
+/* ── Transitions nouvelles : sites, production, nouveau majeur, journal ── */
+
+test('changementsDepuis relève le site qui tombe et celui qui revient — pas une mesure absente', () => {
+  const av = avec([{ nom: 'a', pages: { ok: true } }, { nom: 'b', pages: { ok: false } }, { nom: 'c', pages: { ok: null } }])
+  const ap = avec([{ nom: 'a', pages: { ok: false, url: 'https://a/' } }, { nom: 'b', pages: { ok: true, url: 'https://b/' } }, { nom: 'c', pages: { ok: false } }])
+  const c = changementsDepuis(av, ap)
+  assert.deepEqual(
+    c.map((x) => [x.type, x.depot]),
+    [
+      ['site-tombe', 'a'],
+      ['site-revenu', 'b'],
+    ],
+  )
+})
+
+test('changementsDepuis relève la production qui décroche — si elle était DÉJÀ mesurée', () => {
+  const av = avec([{ nom: 'a', prod: { etat: 'aJour' } }, { nom: 'b' }])
+  const ap = avec([{ nom: 'a', prod: { etat: 'retard', retard: 3 } }, { nom: 'b', prod: { etat: 'retard', retard: 9 } }])
+  // `b` n'était pas mesurée avant : le premier relevé qui la lit n'annonce rien.
+  assert.deepEqual(changementsDepuis(av, ap), [{ type: 'prod-retard', depot: 'a', retard: 3 }])
+})
+
+test('changementsDepuis marque un nouveau MAJEUR amont, et le fait passer devant', () => {
+  const av = avec([], [{ paquet: 'prettier', amont: '3.9.8' }, { paquet: '@sentry/react', amont: '10.75.2' }])
+  const ap = avec([], [{ paquet: 'prettier', amont: '3.9.9' }, { paquet: '@sentry/react', amont: '11.0.0' }])
+  const c = changementsDepuis(av, ap)
+  assert.deepEqual(
+    c.map((x) => [x.paquet, x.majeur]),
+    [
+      ['@sentry/react', true],
+      ['prettier', false],
+    ],
+  )
+})
+
+test('fond ignore le journal, comme l’historique', () => {
+  const a = modeleMinimal()
+  const b = modeleMinimal()
+  b.journal = [{ type: 'amont', paquet: 'vite', quand: '2026-09-23T10:17:00Z' }]
+  assert.equal(fond(a), fond(b))
+})

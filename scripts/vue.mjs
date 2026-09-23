@@ -27,7 +27,7 @@
  * module et `regles.mjs` à la place du marqueur `__VUE__`, `export` et `import`
  * retirés.
  */
-import { cmpVersion } from './regles.mjs'
+import { cmpVersion, majeurAdmis } from './regles.mjs'
 
 /**
  * Le RANG de l'écart, pas sa distance.
@@ -425,4 +425,203 @@ export function fraicheur(genere, etat, maintenant, seuilPanneMin = SEUIL_PANNE_
     panne: minutes > seuilPanneMin,
     nouveau: publie !== null && embarque !== null && publie > embarque ? etat.genere : null,
   }
+}
+
+/* ── Le retard d'une librairie : sa gravité, et son âge ─────────────────── */
+
+/** Les gravités d'un retard, de la plus légère à la plus lourde. */
+export const GRAVITES = ['patch', 'mineure', 'majeure']
+
+/**
+ * La PIRE gravité parmi les versions en retard d'une librairie : `patch`,
+ * `mineure` ou `majeure` — `null` quand rien n'est en retard.
+ *
+ * La colonne « En retard » disait « 23/23 » pour `prettier` 3.9.8 → 3.9.9 et
+ * « 18/18 » pour `@sentry/react` 10.75.2 → 11.0.0 : le même signe pour une
+ * campagne triviale et pour une décision. C'est `rangEcart`, déjà éprouvé par
+ * la matrice, qui les sépare. Un majeur ADMIS (TypeScript 6 sous une amont en
+ * 7) n'est pas un retard, ici non plus.
+ */
+export function graviteRetard(l) {
+  if (!l?.amont) return null
+  let pire = null
+  for (const v of l.versions || []) {
+    if (cmpVersion(v.version, l.amont) >= 0 || majeurAdmis(l.paquet, v.version)) continue
+    const r = rangEcart(v.version, l.amont)
+    if ((POIDS[r] ?? 0) > (POIDS[pire] ?? 0)) pire = r
+  }
+  return pire
+}
+
+/** Les heures écoulées depuis une date ISO — `null` si elle est illisible. */
+export const heuresDepuis = (iso, maintenant) => {
+  const t = typeof iso === 'string' ? Date.parse(iso) : NaN
+  return Number.isFinite(t) ? Math.max(0, (maintenant - t) / 3600000) : null
+}
+
+/**
+ * Une version de moins de 24 h est FRAÎCHE : pnpm 12 refuse de l'installer
+ * (`miss-ticket` l'a appris le 21/09/2026), et rien n'a encore eu le temps de
+ * la contredire — un correctif du correctif sort souvent le lendemain.
+ */
+export const FRAICHE_H = 24
+
+/**
+ * Ce qu'il faut pour DEMANDER la montée d'une librairie, sans ambiguïté : le
+ * nom exact du paquet, la version cible, la gravité, et chaque dépôt en retard
+ * avec sa version — `transitif` quand il ne la déclare pas et que seul son
+ * lockfile la fige.
+ *
+ * Né d'une demande du 23/09/2026 recopiée de la page : « node en 26.6.1 »
+ * voulait dire `@types/node` en 26.6.2, et « react 10.75.1 » `@sentry/react`.
+ */
+export function demandeMontee(l) {
+  const gravite = graviteRetard(l)
+  if (!gravite) return null
+  const depots = []
+  for (const v of l.versions) {
+    if (cmpVersion(v.version, l.amont) >= 0 || majeurAdmis(l.paquet, v.version)) continue
+    for (const d of v.depots) depots.push({ depot: d.depot, version: v.version, transitif: Boolean(d.transitif) })
+  }
+  depots.sort((a, b) => a.depot.localeCompare(b.depot))
+  return { paquet: l.paquet, alias: l.alias ?? null, cible: l.amont, gravite, depots }
+}
+
+/* ── Le bloc « À faire » ────────────────────────────────────────────────── */
+
+/**
+ * L'ordre du bloc, du plus urgent au plus routinier : ce qui est cassé, ce qui
+ * est en ligne sans être juste, ce qui attend une main, puis l'entretien.
+ */
+export const ORDRE_A_FAIRE = ['rouges', 'sites', 'mortes', 'prod', 'fugaces', 'alertes', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables']
+
+/**
+ * CE QUE LA PAGE DEMANDE DE FAIRE, et non plus seulement ce qu'elle constate.
+ *
+ * Le 23/09/2026, tirer d'un relevé la liste des montées à faire demandait de
+ * lire onze écrans, puis de recopier à la main — avec deux erreurs sur cinq
+ * lignes. Chaque entrée porte une clé (`cle`), un compte (`n`) et ses détails ;
+ * la page ne fait que la dire. Une entrée vide n'est pas rendue.
+ */
+export function aFaire(D) {
+  const depots = D?.depots || []
+  const libs = D?.libs || []
+  const socle = D?.socle
+  const items = []
+  const pousse = (cle, details, n = details.length) => {
+    if (details.length) items.push({ cle, n, details })
+  }
+
+  pousse(
+    'rouges',
+    depots.filter((d) => d.compte?.rouge > 0).map((d) => ({ depot: d.nom, n: d.compte.rouge })),
+  )
+  pousse(
+    'sites',
+    depots.filter((d) => d.pages?.url && d.pages.ok === false).map((d) => ({ depot: d.nom, url: d.pages.url })),
+  )
+  pousse(
+    'mortes',
+    depots.filter((d) => d.prod?.mortes?.length).map((d) => ({ depot: d.nom, fichiers: d.prod.mortes })),
+  )
+  pousse(
+    'prod',
+    depots.filter((d) => d.prod?.etat === 'retard').map((d) => ({ depot: d.nom, retard: d.prod.retard })),
+  )
+  pousse(
+    'fugaces',
+    depots.filter((d) => d.prod?.fugaces?.length).map((d) => ({ depot: d.nom, fichiers: d.prod.fugaces })),
+  )
+  if (D?.kpi?.alertesLisibles)
+    pousse(
+      'alertes',
+      depots.filter((d) => d.alertes?.etat === 'lu' && d.alertes.total).map((d) => ({ depot: d.nom, n: d.alertes.total, graves: d.alertes.graves || 0 })),
+    )
+  pousse(
+    'prs',
+    depots.flatMap((d) => (d.prs || []).filter((p) => !p.brouillon).map((p) => ({ depot: d.nom, ...p }))),
+  )
+
+  const demandes = libs
+    .filter((l) => l.paquet !== socle && l.enRetard > 0)
+    .map(demandeMontee)
+    .filter(Boolean)
+  const parTaille = (a, b) => b.depots.length - a.depots.length || a.paquet.localeCompare(b.paquet)
+  pousse('majeures', demandes.filter((x) => x.gravite === 'majeure').sort(parTaille))
+  pousse('correctifs', demandes.filter((x) => x.gravite !== 'majeure').sort(parTaille))
+  const s = libs.find((l) => l.paquet === socle)
+  const ds = s ? demandeMontee(s) : null
+  if (ds) pousse('socle', [ds], ds.depots.length)
+
+  const renovate = depots.filter((d) => d.renovate?.enAttente).map((d) => ({ depot: d.nom, n: d.renovate.enAttente, majeures: d.renovate.majeures, url: d.renovate.issue }))
+  pousse(
+    'renovate',
+    renovate,
+    renovate.reduce((n, x) => n + x.n, 0),
+  )
+  // Un paquet que Renovate ne sait pas résoudre : rien ne proposera sa montée.
+  const introuvables = new Map()
+  for (const d of depots) for (const p of d.renovate?.introuvables || []) introuvables.set(p, [...(introuvables.get(p) || []), d.nom])
+  pousse(
+    'introuvables',
+    [...introuvables].map(([paquet, noms]) => ({ paquet, depots: noms.sort() })),
+  )
+  return items.sort((a, b) => ORDRE_A_FAIRE.indexOf(a.cle) - ORDRE_A_FAIRE.indexOf(b.cle))
+}
+
+/* ── La recherche de la barre de navigation ─────────────────────────────── */
+
+/**
+ * Les dépôts et librairies dont le nom contient `q` — un DÉBUT de nom
+ * d'abord, puis un début de mot (`react` trouve `@sentry/react` avant
+ * `preact-render`), puis le reste ; à rang égal, le nom le plus court.
+ */
+export function chercheCibles(q, D, max = 8) {
+  const t = String(q || '')
+    .trim()
+    .toLowerCase()
+  if (!t) return []
+  const cibles = [...(D?.depots || []).map((d) => ({ type: 'depot', nom: d.nom })), ...(D?.libs || []).map((l) => ({ type: 'lib', nom: l.paquet }))]
+  const rang = (nom) => {
+    const n = nom.toLowerCase()
+    const i = n.indexOf(t)
+    if (i < 0) return -1
+    if (i === 0) return 0
+    return /[/@._-]/.test(n[i - 1]) ? 1 : 2
+  }
+  return cibles
+    .map((c) => ({ c, r: rang(c.nom) }))
+    .filter((x) => x.r >= 0)
+    .sort((a, b) => a.r - b.r || a.c.nom.length - b.c.nom.length || a.c.nom.localeCompare(b.c.nom))
+    .slice(0, max)
+    .map((x) => x.c)
+}
+
+/* ── Les phrases de changement ──────────────────────────────────────────── */
+
+/**
+ * Les bouts d'une phrase de changement : le NOM PROPRE d'abord (dépôt ou
+ * paquet, que la page met en mono), puis le reste, déjà traduit par `T`.
+ *
+ * Sortie du gabarit pour servir DEUX lecteurs : la page, et le flux Atom que
+ * le relevé écrit à côté d'elle — sans quoi les deux diraient le même
+ * événement avec deux phrases différentes.
+ */
+export function phraseChangement(c, T) {
+  if (c.type === 'ci-rouge' || c.type === 'ci-vert') return [c.depot, T('changements.' + c.type, { workflow: c.workflow })]
+  if (c.type === 'amont')
+    return [
+      c.paquet,
+      T('changements.amont', { a: c.a }),
+      c.de ? T('changements.amont.de', { de: c.de }) : '',
+      c.majeur ? T('changements.amont.majeur') : '',
+      c.nbDepots ? T('changements.amont.depots', { n: c.nbDepots }) : '',
+    ]
+  if (c.type === 'dormante') return [c.paquet, T('changements.dormante')]
+  if (c.type === 'reveillee') return [c.paquet, T('changements.reveillee')]
+  if (c.type === 'alertes') return [T('changements.alertes'), T('changements.alertes.suite', { de: c.de, a: c.a })]
+  if (c.type === 'site-tombe' || c.type === 'site-revenu') return [c.depot, T('changements.' + c.type)]
+  if (c.type === 'prod-retard') return [c.depot, T('changements.prod-retard', { n: c.retard })]
+  if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
+  return [c.depot, T('changements.depot-sorti')]
 }

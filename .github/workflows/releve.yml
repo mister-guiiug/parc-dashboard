@@ -8,7 +8,7 @@ on:
     # avait donc jusqu'à une journée et demie de retard sur le parc. À :17 et
     # pas à :00 : GitHub étale mal les crons de début d'heure.
     #
-    # Le coût reste bas : un passage prend ~45 s et 343 appels d'API, quand le
+    # Le coût reste bas : un passage prend ~45 s et ~350 appels d'API, quand le
     # GITHUB_TOKEN en permet 1 000 par heure.
     - cron: '17 * * * *'
   workflow_dispatch:

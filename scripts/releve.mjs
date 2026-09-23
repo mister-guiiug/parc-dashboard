@@ -34,6 +34,13 @@ import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, 
 // fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
 // trente appels d'API. Voir `scripts/modele.mjs`.
 import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, pileDuDepot } from './modele.mjs'
+// Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
+// Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
+// page. Voir `scripts/collecte.mjs`.
+import { entreeDe, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, precacheDe, referencesDe } from './collecte.mjs'
+// Le flux Atom dit les changements avec les MÊMES phrases que la page.
+import { phraseChangement } from './vue.mjs'
+import { traducteur } from './libelles.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
 const COMPTE = process.env.PARC_COMPTE || 'mister-guiiug'
@@ -114,6 +121,21 @@ async function api(chemin, { brut = false, silence404 = false } = {}) {
   }
   throw new Error(`abandon après 4 essais : ${chemin}`)
 }
+// UNE LECTURE FACULTATIVE : tout échec rend `null`, sans lever et sans compter
+// parmi les refus. `api()` lève sur une réponse inattendue — juste pour ce qui
+// fonde la page, mais l'état de CI d'une PR, un tableau Renovate ou une
+// comparaison de commits ne doivent jamais coûter le relevé entier.
+async function apiFacultatif(chemin) {
+  appels++
+  try {
+    const res = await fetch(API + chemin, {
+      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'parc-dashboard' },
+    })
+    return res.ok ? await res.json() : null
+  } catch {
+    return null
+  }
+}
 
 // les fichiers passent par raw.githubusercontent : hors quota d'API et sans
 // la limite de 1 Mo de l'API contents (un package-lock la dépasse souvent)
@@ -147,6 +169,51 @@ const json = (t) => {
     return null
   }
 }
+
+/* ------------------------------------------------------- l'état précédent */
+
+const modeleDe = (t) => {
+  const m = /<script type="application\/json" id="donnees">([\s\S]*?)<\/script>/.exec(t || '')
+  if (!m) return null
+  try {
+    return JSON.parse(m[1].replace(/\\u003c/g, '<'))
+  } catch {
+    return null
+  }
+}
+// L'INSTANTANÉ DU DÉPÔT, repère de « ce qui a bougé ». Depuis que le relevé est
+// horaire, l'`index.html` du dépôt n'est plus la page publiée : c'est la photo
+// que le premier passage de chaque jour y commite. Comparer à ELLE, et non à la
+// page de l'heure précédente, garde au bandeau sa portée d'une journée — sinon
+// il ne montrerait que la dernière heure, et un CI tombé à 03:17 sortirait de
+// la liste au passage de 04:17.
+const ancienne = existsSync(SORTIE) ? readFileSync(SORTIE, 'utf8') : ''
+const avant = modeleDe(ancienne)
+
+// LA PAGE EN LIGNE, état précédent de ce qui est PUBLIÉ. C'est elle qui décide
+// s'il y a quelque chose à republier, et elle porte l'historique et le journal
+// les plus frais. Lue AVANT la collecte, depuis que la production d'une app
+// réutilise ce qu'elle savait déjà d'un même déploiement (voir `releveProd`).
+// Illisible (Pages en panne, premier déploiement), on se replie sur
+// l'instantané du dépôt, et sans perte : l'historique est recomposé jour par
+// jour depuis les deux sources, plus bas.
+let publiee = ancienne
+if (URL_PUBLIEE) {
+  try {
+    // Le CDN de Pages garde une page dix minutes (`max-age=600`) : une requête
+    // qui porte un paramètre inédit va la chercher à la source.
+    const url = new URL(URL_PUBLIEE)
+    url.searchParams.set('releve', String(Date.now()))
+    const res = await fetch(url, { redirect: 'follow' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const texte = await res.text()
+    if (!modeleDe(texte)) throw new Error('aucune donnée embarquée')
+    publiee = texte
+  } catch (e) {
+    console.error(`::warning::page publiée illisible (${e.message}) — repli sur l'instantané du dépôt`)
+  }
+}
+const avantPublie = modeleDe(publiee)
 
 /* ------------------------------------------------- classement des dépôts */
 
@@ -296,6 +363,24 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   }
   const declarees = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) }
 
+  // LES PR OUVERTES, AVEC LEUR CI. La tuile disait « 1 PR à relire » sans dire
+  // laquelle ; le bloc « À faire » la nomme, et dit si elle est fusionnable.
+  // Une lecture par PR, facultative : sans elle, la PR reste listée, sans état.
+  const prsLues = await enLot(prs || [], 4, async (p) => {
+    const checks = p.head?.sha ? await apiFacultatif(`/repos/${nwo}/commits/${p.head.sha}/check-runs?per_page=100`) : null
+    return {
+      num: p.number,
+      titre: p.title,
+      brouillon: p.draft,
+      branche: p.head?.ref,
+      date: p.created_at,
+      auteur: p.user?.login || null,
+      robot: p.user?.type === 'Bot',
+      url: p.html_url,
+      ci: etatChecks(checks?.check_runs),
+    }
+  })
+
   const compte = { vert: 0, rouge: 0, neutre: 0, encours: 0, jamais: 0 }
   for (const w of workflows) compte[w.etat]++
 
@@ -312,11 +397,21 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
     pushGitHub: g.pushed_at,
     joursDepuisPush: jours(g.pushed_at),
     commit: commit
-      ? { sha: commit.sha.slice(0, 7), auteur: commit.commit.author?.name || '?', date: commit.commit.author?.date, sujet: (commit.commit.message || '').split('\n')[0], jours: jours(commit.commit.author?.date) }
+      ? {
+          sha: commit.sha.slice(0, 7),
+          auteur: commit.commit.author?.name || '?',
+          date: commit.commit.author?.date,
+          // la date où le commit est ARRIVÉ sur la branche — celle d'écriture
+          // peut dater de plusieurs jours pour une PR rebasée : c'est la
+          // première qui dit si un déploiement a eu le temps de partir
+          dateCommit: commit.commit.committer?.date || null,
+          sujet: (commit.commit.message || '').split('\n')[0],
+          jours: jours(commit.commit.author?.date),
+        }
       : { sha: '?', auteur: '?', date: g.pushed_at, sujet: '(commit illisible)', jours: jours(g.pushed_at) },
     local,
     pagesUrl: pages?.html_url || null,
-    prs: (prs || []).map((p) => ({ num: p.number, titre: p.title, brouillon: p.draft, branche: p.head?.ref, date: p.created_at })),
+    prs: prsLues,
     workflows,
     compte,
     declarees,
@@ -453,18 +548,124 @@ const motifsPartages = [...motifs]
 
 /* ------------------------------------------------ sites et versions amont */
 
+// Une URL du site, avec un paramètre inédit : le CDN de Pages garde un fichier
+// dix minutes, et la page servie juste après un déploiement ne doit pas être
+// jugée sur la version d'avant.
+const fraiche = (chemin, base) => {
+  const u = new URL(chemin, base)
+  u.searchParams.set('releve', String(MAINTENANT.getTime()))
+  return u
+}
+
+/**
+ * LA PRODUCTION D'UNE APP : ce qui tourne en ligne est-il ce qui est fusionné,
+ * et ses URL survivront-elles au déploiement suivant ?
+ *
+ * 1. `version.json`, que chaque app publie, porte le commit construit ; il se
+ *    compare à la tête de la branche par défaut (`etatProd`). La comparaison
+ *    d'API n'est demandée que quand les deux diffèrent.
+ * 2. L'entrée de la page, son `sw.js` : les morceaux qu'elle charge hors du
+ *    précache et nommés par empreinte sont FUGACES (`fugacesDe`), et chacun est
+ *    demandé pour de vrai — une URL qui ne répond pas est MORTE.
+ *
+ * Le second volet ne dépend que du commit servi : tant qu'il n'a pas changé,
+ * on reprend ce que la page en ligne en savait, au lieu de retélécharger à
+ * chaque heure une entrée de plusieurs centaines de kilo-octets.
+ */
+async function releveProd(d, html) {
+  let version = null
+  try {
+    const r = await fetch(fraiche('version.json', d.pagesUrl))
+    if (r.ok) version = await r.json()
+  } catch {
+    /* pas de version.json lisible : la production reste « inconnue » */
+  }
+  let comparaison = null
+  if (typeof version?.commit === 'string' && d.commit?.sha && !version.commit.startsWith(d.commit.sha)) {
+    comparaison = await apiFacultatif(`/repos/${d.nwo}/compare/${version.commit}...${encodeURIComponent(d.brancheDefaut)}`)
+  }
+  const prod = etatProd(version, { sha: d.commit?.sha, dateCommit: d.commit?.dateCommit }, comparaison, MAINTENANT.getTime())
+
+  const deja = avantPublie?.depots?.find((x) => x.nom === d.nom)?.prod
+  if (prod.commit && deja?.commit === prod.commit && Array.isArray(deja.mortes)) {
+    prod.fugaces = deja.fugaces ?? null
+    prod.mortes = deja.mortes
+    return prod
+  }
+  const src = entreeDe(html)
+  if (!src) return prod
+  try {
+    const urlEntree = new URL(src, d.pagesUrl)
+    const re = await fetch(urlEntree)
+    if (!re.ok) return prod
+    const references = referencesDe(await re.text())
+    let sw = null
+    for (const nom of ['sw.js', 'service-worker.js']) {
+      const r = await fetch(fraiche(nom, d.pagesUrl))
+      if (r.ok) {
+        sw = await r.text()
+        break
+      }
+    }
+    // Sans service worker, rien n'est précaché, donc aucune coquille périmée ne
+    // redemandera une URL disparue : la règle se tait, comme celle du docteur.
+    const precache = sw === null ? null : precacheDe(sw)
+    prod.fugaces = precache ? fugacesDe(references, precache) : null
+    const aDemander = [...references].filter((f) => !precache?.has(f))
+    const mortes = []
+    await enLot(aDemander, 4, async (f) => {
+      try {
+        const r = await fetch(new URL('./' + f, urlEntree), { method: 'HEAD' })
+        if (!r.ok) mortes.push(f)
+      } catch {
+        mortes.push(f)
+      }
+    })
+    prod.mortes = mortes.sort()
+  } catch {
+    /* entrée illisible : la production garde son état, sans volet « URL » */
+  }
+  return prod
+}
+
 const sites = depots.filter((d) => d.pagesUrl)
 await enLot(sites, 8, async (d) => {
   const t0 = Date.now()
+  let corps = ''
   try {
-    const res = await fetch(d.pagesUrl, { redirect: 'follow' })
-    const corps = await res.text()
+    const res = await fetch(fraiche('', d.pagesUrl), { redirect: 'follow' })
+    corps = await res.text()
     d.pages = { url: d.pagesUrl, code: res.status, ok: res.ok, ms: Date.now() - t0, titre: /<title[^>]*>([^<]*)<\/title>/i.exec(corps)?.[1]?.trim() || null }
   } catch (e) {
     d.pages = { url: d.pagesUrl, code: null, ok: false, erreur: String(e.message || e) }
   }
+  if (d.pages.ok) d.prod = await releveProd(d, corps)
 })
 for (const d of depots) if (!d.pages) d.pages = d.pagesUrl ? { url: d.pagesUrl, code: null, ok: null } : null
+
+/* ------------------------------------------------------------ Renovate */
+
+// UNE SEULE RECHERCHE pour tout le compte : les « Dependency Dashboard » que
+// Renovate tient ouverts. Leur corps dit ce qui attend le samedi — et ce que
+// Renovate ne sait pas résoudre. Facultative : sans elle, les cartes ne disent
+// rien de Renovate, et `renovateLu` le sait.
+const tableaux = await apiFacultatif(`/search/issues?q=${encodeURIComponent(`user:${COMPTE} is:issue is:open in:title "Dependency Dashboard"`)}&per_page=100`)
+const renovateLu = Array.isArray(tableaux?.items)
+for (const it of tableaux?.items || []) {
+  if (it.user?.login !== 'renovate[bot]') continue
+  const d = depots.find((x) => x.nom === String(it.repository_url || '').split('/').pop())
+  if (!d) continue
+  const t = lisTableauRenovate(it.body)
+  d.renovate = { issue: it.html_url, enAttente: t.enAttente, majeures: t.majeures, introuvables: t.introuvables, mises: t.mises.slice(0, 12).map((m) => ({ titre: m.titre, majeure: m.majeure })) }
+}
+
+/* ------------------------------------------------------ pairs du socle */
+
+// LES PAIRS DURES DU SOCLE s'installent chez chaque consommateur, qu'il les
+// déclare ou non : c'est le lockfile qui décide de leur version. Le 23/09/2026,
+// `typescript-eslint` était figé dans 23 dépôts et la page en comptait 5.
+const pkgSocle = depotSocle ? json(await fichier(depotSocle.nwo, depotSocle.brancheDefaut, 'package.json')) : null
+const PAIRS = new Set(pairsDures(pkgSocle))
 
 const SUIVIES = new Set()
 // UN ALIAS PORTE UN NOM QUI N'EXISTE PAS AU REGISTRE. `"typescript-7":
@@ -480,11 +681,16 @@ for (const d of depots) {
     if (r !== p) REEL.set(p, r)
   }
 }
+for (const p of PAIRS) SUIVIES.add(p)
 const NOM_SOCLE = '@mister-guiiug/dev-pwa-config'
 const amont = {}
 const publieLe = {}
 const depotAmont = {}
 const versionsPubliees = {}
+// La date de publication de CHAQUE version (`time` du document npm), gardée en
+// mémoire seulement : c'est elle qui date la version amont ADMISE — celle d'un
+// paquet plafonné n'est pas `latest` — et dit si elle a moins de 24 h.
+const temps = {}
 
 // ON LIT LE DOCUMENT COMPLET, ET NON `/latest`. Il coûte plus cher — 232 Mo
 // décompressés pour les 83 paquets du parc, mais il arrive en gzip et
@@ -511,6 +717,7 @@ await enLot([...INTERROGES], 6, async (p) => {
     if (!derniere) return
     amont[p] = derniere
     versionsPubliees[p] = Object.keys(doc.versions || {})
+    temps[p] = doc.time || null
     if (doc.time?.[derniere]) publieLe[p] = doc.time[derniere]
     const url = doc.repository?.url || doc.versions?.[derniere]?.repository?.url || ''
     const m = /github\.com[:/]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[#?].*)?$/.exec(url)
@@ -525,6 +732,7 @@ for (const [nom, reel] of REEL) {
   if (versionsPubliees[reel]) versionsPubliees[nom] = versionsPubliees[reel]
   if (publieLe[reel]) publieLe[nom] = publieLe[reel]
   if (depotAmont[reel]) depotAmont[nom] = depotAmont[reel]
+  if (temps[reel]) temps[nom] = temps[reel]
 }
 // le socle n'est pas sur npm public : sa référence est la version de son dépôt
 const socle = depots.find((d) => d.nom === 'dev-pwa-config')
@@ -540,6 +748,15 @@ const libs = []
 for (const paquet of SUIVIES) {
   const parVersion = new Map()
   for (const d of depots) {
+    // TRANSITIF : une pair dure du socle, non déclarée, mais figée par le
+    // lockfile d'un dépôt qui consomme le socle — c'est elle qui tourne.
+    const transitif = !(paquet in d.declarees) && PAIRS.has(paquet) && NOM_SOCLE in d.declarees && Boolean(d.verrouillees[paquet])
+    if (transitif) {
+      const v = d.verrouillees[paquet]
+      if (!parVersion.has(v)) parVersion.set(v, [])
+      parVersion.get(v).push({ depot: d.nom, plage: null, verrouille: true, transitif: true })
+      continue
+    }
     if (!(paquet in d.declarees)) continue
     // Sans lockfile, la plage déclarée fait foi — et pour un ALIAS, la plage
     // est celle de l'alias (`~7.0.2`), pas la chaîne `npm:typescript@~7.0.2`
@@ -558,7 +775,25 @@ for (const paquet of SUIVIES) {
   // Un majeur ADMIS n'est pas un retard : voir `MAJEURS_ADMIS` dans
   // `regles.mjs`, et la contrainte amont qui l'y justifie.
   const enRetard = a ? versions.filter((v) => cmpVersion(v.version, a) < 0 && !majeurAdmis(paquet, v.version)).reduce((n, v) => n + v.depots.length, 0) : null
-  libs.push({ paquet, alias: REEL.get(paquet) ?? null, ecosysteme: 'npm', nbDepots, nbVersions: versions.length, versions, amont: a, enRetard, majeursAdmis: MAJEURS_ADMIS[paquet] ?? null, plusRecente: versions[0].version, publieLe: publieLe[paquet] || null, depotAmont: depotAmont[paquet] || null })
+  const nbTransitifs = versions.reduce((n, v) => n + v.depots.filter((x) => x.transitif).length, 0)
+  libs.push({
+    paquet,
+    alias: REEL.get(paquet) ?? null,
+    ecosysteme: 'npm',
+    nbDepots,
+    nbTransitifs,
+    nbVersions: versions.length,
+    versions,
+    amont: a,
+    enRetard,
+    majeursAdmis: MAJEURS_ADMIS[paquet] ?? null,
+    plusRecente: versions[0].version,
+    publieLe: publieLe[paquet] || null,
+    // la date de la version amont ADMISE ; pour le socle, publié hors npm, son
+    // dernier push fait foi, comme pour `publieLe`
+    publieAmont: (a && temps[paquet]?.[a]) || (paquet === NOM_SOCLE ? publieLe[paquet] || null : null),
+    depotAmont: depotAmont[paquet] || null,
+  })
 }
 const cratesMap = new Map()
 const NOTABLES = ['tauri', 'tokio', 'serde', 'serde_json', 'clap', 'anyhow', 'thiserror', 'chrono', 'uuid', 'reqwest', 'tracing', 'rusqlite', 'git2', 'axum', 'regex']
@@ -604,6 +839,9 @@ for (const [crate, m] of cratesMap) {
     majeursAdmis: MAJEURS_ADMIS[crate] ?? null,
     plusRecente: versions[0].version,
     publieLe: publieLe[crate] || null,
+    // crates.io ne rend que la dernière version stable : c'est l'amont
+    publieAmont: publieLe[crate] || null,
+    nbTransitifs: 0,
     depotAmont: depotAmont[crate] || null,
   })
 }
@@ -715,53 +953,20 @@ const modele = {
   activite,
   socle: NOM_SOCLE,
   seuilDormanceJours: SEUIL_DORMANCE_JOURS,
+  // la recherche des tableaux Renovate a-t-elle abouti ? Sans ce drapeau, une
+  // carte muette sur Renovate ne dirait pas si rien n'attend ou si rien n'a
+  // été lu.
+  renovateLu,
+  // les pairs dures du socle, suivies jusque dans les lockfiles
+  pairsSocle: [...PAIRS],
 }
 
 /* ------------------------------------------- ce qui a bougé, et depuis quand */
 
-const modeleDe = (t) => {
-  const m = /<script type="application\/json" id="donnees">([\s\S]*?)<\/script>/.exec(t || '')
-  if (!m) return null
-  try {
-    return JSON.parse(m[1].replace(/\\u003c/g, '<'))
-  } catch {
-    return null
-  }
-}
-// L'INSTANTANÉ DU DÉPÔT, repère de « ce qui a bougé ». Depuis que le relevé est
-// horaire, l'`index.html` du dépôt n'est plus la page publiée : c'est la photo
-// que le premier passage de chaque jour y commite. Comparer à ELLE, et non à la
-// page de l'heure précédente, garde au bandeau sa portée d'une journée — sinon
-// il ne montrerait que la dernière heure, et un CI tombé à 03:17 sortirait de
-// la liste au passage de 04:17.
-const ancienne = existsSync(SORTIE) ? readFileSync(SORTIE, 'utf8') : ''
-const avant = modeleDe(ancienne)
-
+// `avant` (la photo du jour) et `avantPublie` (la page en ligne) sont lus au
+// début du relevé : voir « l'état précédent ».
 modele.changements = changementsDepuis(avant, modele)
 modele.compareA = avant?.genere || null
-
-// LA PAGE EN LIGNE, état précédent de ce qui est PUBLIÉ. C'est elle qui décide
-// s'il y a quelque chose à republier, et elle porte l'historique le plus frais.
-// Illisible (Pages en panne, premier déploiement), on se replie sur
-// l'instantané du dépôt, et sans perte : l'historique est recomposé jour par
-// jour depuis les deux sources, plus bas.
-let publiee = ancienne
-if (URL_PUBLIEE) {
-  try {
-    // Le CDN de Pages garde une page dix minutes (`max-age=600`) : une requête
-    // qui porte un paramètre inédit va la chercher à la source.
-    const url = new URL(URL_PUBLIEE)
-    url.searchParams.set('releve', String(Date.now()))
-    const res = await fetch(url, { redirect: 'follow' })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const texte = await res.text()
-    if (!modeleDe(texte)) throw new Error('aucune donnée embarquée')
-    publiee = texte
-  } catch (e) {
-    console.error(`::warning::page publiée illisible (${e.message}) — repli sur l'instantané du dépôt`)
-  }
-}
-const avantPublie = modeleDe(publiee)
 
 /* ------------------------------------------------------------- rendu */
 
@@ -889,6 +1094,14 @@ if (!inchange) {
 }
 modele.historique = histo
 
+/* ------------------------------------------------------------- journal */
+
+// LA TRANSITION DE CE PASSAGE, datée, en tête du journal. « Ce qui a bougé »
+// se compare à la photo du jour ; le journal, lui, garde chaque transition
+// horaire — c'est ce que le flux Atom publie. Comparé à la page EN LIGNE, et
+// seulement quand le fond a bougé : un passage identique n'a rien à dire.
+modele.journal = inchange ? avantPublie?.journal || [] : journalMisAJour(avantPublie?.journal, changementsDepuis(avantPublie, modele), modele.genere)
+
 /* ------------------------------------------------------------- page */
 
 const charge = JSON.stringify(modele).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16))
@@ -914,6 +1127,27 @@ if (DOSSIER_PUBLIE) {
   writeFileSync(join(DOSSIER_PUBLIE, 'index.html'), pageServie)
   writeFileSync(join(DOSSIER_PUBLIE, 'historique.json'), JSON.stringify(histo) + '\n')
   writeFileSync(join(DOSSIER_PUBLIE, 'etat.json'), JSON.stringify(etatPublie(inchange ? avantPublie : modele, MAINTENANT)) + '\n')
+
+  // LE FLUX ATOM des changements : être prévenu sans ouvrir la page — un
+  // lecteur de flux, un téléphone. Les titres sont les phrases de la page
+  // (`phraseChangement`), en français, la langue servie par défaut. L'URL de
+  // la page publiée fait l'identité du flux : elle ne change pas.
+  if (URL_PUBLIEE) {
+    const Tfr = traducteur('fr')
+    const base = new URL(URL_PUBLIEE)
+    const tag = `tag:${base.host},2026-09-23:${base.pathname.replace(/\/+$/, '')}`
+    const ancre = (e) => (e.depot ? '#depot-' + e.depot : e.paquet ? '#lib-' + e.paquet : '')
+    const entrees = modele.journal.map((e) => ({
+      id: `${tag}/${e.quand}/${createHash('sha1').update(JSON.stringify([e.type, e.depot, e.paquet, e.workflow, e.de, e.a])).digest('hex').slice(0, 12)}`,
+      titre: phraseChangement(e, Tfr).filter(Boolean).join(''),
+      quand: e.quand,
+      lien: base.href + ancre(e),
+    }))
+    writeFileSync(
+      join(DOSSIER_PUBLIE, 'changements.xml'),
+      fluxAtom({ id: tag + '/changements', titre: Tfr('flux.titre'), lien: base.href, soi: base.href + 'changements.xml', maj: modele.journal[0]?.quand || modele.genere, entrees }),
+    )
+  }
   console.error(
     inchange
       ? `Rien n'a bougé (${appels} appels d'API) : la page en ligne est republiée telle quelle, etat.json daté du passage.`
