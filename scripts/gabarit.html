@@ -744,8 +744,16 @@
        * puisse plus lire « react » là où il y avait `@sentry/react`.
        */
       function texteDemande(dm) {
-        const tete = T('demande.montee', { paquet: dm.paquet, cible: dm.cible, gravite: T('gravite.' + dm.gravite), n: dm.depots.length })
-        const lignes = dm.depots.map((x) => '- ' + T(x.transitif ? 'demande.depot.transitif' : 'demande.depot', { depot: x.depot, version: x.version }))
+        const p = { paquet: nomDemande(dm), cible: dm.cible, gravite: T('gravite.' + dm.gravite), n: nbDepotsDe(dm) }
+        // Un correctif DANS la série dit qu'il ne tranche pas le majeur ; un
+        // plafond dit d'où il vient. Sans ça, « Monter @sentry/react en
+        // 10.75.3 » se lirait comme un recul sous une amont en 11.
+        const tete = dm.serie
+          ? T('demande.montee.serie', { ...p, serie: dm.serie, amont: dm.amont })
+          : dm.plafond
+            ? T('demande.montee.plafond', { ...p, moteur: moteurDe(dm.paquet) })
+            : T('demande.montee', p)
+        const lignes = dm.depots.map((x) => '- ' + T(x.transitif ? 'demande.depot.transitif' : 'demande.depot', { depot: nomUnite(x), version: x.version }))
         return [tete, ...lignes].join('\n')
       }
       /** Plusieurs demandes, datées par le relevé dont elles viennent. */
@@ -821,9 +829,13 @@
           return puceLien(T('afaire.detail.renovate', { depot: x.depot, n: x.n }) + (x.majeures ? T('afaire.detail.renovate.majeures', { n: x.majeures }) : ''), x.url, true)
         if (cle === 'introuvables') return el('span', 'chipDepot', T('afaire.detail.introuvable', { paquet: x.paquet, n: x.depots.length }))
         // majeures, correctifs, socle : une demande de montée, qui mène à sa ligne
-        const a = puceLien(T('afaire.detail.lib', { paquet: x.paquet, de: versionsDe(x), cible: x.cible, n: x.depots.length }), '#lib-' + x.paquet)
+        const a = puceLien(T('afaire.detail.lib', { paquet: nomDemande(x), de: versionsDe(x), cible: x.cible, n: nbDepotsDe(x) }), '#lib-' + x.paquet)
+        if (x.serie) a.append(document.createTextNode(' '), el('span', 'badge serie', T('afaire.detail.serie', { serie: x.serie })))
+        if (x.plafond) a.append(document.createTextNode(' '), el('span', 'badge', T('afaire.detail.plafond', { moteur: moteurDe(x.paquet) })))
         const lib = D.libs.find((l) => l.paquet === x.paquet)
-        const h = heuresDepuis(lib?.publieAmont, Date.now())
+        // la fraîcheur de la CIBLE : un correctif de série ou un plafond datent
+        // d'eux-mêmes, pas de l'amont
+        const h = heuresDepuis(x.serie || x.plafond ? x.publie : lib?.publieAmont, Date.now())
         if (h !== null && h < FRAICHE_H) a.append(document.createTextNode(' '), el('span', 'badge fraiche', T('libs.fraiche')))
         return a
       }
@@ -1585,7 +1597,13 @@
           c0.append(el('span', 'flecheDetail', '▸'))
           const c1 = el('td')
           c1.append(el('code', null, l.paquet))
-          if (l.ecosysteme === 'cargo') c1.append(document.createTextNode(' '), el('span', 'badge', 'cargo'))
+          // L'ORIGINE D'UNE LIGNE HORS npm : `cargo`, ou le fichier qui épingle
+          // la version — `.nvmrc` pour Node, qui n'est pas un paquet.
+          if (l.ecosysteme !== 'npm') {
+            const b = el('span', 'badge', l.fichier || l.ecosysteme)
+            if (l.fichier) b.title = T('libs.nvmrc.titre')
+            c1.append(document.createTextNode(' '), b)
+          }
           // Un alias npm porte un nom qui n'existe PAS au registre : sans le
           // dire, un lecteur chercherait `typescript-7` sur npm et trouverait
           // un 404. Le badge nomme le paquet réellement publié.
@@ -1656,6 +1674,23 @@
             } else m.append(el('span', null, T('libs.aJour')))
             c5.append(m)
           }
+          // CE QUE LE MAJEUR CACHAIT : un correctif dans la série en cours se
+          // dit à côté du retard — « majeure » seul laissait croire qu'il n'y
+          // avait qu'une décision à prendre, et rien à monter tout de suite.
+          for (const dm of correctifsDe(l).filter((x) => x.serie)) {
+            const b = el('span', 'badge serie', T('libs.serie', { cible: dm.cible, serie: dm.serie }))
+            b.title = T('libs.serie.titre')
+            c5.append(document.createTextNode(' '), b)
+          }
+          // Un paquet de types PLAFONNÉ par un moteur se mesure à ce plafond : le
+          // dire, sinon « à jour » sous une amont bien plus haute se lit comme
+          // une erreur de mesure.
+          const plafonds = [...new Set(l.versions.flatMap((v) => v.depots.map((d) => d.plafond)).filter(Boolean))]
+          if (plafonds.length) {
+            const b = el('span', 'badge', T('libs.plafond', { moteur: moteurDe(l.paquet) }))
+            b.title = T('libs.plafond.titre', { moteur: moteurDe(l.paquet), plafond: plafonds.join(T('liste')) })
+            c5.append(document.createTextNode(' '), b)
+          }
           tr.append(c0, c1, c2, c3, c4, c5)
           const detail = el('tr', 'detailLib')
           detail.hidden = true
@@ -1664,8 +1699,10 @@
           // Ce qu'on FAIT d'une ligne : copier la demande de montée, lire ce que
           // la version amont change.
           const actions = el('div', 'actionsLib')
-          const dm = demandeMontee(l)
-          if (dm) actions.append(boutonCopie(() => texteDemandes([dm])))
+          // Les montées sans décision d'abord (correctifs de série, plafonds),
+          // puis celle vers l'amont : on copie tout ce que la ligne demande.
+          const demandes = [...correctifsDe(l), demandeMontee(l)].filter(Boolean)
+          if (demandes.length) actions.append(boutonCopie(() => texteDemandes(demandes)))
           if (l.depotAmont) {
             const notes = el('a', null, T('libs.notes'))
             notes.href = `https://github.com/${l.depotAmont}/releases`
@@ -1678,10 +1715,13 @@
             const b = el('div', 'versionBloc')
             b.append(el('span', 'versionCle', v.version))
             if (l.amont && v.version !== l.amont) b.append(el('span', 'badge', T('libs.detail.amont', { amont: l.amont })))
+            if (v.derniere) b.append(el('span', 'badge serie', T('libs.detail.derniere', { serie: serieDe(v.version), version: v.derniere })))
             for (const dep of v.depots) {
-              const ch = el('a', 'chipDepot' + (dep.transitif ? ' transitif' : ''), dep.depot)
+              // `miss-genius/worker` : le dossier se dit quand ce n'est pas la racine
+              const ch = el('a', 'chipDepot' + (dep.transitif ? ' transitif' : ''), nomUnite(dep))
               ch.href = '#depot-' + dep.depot
               ch.title = dep.transitif ? T('libs.detail.transitif') : T(dep.verrouille ? 'libs.detail.plage' : 'libs.detail.plageSeule', { plage: dep.plage })
+              if (dep.plafond) ch.title += ' · ' + T('libs.detail.plafond', { moteur: moteurDe(l.paquet), plafond: dep.plafond })
               b.append(ch)
             }
             dc.append(b)
@@ -1833,7 +1873,7 @@
 
           const c1 = el('td')
           c1.append(el('span', 'mono', l.paquet))
-          if (l.ecosysteme !== 'npm') c1.append(document.createTextNode(' '), el('span', 'badge', l.ecosysteme))
+          if (l.ecosysteme !== 'npm') c1.append(document.createTextNode(' '), el('span', 'badge', l.fichier || l.ecosysteme))
 
           const c2 = el('td', 'num', String(l.nbDepots))
 
@@ -1974,12 +2014,15 @@
       // Le modèle range les versions par paquet ; la matrice a besoin de
       // l'inverse. On retourne l'index une fois, au lieu de balayer `D.libs`
       // pour chaque cellule.
+      // Un dépôt qui fige un paquet à deux endroits — sa racine et son `e2e/` —
+      // n'a qu'une case : la version la plus EN RETARD, celle qui fait l'écart.
       const versionsParDepot = new Map()
       for (const l of D.libs)
         for (const v of l.versions)
           for (const d of v.depots) {
             if (!versionsParDepot.has(d.depot)) versionsParDepot.set(d.depot, new Map())
-            versionsParDepot.get(d.depot).set(l.paquet, v.version)
+            const m = versionsParDepot.get(d.depot)
+            if (!m.has(l.paquet) || cmpVersion(v.version, m.get(l.paquet)) < 0) m.set(l.paquet, v.version)
           }
 
       const libParNom = new Map(D.libs.map((l) => [l.paquet, l]))

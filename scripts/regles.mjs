@@ -126,9 +126,63 @@ export const PLAFONDS = {
 /** Le majeur d'une version ou d'une plage : `^6.0.3` → `6`. */
 export const majeurDe = (v) => nettoie(v).split('.')[0]
 
+/**
+ * LA SÉRIE COMPATIBLE d'une version — ce que semver promet de ne pas casser.
+ *
+ * Au-dessus de 1.0.0, c'est le majeur : `^6.0.3` accepte toute 6.x. En 0.x,
+ * c'est la MINEURE qui rompt — `^0.32.1` refuse 0.33, et Cargo lit ses
+ * exigences de la même façon — et en 0.0.z, chaque correctif. Le 23/09/2026,
+ * `rusqlite` 0.32.1 → 0.40.2, huit versions CASSANTES, s'affichait « mineure »
+ * dans le bloc des correctifs à monter.
+ *
+ * `majeurDe` reste ce qu'il dit : les majeurs admis et les plafonds nomment
+ * des majeurs de TypeScript, pas des séries.
+ */
+export function serieDe(v) {
+  const [a = 0, b = 0, c = 0] = nettoie(v)
+    .split('.')
+    .map((n) => parseInt(n, 10) || 0)
+  if (a > 0) return String(a)
+  if (b > 0) return `0.${b}`
+  return `0.0.${c}`
+}
+
 /** Cette version tient-elle un majeur ADMIS pour ce paquet ? */
 export const majeurAdmis = (paquet, version) =>
   (MAJEURS_ADMIS[paquet] ?? []).includes(majeurDe(version))
+
+/**
+ * UN PAQUET DE TYPES QUI SUIT UN MOTEUR, PAS L'AMONT.
+ *
+ * `@types/vscode` décrit l'API d'UNE version de VS Code. Une extension qui
+ * déclare `engines.vscode: ^1.90.0` promet de tourner sur VS Code 1.90 : des
+ * types plus récents lui laisseraient appeler une API que 1.90 n'a pas, et
+ * `vsce` refuse de publier quand la plage de `@types/vscode` dépasse celle du
+ * moteur. Le compter « en retard » sur la dernière version publiée — 1.138.0
+ * le 23/09/2026, pour `vscode-sops-diff` en 1.125.0 — poussait donc à casser la
+ * promesse que le dépôt affiche.
+ *
+ * Sa référence est le moteur, dépôt par dépôt : la plus haute version publiée
+ * qui n'en dépasse pas la mineure (`plafondEngines` de `collecte.mjs`), portée
+ * par chaque dépôt dans `plafond`.
+ */
+export const PLAFONDS_ENGINES = { '@types/vscode': 'vscode' }
+
+/**
+ * Une version est-elle EN RETARD pour ce dépôt ?
+ *
+ * La règle unique, que le relevé COMPTE (`enRetard`) et que la page DÉTAILLE
+ * (gravité, demande de montée) : écrite deux fois, les deux divergeraient —
+ * c'est ce qui était arrivé aux deux comparateurs de versions.
+ *
+ * Un dépôt PLAFONNÉ (`dep.plafond`, voir `PLAFONDS_ENGINES`) se juge sur son
+ * plafond et non sur l'amont ; au-delà, il n'est pas en retard pour autant. Un
+ * majeur ADMIS ne l'est pas non plus.
+ */
+export function estEnRetard(paquet, version, amont, dep) {
+  if (dep?.plafond) return cmpVersion(version, dep.plafond) < 0
+  return Boolean(amont) && cmpVersion(version, amont) < 0 && !majeurAdmis(paquet, version)
+}
 
 /**
  * LA RÉFÉRENCE D'UN PAQUET PLAFONNÉ N'EST PAS `latest`.
@@ -335,9 +389,10 @@ export function changementsDepuis(av, ap) {
     if (!p) continue
     // Un nouveau MAJEUR amont se signale : c'est une décision à prendre, pas
     // un correctif à reprendre — `@sentry/react` 11 est sorti le 23/09/2026 au
-    // milieu de trois correctifs, et rien ne l'en distinguait.
+    // milieu de trois correctifs, et rien ne l'en distinguait. En 0.x, c'est la
+    // SÉRIE qui dit la rupture : 0.32 → 0.40 en est une.
     if (p.amont && l.amont && p.amont !== l.amont)
-      out.push({ type: 'amont', paquet: l.paquet, de: p.amont, a: l.amont, nbDepots: l.nbDepots, majeur: majeurDe(p.amont) !== majeurDe(l.amont) })
+      out.push({ type: 'amont', paquet: l.paquet, de: p.amont, a: l.amont, nbDepots: l.nbDepots, majeur: serieDe(p.amont) !== serieDe(l.amont) })
     if (!p.dormance && l.dormance) out.push({ type: 'dormante', paquet: l.paquet, depuis: l.publieLe })
     if (p.dormance && !l.dormance) out.push({ type: 'reveillee', paquet: l.paquet })
   }

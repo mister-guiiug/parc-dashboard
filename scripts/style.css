@@ -1505,6 +1505,13 @@ footer {
 .badge.fraiche {
   border-color: var(--warning);
 }
+/* Un correctif DANS la série : la bordure du correctif, en tirets — ce n'est
+   pas le retard de la ligne, c'est ce qu'on peut monter sans rien trancher. */
+.badge.serie {
+  color: var(--ink);
+  border-color: var(--baseline);
+  border-style: dashed;
+}
 .actionsLib {
   display: flex;
   flex-wrap: wrap;

@@ -27,7 +27,7 @@
  * module et `regles.mjs` à la place du marqueur `__VUE__`, `export` et `import`
  * retirés.
  */
-import { cmpVersion, majeurAdmis } from './regles.mjs'
+import { PLAFONDS_ENGINES, cmpVersion, estEnRetard, nettoie, serieDe } from './regles.mjs'
 
 /**
  * Le RANG de l'écart, pas sa distance.
@@ -35,14 +35,19 @@ import { cmpVersion, majeurAdmis } from './regles.mjs'
  * Passer de 4.2 à 4.3 n'a rien de commun avec passer de 3 à 4 : un chiffre
  * unique mélangerait les deux, et c'est précisément ce que la couleur sépare.
  *
+ * Changer de SÉRIE est une rupture, et c'est `serieDe` qui la dit : en 0.x,
+ * 0.32 → 0.40 est un majeur — `^0.32.1` refuse 0.33, Cargo aussi —, et un
+ * rang « mineure » le rangeait parmi les correctifs à monter sans y penser.
+ *
  * @returns {'absent'|'0'|'majeure'|'mineure'|'patch'}
  */
 export const rangEcart = (v, ref) => {
   if (!v) return 'absent'
   if (!ref || cmpVersion(v, ref) >= 0) return '0'
-  const a = String(v).split('.').map(Number)
-  const b = String(ref).split('.').map(Number)
-  if ((a[0] || 0) !== (b[0] || 0)) return 'majeure'
+  if (serieDe(v) !== serieDe(ref)) return 'majeure'
+  const a = nettoie(v).split('.').map(Number)
+  const b = nettoie(ref).split('.').map(Number)
+  // même série : en 0.x, la mineure est déjà égale, reste le correctif
   if ((a[1] || 0) !== (b[1] || 0)) return 'mineure'
   return 'patch'
 }
@@ -258,8 +263,9 @@ const MOTIFS = [
   [/^@types\//, 'lang'],
   // `typescript-7` est l'alias qui tient la 7 pendant que `typescript` tient la
   // 6 : c'est le même langage, il va dans le même groupe. Le `-\d+` couvre le
-  // prochain alias sans qu'on ait à repasser ici.
-  [/^(typescript(-\d+)?|globals|serde|serde_json)$/, 'lang'],
+  // prochain alias sans qu'on ait à repasser ici. `Node.js` est la ligne que
+  // le relevé tire des `.nvmrc`.
+  [/^(typescript(-\d+)?|globals|serde|serde_json|Node\.js)$/, 'lang'],
   [/^@mister-guiiug\//, 'infra'],
   [/^@sentry\/|^web-vitals$|^tracing$/, 'obs'],
   [/^@testing-library\/|^@playwright\/|playwright|^axe-core$|^jsdom$|^fake-indexeddb$|coverage|rules-unit-testing/, 'test'],
@@ -440,18 +446,41 @@ export const GRAVITES = ['patch', 'mineure', 'majeure']
  * « 18/18 » pour `@sentry/react` 10.75.2 → 11.0.0 : le même signe pour une
  * campagne triviale et pour une décision. C'est `rangEcart`, déjà éprouvé par
  * la matrice, qui les sépare. Un majeur ADMIS (TypeScript 6 sous une amont en
- * 7) n'est pas un retard, ici non plus.
+ * 7) n'est pas un retard, ici non plus ; un dépôt PLAFONNÉ se mesure à son
+ * plafond (`estEnRetard` de `regles.mjs`, la règle que le relevé compte).
  */
 export function graviteRetard(l) {
-  if (!l?.amont) return null
   let pire = null
-  for (const v of l.versions || []) {
-    if (cmpVersion(v.version, l.amont) >= 0 || majeurAdmis(l.paquet, v.version)) continue
-    const r = rangEcart(v.version, l.amont)
-    if ((POIDS[r] ?? 0) > (POIDS[pire] ?? 0)) pire = r
+  for (const v of l?.versions || []) {
+    for (const d of v.depots || []) {
+      if (!estEnRetard(l.paquet, v.version, l.amont, d)) continue
+      const r = rangEcart(v.version, d.plafond || l.amont)
+      if ((POIDS[r] ?? 0) > (POIDS[pire] ?? 0)) pire = r
+    }
   }
   return pire
 }
+
+/**
+ * Le nom d'un endroit où un paquet est figé : le dépôt, et le dossier quand ce
+ * n'est pas sa racine — `miss-genius/worker`, qui a son propre lockfile.
+ */
+export const nomUnite = (x) => (x?.dossier ? `${x.depot}/${x.dossier}` : x?.depot)
+
+/** Le nom qu'une demande donne au paquet : `Node.js (.nvmrc)` dit d'où vient la version. */
+export const nomDemande = (dm) => (dm?.fichier ? `${dm.paquet} (${dm.fichier})` : dm?.paquet)
+
+/**
+ * Le nombre de DÉPÔTS d'une demande. Deux dossiers d'un même dépôt — sa racine
+ * et son `e2e/` — sont deux lignes à monter, mais un seul dépôt.
+ */
+export const nbDepotsDe = (dm) => new Set((dm?.depots || []).map((x) => x.depot)).size
+
+/** Le champ qui plafonne un paquet de types : `engines.vscode`. */
+export const moteurDe = (paquet) => `engines.${PLAFONDS_ENGINES[paquet] ?? '?'}`
+
+const entreeDemande = (d, version) => ({ depot: d.depot, dossier: d.dossier ?? null, version, transitif: Boolean(d.transitif) })
+const parUnite = (a, b) => nomUnite(a).localeCompare(nomUnite(b))
 
 /** Les heures écoulées depuis une date ISO — `null` si elle est illisible. */
 export const heuresDepuis = (iso, maintenant) => {
@@ -474,17 +503,75 @@ export const FRAICHE_H = 24
  *
  * Né d'une demande du 23/09/2026 recopiée de la page : « node en 26.6.1 »
  * voulait dire `@types/node` en 26.6.2, et « react 10.75.1 » `@sentry/react`.
+ *
+ * C'est la montée vers l'AMONT. Les dépôts plafonnés n'y sont pas : leur cible
+ * est leur plafond, et `correctifsDe` la demande à part. `fichier` nomme ce
+ * que la ligne ne dit pas d'elle-même — `.nvmrc` pour Node.
  */
 export function demandeMontee(l) {
-  const gravite = graviteRetard(l)
-  if (!gravite) return null
+  if (!l?.amont) return null
   const depots = []
-  for (const v of l.versions) {
-    if (cmpVersion(v.version, l.amont) >= 0 || majeurAdmis(l.paquet, v.version)) continue
-    for (const d of v.depots) depots.push({ depot: d.depot, version: v.version, transitif: Boolean(d.transitif) })
+  let gravite = null
+  for (const v of l.versions || []) {
+    for (const d of v.depots || []) {
+      if (d.plafond || !estEnRetard(l.paquet, v.version, l.amont, d)) continue
+      depots.push(entreeDemande(d, v.version))
+      const r = rangEcart(v.version, l.amont)
+      if ((POIDS[r] ?? 0) > (POIDS[gravite] ?? 0)) gravite = r
+    }
   }
-  depots.sort((a, b) => a.depot.localeCompare(b.depot))
-  return { paquet: l.paquet, alias: l.alias ?? null, cible: l.amont, gravite, depots }
+  if (!depots.length) return null
+  depots.sort(parUnite)
+  return { paquet: l.paquet, alias: l.alias ?? null, fichier: l.fichier ?? null, cible: l.amont, gravite, depots }
+}
+
+/**
+ * LES MONTÉES QUE LA DÉCISION SUR L'AMONT CACHAIT — une demande par cible.
+ *
+ * 1. **Le correctif derrière un nouveau majeur.** Le 23/09/2026, 18 dépôts
+ *    tenaient `@sentry/react` 10.75.2 ; la 10.75.3 existait, mais l'amont était
+ *    passé à 11.0.0 le même jour, et la page ne montrait que le majeur — « à
+ *    arbitrer ». Le correctif, lui, se monte sans rien arbitrer. Le relevé
+ *    pose sur chaque version d'une AUTRE série que l'amont la dernière de sa
+ *    propre série (`derniere`) ; la demande vise celle-là, sans quitter la
+ *    série.
+ * 2. **Le plafond d'un moteur.** Un dépôt plafonné (`@types/vscode` sous
+ *    `engines.vscode`) resté SOUS son plafond se monte jusqu'à lui, pas plus.
+ *
+ * Aucune n'est majeure par construction : on reste dans la série, ou sous le
+ * plafond. Elles vont donc au bloc des correctifs, et le majeur reste seul
+ * parmi les décisions.
+ */
+export function correctifsDe(l) {
+  const parCible = new Map()
+  const pousse = (cle, tete, entree) => {
+    if (!parCible.has(cle)) parCible.set(cle, { ...tete, depots: [] })
+    parCible.get(cle).depots.push(entree)
+  }
+  const base = { paquet: l?.paquet, alias: l?.alias ?? null, fichier: l?.fichier ?? null }
+  for (const v of l?.versions || []) {
+    for (const d of v.depots || []) {
+      // `publie` date la CIBLE — pas l'amont, dont la fraîcheur ne dit rien d'elle
+      if (d.plafond) {
+        if (cmpVersion(v.version, d.plafond) < 0) pousse('plafond ' + d.plafond, { ...base, cible: d.plafond, plafond: true, publie: null }, entreeDemande(d, v.version))
+        continue
+      }
+      if (v.derniere && cmpVersion(v.derniere, v.version) > 0)
+        pousse(
+          'serie ' + v.derniere,
+          { ...base, cible: v.derniere, serie: serieDe(v.version), amont: l.amont ?? null, publie: v.derniereLe ?? null },
+          entreeDemande(d, v.version),
+        )
+    }
+  }
+  return [...parCible.values()].map((dm) => {
+    let gravite = null
+    for (const x of dm.depots) {
+      const r = rangEcart(x.version, dm.cible)
+      if ((POIDS[r] ?? 0) > (POIDS[gravite] ?? 0)) gravite = r
+    }
+    return { ...dm, gravite, depots: dm.depots.sort(parUnite) }
+  })
 }
 
 /* ── Le bloc « À faire » ────────────────────────────────────────────────── */
@@ -546,12 +633,16 @@ export function aFaire(D) {
     .filter((l) => l.paquet !== socle && l.enRetard > 0)
     .map(demandeMontee)
     .filter(Boolean)
-  const parTaille = (a, b) => b.depots.length - a.depots.length || a.paquet.localeCompare(b.paquet)
+  // Les correctifs qu'un nouveau majeur cachait, et les plafonds : sans
+  // condition sur `enRetard`, qui ne compte que le retard sur l'amont — un
+  // majeur ADMIS peut avoir son correctif.
+  const caches = libs.filter((l) => l.paquet !== socle).flatMap(correctifsDe)
+  const parTaille = (a, b) => nbDepotsDe(b) - nbDepotsDe(a) || a.paquet.localeCompare(b.paquet)
   pousse('majeures', demandes.filter((x) => x.gravite === 'majeure').sort(parTaille))
-  pousse('correctifs', demandes.filter((x) => x.gravite !== 'majeure').sort(parTaille))
+  pousse('correctifs', [...demandes.filter((x) => x.gravite !== 'majeure'), ...caches].sort(parTaille))
   const s = libs.find((l) => l.paquet === socle)
   const ds = s ? demandeMontee(s) : null
-  if (ds) pousse('socle', [ds], ds.depots.length)
+  if (ds) pousse('socle', [ds], nbDepotsDe(ds))
 
   const renovate = depots.filter((d) => d.renovate?.enAttente).map((d) => ({ depot: d.nom, n: d.renovate.enAttente, majeures: d.renovate.majeures, url: d.renovate.issue }))
   pousse(

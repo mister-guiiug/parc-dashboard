@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
 // ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
-import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, etatPublie, fond, fusionneHistoriques, fusionnePoint, joursAbsents, majeurAdmis, nettoie, paquetReel } from './regles.mjs'
+import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, estEnRetard, etatDe, etatPublie, fond, fusionneHistoriques, fusionnePoint, joursAbsents, nettoie, paquetReel, serieDe } from './regles.mjs'
 // Ce que le relevé CALCULE vit à part de ce qu'il va CHERCHER : importer ce
 // fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
 // trente appels d'API. Voir `scripts/modele.mjs`.
@@ -37,7 +37,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { entreeDe, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, precacheDe, referencesDe } from './collecte.mjs'
+import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -292,7 +292,7 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   const nwo = g.full_name
   const def = g.default_branch
 
-  const [commit, listeWf, pages, prs, pkgTxt, lockTxt, cargoTxt, local] = await Promise.all([
+  const [commit, listeWf, pages, prs, pkgTxt, lockTxt, cargoTxt, nvmrcTxt, local] = await Promise.all([
     api(`/repos/${nwo}/commits/${encodeURIComponent(def)}`, { silence404: true }),
     api(`/repos/${nwo}/actions/workflows?per_page=100`),
     api(`/repos/${nwo}/pages`, { silence404: true }),
@@ -300,6 +300,7 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
     fichier(nwo, def, 'package.json'),
     fichier(nwo, def, 'package-lock.json'),
     fichier(nwo, def, 'Cargo.lock'),
+    fichier(nwo, def, '.nvmrc'),
     etatLocal(g.name),
   ])
 
@@ -344,15 +345,7 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   // Une plage `^4.7.0` accepte déjà 4.9.0 : seul le lockfile dit l'installé.
   const pkg = json(pkgTxt)
   const lock = json(lockTxt)
-  const verrouillees = {}
-  if (lock?.packages) {
-    for (const [chemin, info] of Object.entries(lock.packages)) {
-      if (!chemin.startsWith('node_modules/')) continue
-      const n = chemin.slice('node_modules/'.length)
-      if (n.includes('node_modules/') || !info.version) continue
-      verrouillees[n] = info.version
-    }
-  }
+  const verrouillees = verrouilleesDe(lock)
   const crates = {}
   if (cargoTxt) {
     for (const bloc of cargoTxt.split('[[package]]').slice(1)) {
@@ -362,6 +355,38 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
     }
   }
   const declarees = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) }
+
+  // LES DOSSIERS QUI FIGENT LEURS PROPRES VERSIONS — un `worker/`, un `e2e/` à
+  // lockfile propre, ou un espace de travail (voir `unitesDeLArbre`). Il faut
+  // l'arbre du dépôt pour les trouver, et il coûte UN appel d'API : on ne le
+  // relit que quand la tête de la branche a bougé, sinon on reprend ce que la
+  // page en ligne en savait, comme pour la production. Leurs fichiers, eux,
+  // passent par raw.githubusercontent, hors quota.
+  const connu = avantPublie?.depots?.find((x) => x.nom === g.name)
+  let dossiers = null
+  if (commit && connu?.commit?.sha === commit.sha.slice(0, 7) && Array.isArray(connu.dossiers)) dossiers = connu.dossiers
+  else if (commit) {
+    const arbre = await apiFacultatif(`/repos/${nwo}/git/trees/${commit.sha}?recursive=1`)
+    if (Array.isArray(arbre?.tree) && !arbre.truncated)
+      dossiers = unitesDeLArbre(
+        arbre.tree.filter((e) => e.type === 'blob').map((e) => e.path),
+        espacesDeTravail(pkg),
+      )
+  }
+  // Arbre illisible : on garde ce qu'on savait plutôt que d'effacer des dossiers.
+  if (!dossiers) dossiers = Array.isArray(connu?.dossiers) ? connu.dossiers : []
+  const unites = [{ dossier: '', pkg, declarees, verrouillees }]
+  for (const u of dossiers) {
+    const p = json(await fichier(nwo, def, `${u.dossier}/package.json`))
+    if (!p) continue
+    const l = u.lock === 'propre' ? json(await fichier(nwo, def, `${u.dossier}/package-lock.json`)) : lock
+    unites.push({
+      dossier: u.dossier,
+      pkg: p,
+      declarees: { ...(p.dependencies || {}), ...(p.devDependencies || {}) },
+      verrouillees: verrouilleesDe(l, u.lock === 'racine' ? u.dossier : ''),
+    })
+  }
 
   // LES PR OUVERTES, AVEC LEUR CI. La tuile disait « 1 PR à relire » sans dire
   // laquelle ; le bloc « À faire » la nomme, et dit si elle est fusionnable.
@@ -417,6 +442,13 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
     declarees,
     verrouillees,
     crates,
+    // ce qui sert à construire les lignes, puis est retiré du modèle
+    unites,
+    nvmrc: versionNvmrc(nvmrcTxt),
+    nvmrcBrut: nvmrcTxt ? nvmrcTxt.split(/\r?\n/)[0].trim() : null,
+    // et ce qui reste : la liste des dossiers, reprise au passage suivant
+    // tant que la tête ne bouge pas
+    dossiers,
     paquet: pkg ? { nom: pkg.name, version: pkg.version, prive: !!pkg.private } : null,
     nbDeps: Object.keys(declarees).length,
     nbVerrouilles: Object.keys(verrouillees).length || null,
@@ -675,10 +707,12 @@ const SUIVIES = new Set()
 // les deux compilateurs) et le nom RÉEL pour la requête.
 const REEL = new Map()
 for (const d of depots) {
-  for (const [p, plage] of Object.entries(d.declarees)) {
-    SUIVIES.add(p)
-    const r = paquetReel(p, plage)
-    if (r !== p) REEL.set(p, r)
+  for (const u of d.unites) {
+    for (const [p, plage] of Object.entries(u.declarees)) {
+      SUIVIES.add(p)
+      const r = paquetReel(p, plage)
+      if (r !== p) REEL.set(p, r)
+    }
   }
 }
 for (const p of PAIRS) SUIVIES.add(p)
@@ -691,6 +725,9 @@ const versionsPubliees = {}
 // mémoire seulement : c'est elle qui date la version amont ADMISE — celle d'un
 // paquet plafonné n'est pas `latest` — et dit si elle a moins de 24 h.
 const temps = {}
+// Les versions qu'on peut CONSEILLER : ni dépréciées (npm), ni retirées
+// (crates.io). C'est dans elles que se cherche la dernière d'une série.
+const utilisables = {}
 
 // ON LIT LE DOCUMENT COMPLET, ET NON `/latest`. Il coûte plus cher — 232 Mo
 // décompressés pour les 83 paquets du parc, mais il arrive en gzip et
@@ -717,6 +754,9 @@ await enLot([...INTERROGES], 6, async (p) => {
     if (!derniere) return
     amont[p] = derniere
     versionsPubliees[p] = Object.keys(doc.versions || {})
+    utilisables[p] = Object.entries(doc.versions || {})
+      .filter(([, m]) => !m?.deprecated)
+      .map(([v]) => v)
     temps[p] = doc.time || null
     if (doc.time?.[derniere]) publieLe[p] = doc.time[derniere]
     const url = doc.repository?.url || doc.versions?.[derniere]?.repository?.url || ''
@@ -730,6 +770,7 @@ await enLot([...INTERROGES], 6, async (p) => {
 for (const [nom, reel] of REEL) {
   if (amont[reel]) amont[nom] = amont[reel]
   if (versionsPubliees[reel]) versionsPubliees[nom] = versionsPubliees[reel]
+  if (utilisables[reel]) utilisables[nom] = utilisables[reel]
   if (publieLe[reel]) publieLe[nom] = publieLe[reel]
   if (depotAmont[reel]) depotAmont[nom] = depotAmont[reel]
   if (temps[reel]) temps[nom] = temps[reel]
@@ -745,43 +786,89 @@ if (socle) depotAmont[NOM_SOCLE] = `${COMPTE}/dev-pwa-config`
 /* ------------------------------------------------------------- modèle */
 
 const libs = []
+
+// Une ligne compte des DÉPÔTS, pas des dossiers : un dépôt qui fige le même
+// paquet à sa racine et dans `e2e/` reste UN dépôt — sinon il passerait pour
+// « partagé » et gonflerait le retard.
+const dansDepots = (entrees) => new Set(entrees.map((e) => e.depot)).size
+const ordreEntrees = (a, b) => a.depot.localeCompare(b.depot) || (a.dossier ?? '').localeCompare(b.dossier ?? '')
+// Le retard se compte par la règle que la page détaille (`estEnRetard`).
+const enRetardDans = (paquet, versions, a) => dansDepots(versions.flatMap((v) => v.depots.filter((e) => estEnRetard(paquet, v.version, a, e))))
+
+/**
+ * LA DERNIÈRE DE SA SÉRIE, posée sur chaque version d'une AUTRE série que
+ * l'amont : le correctif qu'un nouveau majeur cachait (voir `derniereDeSerie`
+ * et `correctifsDe`). Dans la série de l'amont, c'est l'amont qui fait foi.
+ * Rien à interroger de plus : les documents du registre sont déjà là.
+ */
+function poseDernieres(versions, a, publiees, latest, { plageDe = () => null, dateDe = () => null } = {}) {
+  if (!a) return
+  for (const v of versions) {
+    if (serieDe(v.version) === serieDe(a)) continue
+    const d = derniereDeSerie(publiees, serieDe(v.version), { latest, plage: plageDe(v) })
+    if (!d || cmpVersion(d, v.version) <= 0) continue
+    v.derniere = d
+    // sa date à ELLE : « moins de 24 h » ne se lit pas sur celle de l'amont
+    const quand = dateDe(d)
+    if (quand) v.derniereLe = quand
+  }
+}
+
+// Les plages que le socle impose à qui le consomme : ses pairs, dures ou non —
+// npm refuse aussi une pair OPTIONNELLE installée hors de sa plage. Une montée
+// dans la série ne se conseille qu'à l'intérieur.
+const PLAGES_SOCLE = pkgSocle?.peerDependencies || {}
+const unitesDuSocle = new Set(depots.flatMap((d) => d.unites.filter((u) => NOM_SOCLE in u.declarees).map((u) => `${d.nom}|${u.dossier}`)))
+
 for (const paquet of SUIVIES) {
   const parVersion = new Map()
-  for (const d of depots) {
-    // TRANSITIF : une pair dure du socle, non déclarée, mais figée par le
-    // lockfile d'un dépôt qui consomme le socle — c'est elle qui tourne.
-    const transitif = !(paquet in d.declarees) && PAIRS.has(paquet) && NOM_SOCLE in d.declarees && Boolean(d.verrouillees[paquet])
-    if (transitif) {
-      const v = d.verrouillees[paquet]
-      if (!parVersion.has(v)) parVersion.set(v, [])
-      parVersion.get(v).push({ depot: d.nom, plage: null, verrouille: true, transitif: true })
-      continue
-    }
-    if (!(paquet in d.declarees)) continue
-    // Sans lockfile, la plage déclarée fait foi — et pour un ALIAS, la plage
-    // est celle de l'alias (`~7.0.2`), pas la chaîne `npm:typescript@~7.0.2`
-    // entière : `nettoie` n'y voit aucun préfixe de plage et la rendrait telle
-    // quelle, en guise de numéro de version, dans la barre de répartition.
-    const declaree = d.declarees[paquet]
-    const v = d.verrouillees[paquet] || nettoie(aliasNpm(declaree)?.plage ?? declaree)
+  const ajoute = (v, entree) => {
     if (!parVersion.has(v)) parVersion.set(v, [])
-    parVersion.get(v).push({ depot: d.nom, plage: d.declarees[paquet], verrouille: !!d.verrouillees[paquet] })
+    parVersion.get(v).push(entree)
+  }
+  for (const d of depots) {
+    for (const u of d.unites) {
+      const ou = u.dossier ? { depot: d.nom, dossier: u.dossier } : { depot: d.nom }
+      // TRANSITIF : une pair dure du socle, non déclarée, mais figée par le
+      // lockfile d'une unité qui consomme le socle — c'est elle qui tourne.
+      const transitif = !(paquet in u.declarees) && PAIRS.has(paquet) && NOM_SOCLE in u.declarees && Boolean(u.verrouillees[paquet])
+      if (transitif) {
+        ajoute(u.verrouillees[paquet], { ...ou, plage: null, verrouille: true, transitif: true })
+        continue
+      }
+      if (!(paquet in u.declarees)) continue
+      // Sans lockfile, la plage déclarée fait foi — et pour un ALIAS, la plage
+      // est celle de l'alias (`~7.0.2`), pas la chaîne `npm:typescript@~7.0.2`
+      // entière : `nettoie` n'y voit aucun préfixe de plage et la rendrait telle
+      // quelle, en guise de numéro de version, dans la barre de répartition.
+      const declaree = u.declarees[paquet]
+      const v = u.verrouillees[paquet] || nettoie(aliasNpm(declaree)?.plage ?? declaree)
+      const entree = { ...ou, plage: declaree, verrouille: !!u.verrouillees[paquet] }
+      // `@types/vscode` suit le moteur que CE dépôt déclare : voir `PLAFONDS_ENGINES`.
+      const plafond = plafondEngines(paquet, u.pkg, utilisables[paquet])
+      if (plafond) entree.plafond = plafond
+      ajoute(v, entree)
+    }
   }
   if (!parVersion.size) continue
-  const versions = [...parVersion].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps.sort((a, b) => a.depot.localeCompare(b.depot)) }))
-  const nbDepots = versions.reduce((n, v) => n + v.depots.length, 0)
+  const versions = [...parVersion].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps.sort(ordreEntrees) }))
+  const entrees = versions.flatMap((v) => v.depots)
   // La référence d'un paquet PLAFONNÉ n'est pas `latest` : voir `amontAdmis`.
   const a = amontAdmis(paquet, versionsPubliees[paquet], amont[paquet] || null)
+  poseDernieres(versions, a, utilisables[paquet], amont[paquet] || null, {
+    plageDe: (v) => (v.depots.some((e) => unitesDuSocle.has(`${e.depot}|${e.dossier ?? ''}`)) ? (PLAGES_SOCLE[paquet] ?? null) : null),
+    dateDe: (d) => temps[paquet]?.[d] || null,
+  })
   // Un majeur ADMIS n'est pas un retard : voir `MAJEURS_ADMIS` dans
-  // `regles.mjs`, et la contrainte amont qui l'y justifie.
-  const enRetard = a ? versions.filter((v) => cmpVersion(v.version, a) < 0 && !majeurAdmis(paquet, v.version)).reduce((n, v) => n + v.depots.length, 0) : null
-  const nbTransitifs = versions.reduce((n, v) => n + v.depots.filter((x) => x.transitif).length, 0)
+  // `regles.mjs`, et la contrainte amont qui l'y justifie. Un dépôt plafonné se
+  // juge sur son plafond, même sans amont lisible.
+  const enRetard = a || entrees.some((e) => e.plafond) ? enRetardDans(paquet, versions, a) : null
   libs.push({
     paquet,
     alias: REEL.get(paquet) ?? null,
     ecosysteme: 'npm',
-    nbDepots,
-    nbTransitifs,
+    nbDepots: dansDepots(entrees),
+    nbTransitifs: dansDepots(entrees.filter((e) => e.transitif)),
     nbVersions: versions.length,
     versions,
     amont: a,
@@ -817,6 +904,8 @@ await enLot([...cratesMap.keys()], 3, async (c) => {
     const v = doc.versions?.find((x) => !x.yanked && !x.num.includes('-'))
     if (!v) return
     amont[c] = v.num
+    utilisables[c] = doc.versions.filter((x) => !x.yanked).map((x) => x.num)
+    temps[c] = Object.fromEntries(doc.versions.map((x) => [x.num, x.created_at]))
     publieLe[c] = v.created_at
     const url = doc.crate?.repository || ''
     const m = /github\.com[:/]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[#?].*)?$/.exec(url)
@@ -828,14 +917,15 @@ await enLot([...cratesMap.keys()], 3, async (c) => {
 for (const [crate, m] of cratesMap) {
   const versions = [...m].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps }))
   const a = amont[crate] || null
+  poseDernieres(versions, a, utilisables[crate], a, { dateDe: (d) => temps[crate]?.[d] || null })
   libs.push({
     paquet: crate,
     ecosysteme: 'cargo',
-    nbDepots: versions.reduce((n, v) => n + v.depots.length, 0),
+    nbDepots: dansDepots(versions.flatMap((v) => v.depots)),
     nbVersions: versions.length,
     versions,
     amont: a,
-    enRetard: a ? versions.filter((v) => cmpVersion(v.version, a) < 0 && !majeurAdmis(crate, v.version)).reduce((n, v) => n + v.depots.length, 0) : null,
+    enRetard: a ? enRetardDans(crate, versions, a) : null,
     majeursAdmis: MAJEURS_ADMIS[crate] ?? null,
     plusRecente: versions[0].version,
     publieLe: publieLe[crate] || null,
@@ -843,6 +933,57 @@ for (const [crate, m] of cratesMap) {
     publieAmont: publieLe[crate] || null,
     nbTransitifs: 0,
     depotAmont: depotAmont[crate] || null,
+  })
+}
+
+// NODE, ÉPINGLÉ PAR LE `.nvmrc` DE CHAQUE DÉPÔT — la version que le
+// développement installe. Le 23/09/2026, dix-huit apps restaient en 26.9.0
+// quand le socle était passé en 26.10.0, et aucune ligne ne le disait. Seules
+// les versions COMPLÈTES comptent (`versionNvmrc`). L'amont vient de
+// nodejs.org, hors quota d'API : la plus haute publiée — la dernière de chaque
+// série en sort aussi, pour le correctif qu'un nouveau majeur cacherait.
+const parVersionNode = new Map()
+for (const d of depots) {
+  if (!d.nvmrc) continue
+  if (!parVersionNode.has(d.nvmrc)) parVersionNode.set(d.nvmrc, [])
+  parVersionNode.get(d.nvmrc).push({ depot: d.nom, plage: d.nvmrcBrut, verrouille: true })
+}
+if (parVersionNode.size) {
+  const publieesNode = []
+  const datesNode = {}
+  try {
+    const res = await fetch('https://nodejs.org/dist/index.json')
+    if (res.ok)
+      for (const n of await res.json()) {
+        const v = String(n.version || '').replace(/^v/, '')
+        publieesNode.push(v)
+        if (n.date) datesNode[v] = n.date
+      }
+  } catch {
+    /* hors ligne : la ligne reste, sans amont — comme un paquet illisible */
+  }
+  const aNode = publieesNode.filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort((x, y) => cmpVersion(y, x))[0] || null
+  const versions = [...parVersionNode].sort((a, b) => cmpVersion(b[0], a[0])).map(([version, deps]) => ({ version, depots: deps.sort(ordreEntrees) }))
+  const dateNode = (v) => (datesNode[v] ? new Date(datesNode[v]).toISOString() : null)
+  poseDernieres(versions, aNode, publieesNode, aNode, { dateDe: dateNode })
+  const date = aNode ? dateNode(aNode) : null
+  libs.push({
+    // Un nom qu'aucun paquet npm ne peut porter (majuscule) : la ligne ne se
+    // confond pas avec `node` ni avec `@types/node`.
+    paquet: 'Node.js',
+    ecosysteme: 'node',
+    fichier: '.nvmrc',
+    nbDepots: dansDepots(versions.flatMap((v) => v.depots)),
+    nbTransitifs: 0,
+    nbVersions: versions.length,
+    versions,
+    amont: aNode,
+    enRetard: aNode ? enRetardDans('Node.js', versions, aNode) : null,
+    majeursAdmis: null,
+    plusRecente: versions[0].version,
+    publieLe: date,
+    publieAmont: date,
+    depotAmont: 'nodejs/node',
   })
 }
 libs.sort((a, b) => b.nbDepots - a.nbDepots || a.paquet.localeCompare(b.paquet))
@@ -877,6 +1018,9 @@ for (const d of depots) {
   delete d.declarees
   delete d.verrouillees
   delete d.crates
+  delete d.unites
+  delete d.nvmrc
+  delete d.nvmrcBrut
   for (const w of d.workflows) delete w.idDernier
 }
 

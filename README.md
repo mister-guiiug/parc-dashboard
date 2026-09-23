@@ -52,6 +52,27 @@ main — et la recopie du matin même avait donné « node 26.6.1 » pour `@type
 - **Les transitifs** : les pairs dures du socle sont suivies jusque dans les
   lockfiles des dépôts qui ne les déclarent pas. `typescript-eslint` y était figé
   dans 22 dépôts ; la page en comptait 5.
+- **Le correctif qu'un nouveau majeur cachait** : chaque version d'une autre
+  série que l'amont reçoit la dernière de SA série (`derniere`), sous `latest`
+  quand `latest` y est — electron-builder publie des 26.16.x sous l'étiquette
+  `v26` —, et sous la plage de pair du socle pour qui le consomme. Le 23/09/2026,
+  `@sentry/react` 10.75.3 attendait dix-huit dépôts, invisible derrière la
+  11.0.0 : il va désormais aux correctifs, et le majeur reste seul parmi les
+  décisions.
+- **La série, pas le seul majeur** : en 0.x, changer de mineure est une rupture
+  (`^0.32.1` refuse 0.33, Cargo aussi). `rusqlite` 0.32 → 0.40 passait pour une
+  « mineure » à monter ; c'est un majeur (`serieDe` de
+  [`regles.mjs`](scripts/regles.mjs)).
+- **Les dossiers à lockfile propre** : `worker/`, `proxy/`, `workers/`, `e2e/`,
+  `apps/desktop`, `server/` — lus comme la racine, et nommés `dépôt/dossier`.
+  Un dossier SANS lockfile propre n'est compté que s'il est un espace de travail
+  de la racine ; sinon rien ne fige ses versions (`miss-supaboss/proxy`). La
+  liste des dossiers coûte un appel d'API par dépôt, et n'est relue que quand sa
+  tête a bougé.
+- **Node, par les `.nvmrc`** : une ligne « Node.js » comparée à nodejs.org. Seule
+  une version complète compte : `26` ou `lts/*` ne sont en retard sur rien.
+- **Un plafond de moteur** : `@types/vscode` suit `engines.vscode`, pas l'amont.
+  Au-delà du plafond, il n'est pas en retard ; en deçà, il se monte jusqu'à lui.
 - **La production** : le `version.json` que chaque app publie, comparé à `main`
   — à jour, équivalente (seuls des fichiers hors build ont changé), déploiement
   en cours (tête de moins de 30 min), en retard. Et ses **morceaux fugaces** :
@@ -68,7 +89,8 @@ main — et la recopie du matin même avait donné « node 26.6.1 » pour `@type
   librairie — la touche `/` y amène le curseur. Deux sections longues et peu
   consultées se replient ; le Ctrl+F du navigateur les rouvre.
 
-Les règles de la collecte (production, fugaces, Renovate, pairs, journal, Atom)
+Les règles de la collecte (production, fugaces, Renovate, pairs, journal, Atom,
+plages npm, dernière d'une série, dossiers, `.nvmrc`, plafonds de moteur)
 vivent dans [`scripts/collecte.mjs`](scripts/collecte.mjs), éprouvées par
 [`test/collecte.test.mjs`](test/collecte.test.mjs) — dont un extrait RÉEL d'un
 tableau Renovate. Ce module n'est pas inséré dans la page.
@@ -276,7 +298,7 @@ node scripts/releve.mjs
 ```
 
 Un seul script, sans dépendance : `GITHUB_TOKEN` (ou `PARC_TOKEN`) dans
-l'environnement, environ 350 appels d'API (un de plus par PR ouverte, pour sa CI), et `index.html` est réécrit.
+l'environnement, environ 350 appels d'API (un de plus par PR ouverte, pour sa CI, et un par dépôt dont la tête a bougé, pour ses dossiers), et `index.html` est réécrit.
 
 | Option | Effet | Écrit dans |
 |---|---|---|
@@ -296,7 +318,9 @@ Depuis le 23/09/2026, **chaque heure**, et sans commit — la page part sur Page
 comme artefact (`upload-pages-artifact`, puis `deploy-pages`). Elle passait une
 fois par jour, et le cron « 05:17 UTC » partait en réalité vers 09:55 : GitHub
 ne tient ses crons qu'au mieux. Un passage coûte ~45 s et 343 appels, quand le
-`GITHUB_TOKEN` en permet 1 000 par heure.
+`GITHUB_TOKEN` en permet 1 000 par heure — 376 le 24/09/2026 au premier passage
+qui lit l'arbre de chaque dépôt, 346 ensuite, les arbres étant repris tant que
+la tête ne bouge pas.
 
 - **L'état précédent est la page EN LIGNE**, relue à chaque passage avec un
   paramètre inédit (le CDN garde une page dix minutes). C'est elle qui dit s'il

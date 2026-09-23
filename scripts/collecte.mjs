@@ -9,6 +9,7 @@
  * flux Atom. Chacune interprète un TEXTE venu d'ailleurs (un `sw.js`, un corps
  * d'issue, une réponse d'API), donc a des cas à éprouver.
  */
+import { PLAFONDS_ENGINES, cmpVersion, nettoie, serieDe } from './regles.mjs'
 
 /* ── Les pairs du socle ─────────────────────────────────────────────────── */
 
@@ -28,6 +29,224 @@ export function pairsDures(pkg) {
   return Object.keys(pairs)
     .filter((p) => !meta[p]?.optional)
     .sort()
+}
+
+/* ── Les plages npm, et la dernière version d'une série ─────────────────── */
+
+const triplet = (v) =>
+  nettoie(v)
+    .split('.')
+    .map((n) => parseInt(n, 10) || 0)
+const cmp3 = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+// Une version STABLE et complète : ni préversion, ni métadonnée de build.
+const STABLE = /^\d+\.\d+\.\d+$/
+const COMPARATEUR = /^(\^|~|>=|<=|>|<|=)?v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-[0-9A-Za-z.-]+)?$/
+
+/** Un comparateur npm (`^1.2.3`, `~1.2`, `>=7`, `1.x`…) en prédicat — `null` s'il est illisible. */
+function comparateur(c) {
+  const m = COMPARATEUR.exec(c)
+  if (!m) return null
+  const op = m[1] || '='
+  const parts = [m[2], m[3], m[4]].map((x) => (x === undefined || /^[xX*]$/.test(x) ? null : Number(x)))
+  const k = parts.indexOf(null)
+  const prec = k === -1 ? 3 : k
+  const base = [0, 1, 2].map((i) => (i < prec ? parts[i] : 0))
+  // la borne haute, exclue : la partie `i` augmentée, les suivantes à zéro
+  const sup = (i) => [0, 1, 2].map((j) => (j < i ? base[j] : j === i ? base[j] + 1 : 0))
+  // `*`, `x`, `>=*` : tout ; `<*`, `>*` : rien
+  if (prec === 0) return op === '<' || op === '>' ? () => false : () => true
+  if (op === '=') return prec === 3 ? (v) => cmp3(v, base) === 0 : (v) => cmp3(v, base) >= 0 && cmp3(v, sup(prec - 1)) < 0
+  if (op === '^') {
+    // La première partie NON NULLE parmi celles écrites fixe la série — c'est
+    // toute la règle du 0.x : `^0.32.1` s'arrête avant 0.33.0.
+    let i = base.findIndex((n, j) => j < prec && n !== 0)
+    if (i === -1) i = prec - 1
+    return (v) => cmp3(v, base) >= 0 && cmp3(v, sup(i)) < 0
+  }
+  if (op === '~') return (v) => cmp3(v, base) >= 0 && cmp3(v, sup(prec >= 2 ? 1 : 0)) < 0
+  if (op === '>=') return (v) => cmp3(v, base) >= 0
+  if (op === '<') return (v) => cmp3(v, base) < 0
+  if (op === '>') return prec === 3 ? (v) => cmp3(v, base) > 0 : (v) => cmp3(v, sup(prec - 1)) >= 0
+  return prec === 3 ? (v) => cmp3(v, base) <= 0 : (v) => cmp3(v, sup(prec - 1)) < 0
+}
+
+/**
+ * Une version satisfait-elle une plage npm ?
+ *
+ * Le sous-ensemble dont le parc se sert — relevé le 24/09/2026 sur les 33 pairs
+ * du socle : `^`, `~`, `>=`, les unions `||` — plus les comparateurs nus, les
+ * jokers et les intersections (`>=1.2.0 <2.0.0`). Le relevé n'a AUCUNE
+ * dépendance, et `semver` ne vaut pas d'en prendre une pour quarante lignes.
+ *
+ * Ce qu'il ne lit pas — une plage à tiret `1.2.3 - 2.0.0` — ne prouve rien :
+ * l'alternative est écartée, et une version douteuse n'est pas proposée.
+ */
+export function satisfait(version, plage) {
+  if (!STABLE.test(String(version ?? ''))) return false
+  const v = triplet(version)
+  for (const alternative of String(plage ?? '').split('||')) {
+    const comps = alternative
+      .trim()
+      .replace(/(>=|<=|>|<|=|\^|~)\s+/g, '$1')
+      .split(/\s+/)
+      .filter(Boolean)
+    if (comps.includes('-')) continue
+    const predicats = comps.map(comparateur)
+    if (predicats.includes(null)) continue
+    if (predicats.every((p) => p(v))) return true
+  }
+  return false
+}
+
+/**
+ * LA DERNIÈRE VERSION D'UNE SÉRIE — la cible d'un correctif qui ne change pas
+ * de majeur.
+ *
+ * Le 23/09/2026, `@sentry/react` 10.75.3 existait pour dix-huit dépôts en
+ * 10.75.2, et la page ne le disait pas : l'amont était la 11.0.0, sortie le même
+ * jour, et seul le majeur s'affichait. La cible d'un dépôt resté dans une autre
+ * série que l'amont est la plus haute version STABLE de SA série, avec deux
+ * bornes :
+ *
+ *  - **`latest`, quand il est dans cette série.** electron-builder publie ses
+ *    26.15.4 à 26.16.1 sous l'étiquette `v26` et laisse `latest` en 26.15.3 ;
+ *    Renovate ne propose jamais au-delà de `latest`, le relevé non plus.
+ *  - **La plage que le socle impose à ses consommateurs** (`plage`) : une pair
+ *    `~6.0.3` refuse 6.1, et une montée qui casserait `npm ci` n'est pas un
+ *    correctif.
+ *
+ * Les versions dépréciées (npm) ou retirées (crates.io) sont écartées par
+ * l'appelant, qui seul les connaît.
+ *
+ * @param {string[]} publiees Les versions publiées et utilisables.
+ * @param {string} serie Une série de `serieDe` : `10`, `0.32`, `0.0.3`.
+ * @param {{ latest?: string|null, plage?: string|null }} [bornes]
+ */
+export function derniereDeSerie(publiees, serie, { latest = null, plage = null } = {}) {
+  const plafond = latest && STABLE.test(latest) && serieDe(latest) === serie ? latest : null
+  let meilleure = null
+  for (const v of publiees || []) {
+    if (!STABLE.test(v) || serieDe(v) !== serie) continue
+    if (plafond && cmpVersion(v, plafond) > 0) continue
+    if (plage && !satisfait(v, plage)) continue
+    if (!meilleure || cmpVersion(v, meilleure) > 0) meilleure = v
+  }
+  return meilleure
+}
+
+/**
+ * Le plafond que le moteur impose à un paquet de types (`PLAFONDS_ENGINES` de
+ * `regles.mjs`) : la plus haute version publiée qui n'en dépasse pas la
+ * MINEURE. `engines.vscode: ^1.90.0` plafonne `@types/vscode` à la dernière
+ * 1.90.x — ou, si aucune 1.90 n'existe, à la plus haute des mineures
+ * inférieures. `null` quand le paquet ou le moteur ne s'y prêtent pas.
+ */
+export function plafondEngines(paquet, pkg, publiees) {
+  const moteur = PLAFONDS_ENGINES[paquet]
+  const plage = moteur ? pkg?.engines?.[moteur] : null
+  if (!plage) return null
+  const [maj, min] = triplet(plage)
+  let meilleure = null
+  for (const v of publiees || []) {
+    if (!STABLE.test(v)) continue
+    const [a, b] = triplet(v)
+    if (a !== maj || b > min) continue
+    if (!meilleure || cmpVersion(v, meilleure) > 0) meilleure = v
+  }
+  return meilleure
+}
+
+/* ── Les package.json imbriqués, et les `.nvmrc` ────────────────────────── */
+
+// Ce qui ne porte pas le code du dépôt : un `package.json` d'exemple, de jeu
+// d'essai ou de gabarit n'est pas une dépendance qui TOURNE, et les dossiers
+// cachés (`.github/`, `.claude/`) non plus.
+const HORS_UNITE = /(?:^|\/)(?:node_modules|fixtures?|__fixtures__|examples?|templates?|\.[^/]+)\//
+
+/** Un motif d'espace de travail npm (`packages/*`, `apps/**`) en expression régulière. */
+const motifEspace = (g) =>
+  new RegExp(
+    '^' +
+      String(g)
+        .replace(/\/+$/, '')
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*\*/g, '\u0000')
+        .replace(/\*/g, '[^/]*')
+        .replace(/\u0000/g, '.*') +
+      '$',
+  )
+
+/** Les espaces de travail que déclare un `package.json` racine. */
+export const espacesDeTravail = (pkg) => {
+  const w = pkg?.workspaces
+  return (Array.isArray(w) ? w : Array.isArray(w?.packages) ? w.packages : []).filter((g) => typeof g === 'string' && !g.startsWith('!'))
+}
+
+/**
+ * LES PACKAGE.JSON IMBRIQUÉS QUI FIGENT QUELQUE CHOSE, d'après la liste des
+ * fichiers d'un dépôt (l'arbre git).
+ *
+ * Le relevé ne lisait que la racine. Le 23/09/2026, cinq dossiers portaient
+ * leur PROPRE lockfile, donc leurs propres versions : `miss-genius/worker`,
+ * `miss-supatool/proxy`, `mister-cim10/workers` (wrangler), `mister-doc/e2e`
+ * (Playwright), `mister-commitia/apps/desktop` (React, Tauri). Aucun n'était
+ * compté.
+ *
+ * Un dossier SANS lockfile propre n'est retenu que s'il est un espace de
+ * travail de la racine — c'est alors le lock racine qui le fige
+ * (`lock: 'racine'`). Sinon, rien ne fige ses versions : elles se résolvent à
+ * chaque installation (`miss-supaboss/proxy`), et les attribuer au lock racine
+ * inventerait une version qu'il ne tient pas.
+ *
+ * @param {string[]} chemins Les fichiers du dépôt.
+ * @param {string[]} espaces Les motifs `workspaces` de la racine.
+ * @returns {{dossier: string, lock: 'propre'|'racine'}[]}
+ */
+export function unitesDeLArbre(chemins, espaces = []) {
+  const presents = new Set(chemins || [])
+  const motifs = espaces.map(motifEspace)
+  const out = []
+  for (const p of presents) {
+    if (!p.endsWith('/package.json') || HORS_UNITE.test(p)) continue
+    const dossier = p.slice(0, -'/package.json'.length)
+    if (presents.has(`${dossier}/package-lock.json`)) out.push({ dossier, lock: 'propre' })
+    else if (motifs.some((re) => re.test(dossier))) out.push({ dossier, lock: 'racine' })
+  }
+  return out.sort((a, b) => a.dossier.localeCompare(b.dossier))
+}
+
+/**
+ * Les versions qu'un lockfile fige pour une unité : ses dépendances de premier
+ * niveau. Pour un espace de travail, ce que le lock range sous
+ * `<dossier>/node_modules/` l'emporte sur ce qu'il a hissé à la racine.
+ */
+export function verrouilleesDe(lock, dossier = '') {
+  const out = {}
+  const paquets = lock?.packages || {}
+  const lis = (prefixe) => {
+    for (const [chemin, info] of Object.entries(paquets)) {
+      if (!chemin.startsWith(prefixe) || !info?.version) continue
+      const nom = chemin.slice(prefixe.length)
+      if (!nom.includes('node_modules/')) out[nom] = info.version
+    }
+  }
+  lis('node_modules/')
+  if (dossier) lis(`${dossier}/node_modules/`)
+  return out
+}
+
+/**
+ * La version qu'un `.nvmrc` épingle — seulement si elle est COMPLÈTE. `26`
+ * suit la dernière 26.x d'elle-même, `lts/*` la dernière LTS : ni l'une ni
+ * l'autre n'est en retard sur quoi que ce soit, et les comparer à 26.10.0 les
+ * y mettrait.
+ */
+export function versionNvmrc(texte) {
+  const t = String(texte ?? '')
+    .split(/\r?\n/)[0]
+    .trim()
+    .replace(/^v/i, '')
+  return STABLE.test(t) ? t : null
 }
 
 /* ── La production ──────────────────────────────────────────────────────── */
