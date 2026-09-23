@@ -30,8 +30,10 @@ import {
   groupeDe,
   periodeDe,
   symboles,
+  SEUIL_PANNE_MIN,
+  fraicheur,
 } from '../scripts/vue.mjs'
-import { cmpVersion } from '../scripts/regles.mjs'
+import { cmpVersion, etatPublie } from '../scripts/regles.mjs'
 
 test('rangEcart nomme le RANG, pas la distance', () => {
   // Passer de 4.2 à 4.3 n'a rien de commun avec passer de 3 à 4 : c'est ce que
@@ -371,4 +373,56 @@ test('elementsHorsNpm : une ligne sans dépôt ne SORT PAS', () => {
 
 test('elementsHorsNpm : un parc vide rend une table vide, pas des zéros', () => {
   assert.deepEqual(elementsHorsNpm([]), [])
+})
+
+/* ── Fraîcheur : ce que la page dit d'elle-même, d'après etat.json ── */
+
+const T0 = Date.parse('2026-09-23T14:17:00Z')
+const minutesAvant = (n) => new Date(T0 - n * 60000).toISOString()
+
+test('fraicheur se tait quand etat.json manque — page en file://, ou publiée avant lui', () => {
+  assert.equal(fraicheur('2026-09-23T09:57:00Z', null, T0), null)
+  assert.equal(fraicheur('2026-09-23T09:57:00Z', {}, T0), null)
+  assert.equal(fraicheur('2026-09-23T09:57:00Z', { verifie: 'pas une date' }, T0), null)
+})
+
+test('fraicheur compte les minutes depuis la DERNIÈRE VÉRIFICATION, pas depuis le relevé embarqué', () => {
+  // Rien n'a bougé depuis 09:57, mais le relevé est passé il y a 12 minutes :
+  // la page est juste, et doit pouvoir le dire.
+  const f = fraicheur('2026-09-23T09:57:00Z', { genere: '2026-09-23T09:57:00Z', verifie: minutesAvant(12) }, T0)
+  assert.deepEqual(f, { minutes: 12, panne: false, nouveau: null })
+})
+
+test('fraicheur annonce un relevé plus récent que la page ouverte', () => {
+  const f = fraicheur('2026-09-23T09:57:00Z', { genere: '2026-09-23T13:17:00Z', verifie: minutesAvant(60) }, T0)
+  assert.equal(f.nouveau, '2026-09-23T13:17:00Z')
+})
+
+test('fraicheur n’invite JAMAIS à recharger vers plus ancien', () => {
+  // Le CDN de Pages garde etat.json dix minutes : il peut être en retard sur la
+  // page qu'on vient d'ouvrir. Différent ne veut pas dire plus récent.
+  const f = fraicheur('2026-09-23T13:17:00Z', { genere: '2026-09-23T09:57:00Z', verifie: minutesAvant(5) }, T0)
+  assert.equal(f.nouveau, null)
+  // Et un relevé embarqué illisible ne fabrique pas de nouveauté.
+  assert.equal(fraicheur(null, { genere: '2026-09-23T13:17:00Z', verifie: minutesAvant(5) }, T0).nouveau, null)
+})
+
+test('fraicheur déclare la panne au-delà du seuil, et pas avant', () => {
+  const etat = (n) => ({ genere: '2026-09-23T01:00:00Z', verifie: minutesAvant(n) })
+  assert.equal(fraicheur('2026-09-23T01:00:00Z', etat(SEUIL_PANNE_MIN), T0).panne, false)
+  assert.equal(fraicheur('2026-09-23T01:00:00Z', etat(SEUIL_PANNE_MIN + 1), T0).panne, true)
+  // Le seuil couvre le retard MESURÉ du cron de GitHub (4 h 40), avec de la marge.
+  assert.ok(SEUIL_PANNE_MIN >= 5 * 60)
+})
+
+test('fraicheur borne à zéro une vérification « dans le futur » (horloge locale en avance)', () => {
+  const f = fraicheur('2026-09-23T14:00:00Z', { genere: '2026-09-23T14:00:00Z', verifie: new Date(T0 + 90000).toISOString() }, T0)
+  assert.equal(f.minutes, 0)
+})
+
+test('etatPublie et fraicheur parlent le même contrat', () => {
+  // Ce que le relevé écrit, la page le relit : juste après un passage, la page
+  // publiée est à jour, vérifiée à l'instant, et rien n'est à recharger.
+  const genere = '2026-09-23T14:17:00Z'
+  assert.deepEqual(fraicheur(genere, etatPublie({ genere }, T0), T0), { minutes: 0, panne: false, nouveau: null })
 })

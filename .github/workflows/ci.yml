@@ -3,7 +3,7 @@
 # Le relevé complet ne peut pas tourner ici : il lui faut un jeton et trois
 # cent quarante appels d'API. Ce qui se vérifie sans réseau se vérifie donc à
 # part — et c'est justement la partie dont une régression met le plus longtemps
-# à se voir (`fond()` décide si la CI commite).
+# à se voir (`fond()` décide si le relevé publie une page neuve).
 name: CI
 
 on:

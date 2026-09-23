@@ -1,21 +1,35 @@
 #!/usr/bin/env node
 // Relève l'état du parc et régénère index.html.
 //
-//   node scripts/releve.mjs                    # API seule (ce que fait la CI)
+//   node scripts/releve.mjs                    # API seule, écrit index.html ici
 //   node scripts/releve.mjs --local D:/Src/... # + l'état des copies de travail
 //   node scripts/releve.mjs --prives           # + les dépôts privés (PAT requis)
+//
+// Ce que fait la CI, chaque heure depuis le 23/09/2026 :
+//
+//   node scripts/releve.mjs --precedente <url de la page> --publier _site --instantane
+//
+//   --precedente  la page EN LIGNE sert d'état précédent : c'est elle, et non
+//                 l'`index.html` du dépôt, qui dit s'il y a quelque chose à
+//                 republier, et elle porte l'historique le plus frais ;
+//   --publier     le site à déployer sur Pages est écrit dans ce dossier —
+//                 `index.html`, `etat.json`, `historique.json` — au lieu d'un
+//                 commit sur `main` ;
+//   --instantane  le premier passage d'un jour nouveau réécrit aussi
+//                 l'`index.html` et le `historique.json` du dépôt, que la CI
+//                 commite : la photo du jour (voir plus bas).
 //
 // Tout vient de l'API GitHub, de raw.githubusercontent et du registre npm : le
 // runner n'a aucune copie de travail sous la main. Le mode --local n'ajoute que
 // ce que l'API ne peut pas savoir (branche courante, fichiers non commités).
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
 // ne seraient pas testables autrement. Voir `scripts/regles.mjs`.
-import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, fond, fusionnePoint, majeurAdmis, nettoie, paquetReel } from './regles.mjs'
+import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, cmpVersion, etatDe, etatPublie, fond, fusionneHistoriques, fusionnePoint, joursAbsents, majeurAdmis, nettoie, paquetReel } from './regles.mjs'
 // Ce que le relevé CALCULE vit à part de ce qu'il va CHERCHER : importer ce
 // fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
 // trente appels d'API. Voir `scripts/modele.mjs`.
@@ -36,6 +50,20 @@ const SORTIE = args.includes('--sortie') ? args[args.indexOf('--sortie') + 1] : 
 // porte l'état d'une copie de travail, ni `--sortie`, qui sert aux essais, n'ont
 // à laisser un point dans une série qui se lit sur un an.
 const ALIMENTE_HISTORIQUE = !RACINE_LOCALE && !args.includes('--sortie')
+const valeurDe = (option) => (args.includes(option) ? args[args.indexOf(option) + 1] : null)
+const URL_PUBLIEE = valeurDe('--precedente')
+const DOSSIER_PUBLIE = valeurDe('--publier')
+const INSTANTANE = args.includes('--instantane')
+for (const [option, valeur] of [
+  ['--precedente', URL_PUBLIEE],
+  ['--publier', DOSSIER_PUBLIE],
+]) {
+  // `--publier --instantane` prendrait « --instantane » pour un dossier.
+  if (args.includes(option) && (!valeur || valeur.startsWith('--'))) {
+    console.error(`${option} attend une valeur.`)
+    process.exit(2)
+  }
+}
 
 if (!JETON) {
   console.error('GITHUB_TOKEN absent : les quotas anonymes (60 req/h) ne suffiront pas.')
@@ -700,11 +728,40 @@ const modeleDe = (t) => {
     return null
   }
 }
+// L'INSTANTANÉ DU DÉPÔT, repère de « ce qui a bougé ». Depuis que le relevé est
+// horaire, l'`index.html` du dépôt n'est plus la page publiée : c'est la photo
+// que le premier passage de chaque jour y commite. Comparer à ELLE, et non à la
+// page de l'heure précédente, garde au bandeau sa portée d'une journée — sinon
+// il ne montrerait que la dernière heure, et un CI tombé à 03:17 sortirait de
+// la liste au passage de 04:17.
 const ancienne = existsSync(SORTIE) ? readFileSync(SORTIE, 'utf8') : ''
 const avant = modeleDe(ancienne)
 
 modele.changements = changementsDepuis(avant, modele)
 modele.compareA = avant?.genere || null
+
+// LA PAGE EN LIGNE, état précédent de ce qui est PUBLIÉ. C'est elle qui décide
+// s'il y a quelque chose à republier, et elle porte l'historique le plus frais.
+// Illisible (Pages en panne, premier déploiement), on se replie sur
+// l'instantané du dépôt, et sans perte : l'historique est recomposé jour par
+// jour depuis les deux sources, plus bas.
+let publiee = ancienne
+if (URL_PUBLIEE) {
+  try {
+    // Le CDN de Pages garde une page dix minutes (`max-age=600`) : une requête
+    // qui porte un paramètre inédit va la chercher à la source.
+    const url = new URL(URL_PUBLIEE)
+    url.searchParams.set('releve', String(Date.now()))
+    const res = await fetch(url, { redirect: 'follow' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const texte = await res.text()
+    if (!modeleDe(texte)) throw new Error('aucune donnée embarquée')
+    publiee = texte
+  } catch (e) {
+    console.error(`::warning::page publiée illisible (${e.message}) — repli sur l'instantané du dépôt`)
+  }
+}
+const avantPublie = modeleDe(publiee)
 
 /* ------------------------------------------------------------- rendu */
 
@@ -772,7 +829,7 @@ modele.gabarit = createHash('sha256')
 
 // La décision se prend AVANT d'assembler la page : l'historique qui y sera
 // embarqué dépend d'elle.
-const inchange = ancienne && fond(avant) === fond(modele)
+const inchange = Boolean(publiee) && fond(avantPublie) === fond(modele)
 
 /* ------------------------------------------------------------ historique */
 
@@ -791,15 +848,20 @@ const inchange = ancienne && fond(avant) === fond(modele)
 // Plafonné à 400 entrées, un peu plus d'un an.
 const CHEMIN_HISTORIQUE = join(ICI, '..', 'historique.json')
 const MAX_HISTORIQUE = 400
-let histo = []
+let histoDepot = []
 try {
-  if (existsSync(CHEMIN_HISTORIQUE)) histo = JSON.parse(readFileSync(CHEMIN_HISTORIQUE, 'utf8'))
-  if (!Array.isArray(histo)) histo = []
+  if (existsSync(CHEMIN_HISTORIQUE)) histoDepot = JSON.parse(readFileSync(CHEMIN_HISTORIQUE, 'utf8'))
+  if (!Array.isArray(histoDepot)) histoDepot = []
 } catch {
   // un historique illisible ne doit pas emporter le relevé : on repart de zéro
   console.error(`  historique.json illisible — un nouveau est écrit`)
-  histo = []
+  histoDepot = []
 }
+// Deux sources depuis le relevé horaire : le dépôt, figé une fois par jour par
+// l'instantané, et la page en ligne, plus fraîche. Aucune n'est l'autre en
+// mieux — voir `fusionneHistoriques`. Hors publication, la page « précédente »
+// EST l'instantané du dépôt, et l'union ne change rien.
+let histo = fusionneHistoriques(histoDepot, avantPublie?.historique).slice(-MAX_HISTORIQUE)
 if (!inchange) {
   const jour = MAINTENANT.toISOString().slice(0, 10)
   const point = {
@@ -818,7 +880,9 @@ if (!inchange) {
   if (i >= 0) histo[i] = fusionnePoint(histo[i], point)
   else histo.push(point)
   histo = histo.slice(-MAX_HISTORIQUE)
-  if (ALIMENTE_HISTORIQUE) {
+  // En publication, l'historique part avec le site ; le dépôt ne le reçoit
+  // qu'avec l'instantané du jour, plus bas.
+  if (ALIMENTE_HISTORIQUE && !DOSSIER_PUBLIE) {
     writeFileSync(CHEMIN_HISTORIQUE, JSON.stringify(histo) + '\n')
     console.error(`historique.json : ${histo.length} point(s), dont celui du ${jour}.`)
   }
@@ -838,7 +902,42 @@ const page = gabarit
   .replace('__VUE__', () => [sansModule(regles, 'regles.mjs'), sansModule(vue, 'vue.mjs'), sansModule(libelles, 'libelles.mjs')].join('\n'))
   .replace('__DONNEES__', () => charge)
 
-if (inchange) {
+// LE SITE À DÉPLOYER, écrit à CHAQUE passage — même quand rien n'a bougé. La
+// page est alors la page en ligne à l'identique ; seul `etat.json` change, pour
+// dire que le passage a eu lieu. Sans lui, une page restée la même depuis le
+// matin ne saurait pas distinguer « rien n'a bougé » de « le relevé est en
+// panne ».
+const pageServie = inchange ? publiee : page
+let instantane = false
+if (DOSSIER_PUBLIE) {
+  mkdirSync(DOSSIER_PUBLIE, { recursive: true })
+  writeFileSync(join(DOSSIER_PUBLIE, 'index.html'), pageServie)
+  writeFileSync(join(DOSSIER_PUBLIE, 'historique.json'), JSON.stringify(histo) + '\n')
+  writeFileSync(join(DOSSIER_PUBLIE, 'etat.json'), JSON.stringify(etatPublie(inchange ? avantPublie : modele, MAINTENANT)) + '\n')
+  console.error(
+    inchange
+      ? `Rien n'a bougé (${appels} appels d'API) : la page en ligne est republiée telle quelle, etat.json daté du passage.`
+      : `${DOSSIER_PUBLIE} : nouvelle page, ${(page.length / 1024).toFixed(1)} Kio, ${appels} appels d'API.`,
+  )
+
+  // LA PHOTO DU JOUR. Le premier passage qui voit un jour nouveau réécrit aussi
+  // l'`index.html` et le `historique.json` du DÉPÔT, et la CI les commite. Trois
+  // raisons, dont chacune suffirait :
+  //  - « ce qui a bougé » se compare à cette photo (voir plus haut) ;
+  //  - l'historique garde une copie dans git, qui survit à tout ce qui peut
+  //    arriver au site ;
+  //  - GitHub DÉSACTIVE les crons d'un dépôt public resté soixante jours sans
+  //    activité. Sans ce commit, le relevé horaire — qui ne commite plus rien
+  //    d'autre — finirait par s'éteindre sans prévenir.
+  // Si la poussée échoue, le jour reste absent du dépôt et le passage suivant
+  // réessaie : rien à surveiller.
+  instantane = INSTANTANE && joursAbsents(histoDepot, histo).length > 0
+  if (instantane) {
+    writeFileSync(SORTIE, pageServie)
+    writeFileSync(CHEMIN_HISTORIQUE, JSON.stringify(histo) + '\n')
+    console.error(`Instantané du jour : ${SORTIE} et historique.json réécrits pour le commit.`)
+  }
+} else if (inchange) {
   console.error(`Rien n'a bougé depuis le relevé précédent (${appels} appels d'API). Fichier laissé tel quel.`)
 } else {
   writeFileSync(SORTIE, page)
@@ -848,4 +947,4 @@ console.error(
   `${kpi.depots} dépôts — ${parFamille.pwa.depots} PWA, ${parFamille.socle.depots} socle, ${parFamille.desktop.depots} desktop, ${parFamille.autre.depots} autres | ` +
     `${kpi.verts} verts / ${kpi.rouges} rouges (${kpi.taux} %) | ${kpi.sitesEnLigne}/${kpi.sites} sites en ligne`,
 )
-if (process.env.GITHUB_OUTPUT) writeFileSync(process.env.GITHUB_OUTPUT, `change=${inchange ? 'non' : 'oui'}\n`, { flag: 'a' })
+if (process.env.GITHUB_OUTPUT) writeFileSync(process.env.GITHUB_OUTPUT, `change=${inchange ? 'non' : 'oui'}\ninstantane=${instantane ? 'oui' : 'non'}\n`, { flag: 'a' })

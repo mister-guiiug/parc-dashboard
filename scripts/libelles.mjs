@@ -493,7 +493,15 @@ const LIBELLES_FR = {
   'pied.sourceLocale': 'Source : API GitHub, lockfiles lus sur la branche par défaut, registre npm, copies de travail locales.',
   'pied.publics': 'Les dépôts privés du compte sont exclus de ce relevé.',
   'pied.soi': "Le dépôt {depot}, qui produit cette page, s'exclut lui-même.",
-  'pied.regenere': 'Page régénérée chaque jour par GitHub Actions.',
+  'pied.regenere': 'Page régénérée chaque heure par GitHub Actions.',
+
+  /* ── fraîcheur (etat.json) ── */
+  'fraicheur.verifie': 'Vérifié {quand} · relevé chaque heure',
+  'fraicheur.panne': 'Dernière vérification {quand} : le relevé horaire ne passe plus',
+  'fraicheur.aLInstant': "à l'instant",
+  'fraicheur.relancer': 'Relancer le relevé',
+  'fraicheur.nouveau': 'Un relevé plus récent est en ligne : {quand}.',
+  'fraicheur.recharger': 'Recharger',
 
   /* ── transverse ── */
   raz: 'Tout réafficher',
@@ -894,7 +902,15 @@ const LIBELLES_EN = {
   'pied.sourceLocale': 'Source: GitHub API, lockfiles read on the default branch, npm registry, local working copies.',
   'pied.publics': 'The account’s private repositories are excluded from this survey.',
   'pied.soi': 'The repository {depot}, which produces this page, excludes itself.',
-  'pied.regenere': 'Page regenerated every day by GitHub Actions.',
+  'pied.regenere': 'Page regenerated every hour by GitHub Actions.',
+
+  /* ── fraîcheur (etat.json) ── */
+  'fraicheur.verifie': 'Checked {quand} · surveyed every hour',
+  'fraicheur.panne': 'Last check {quand}: the hourly survey has stopped running',
+  'fraicheur.aLInstant': 'just now',
+  'fraicheur.relancer': 'Run the survey now',
+  'fraicheur.nouveau': 'A newer survey is online: {quand}.',
+  'fraicheur.recharger': 'Reload',
 
   /* ── transverse ── */
   raz: 'Show everything again',

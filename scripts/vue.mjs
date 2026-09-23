@@ -386,3 +386,43 @@ export const parVersion = (i, sens, rang) => (a, b) => {
   if (!vb) return -1
   return cmpVersion(va, vb) * sens || rang(a.depot) - rang(b.depot)
 }
+
+/**
+ * Au-delà de six heures sans vérification, le relevé horaire est tenu pour en
+ * panne. Pas moins : le cron de GitHub part en retard, et de beaucoup — le
+ * relevé quotidien de 05:17 UTC a démarré à 09:55 le 22/09/2026 et à 09:57 le
+ * lendemain. Un seuil plus serré crierait au loup les jours de charge.
+ */
+export const SEUIL_PANNE_MIN = 6 * 60
+
+/**
+ * Ce que la page sait de sa propre fraîcheur, d'après `etat.json`.
+ *
+ * `genere` est le relevé EMBARQUÉ dans la page ouverte ; `etat` le contenu de
+ * `etat.json` lu à l'instant — ou `null` si rien n'a pu être lu, ce qui est le
+ * cas normal d'une page ouverte en `file://` : elle ne dit alors rien de plus
+ * qu'avant, au lieu d'afficher une fraîcheur inventée.
+ *
+ * `nouveau` ne se déclare que si le relevé publié est STRICTEMENT plus récent
+ * que celui de la page. Pas s'il est simplement différent : le CDN de Pages
+ * garde un fichier dix minutes (`max-age=600`), et un `etat.json` en retard sur
+ * la page ne doit pas inviter à recharger vers plus ancien.
+ */
+export function fraicheur(genere, etat, maintenant, seuilPanneMin = SEUIL_PANNE_MIN) {
+  const instant = (iso) => {
+    const t = typeof iso === 'string' ? Date.parse(iso) : NaN
+    return Number.isFinite(t) ? t : null
+  }
+  const verifie = instant(etat?.verifie)
+  if (verifie === null) return null
+  // Une horloge locale en avance ferait lire une vérification « dans le
+  // futur » : on s'arrête à zéro plutôt que d'afficher « dans 3 minutes ».
+  const minutes = Math.max(0, Math.floor((maintenant - verifie) / 60000))
+  const publie = instant(etat.genere)
+  const embarque = instant(genere)
+  return {
+    minutes,
+    panne: minutes > seuilPanneMin,
+    nouveau: publie !== null && embarque !== null && publie > embarque ? etat.genere : null,
+  }
+}

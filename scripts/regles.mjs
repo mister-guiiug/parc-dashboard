@@ -5,8 +5,9 @@
 // contient n'était donc testable sans partir chercher l'API GitHub. Ces
 // cinq fonctions-là ne dépendent de rien — même entrée, même sortie — et ce
 // sont exactement celles dont une régression se voit le plus tard :
-// `fond()` en particulier décide si la CI commite, et une erreur y ferait
-// réécrire `index.html` toutes les nuits sans que rien ait bougé.
+// `fond()` en particulier décide si le relevé publie une page NEUVE, et une
+// erreur y ferait republier — et annoncer « un relevé plus récent » à chaque
+// lecteur — à chaque passage horaire sans que rien ait bougé.
 
 /** Retire le préfixe de plage (`^`, `~`, `>=`) et la préversion. */
 export const nettoie = (v) =>
@@ -180,19 +181,20 @@ export function etatDe(run) {
 }
 
 /**
- * Le FOND d'un relevé : ce qui doit déclencher une réécriture du fichier.
+ * Le FOND d'un relevé : ce qui doit déclencher une page neuve.
  *
  * En sont retirées les mesures qui changent d'un passage à l'autre sans rien
  * dire de l'état du parc — l'horodatage, et le temps de réponse HTTP de chaque
- * site. Sans ça, deux relevés identiques produiraient quand même un commit par
- * jour. C'est aussi pour cette raison que le relevé stocke des DATES et jamais
- * des âges en jours : un âge vieillit tout seul, et rendrait cette comparaison
- * éternellement fausse.
+ * site. Sans ça, deux relevés identiques produiraient quand même une page
+ * neuve à chaque passage — une par heure depuis le 23/09/2026, et autant de
+ * bandeaux « un relevé plus récent est en ligne » pour rien. C'est aussi pour
+ * cette raison que le relevé stocke des DATES et jamais des âges en jours : un
+ * âge vieillit tout seul, et rendrait cette comparaison éternellement fausse.
  *
  * `changements` en est retiré POUR UNE AUTRE RAISON, et elle mérite d'être
  * écrite. Cette liste décrit une TRANSITION, pas un état. Si on la comptait
- * dans le fond, un jour de changement serait suivi d'un second commit le
- * lendemain — celui qui remet la liste à vide — alors que rien n'aurait bougé.
+ * dans le fond, un changement serait suivi d'une seconde page au passage
+ * suivant — celle qui remet la liste à vide — alors que rien n'aurait bougé.
  * Le bandeau de la page dit donc « depuis le relevé du … », et reste juste :
  * il décrit le dernier vrai changement, sur la page née de ce changement.
  */
@@ -232,6 +234,61 @@ export function fusionnePoint(ancien, nouveau) {
     if (out[k] == null && v != null) out[k] = v
   }
   return out
+}
+
+/**
+ * L'historique, recomposé JOUR PAR JOUR depuis plusieurs sources — sans en
+ * perdre aucune.
+ *
+ * Depuis que le relevé est horaire et publié sans commit (23/09/2026),
+ * l'historique vit à deux endroits : dans la page EN LIGNE, qui l'embarque et
+ * suit chaque heure, et dans le `historique.json` du dépôt, que l'instantané
+ * quotidien fige une fois par jour. Aucun des deux n'est l'autre en plus
+ * frais : la page peut être illisible le temps d'une panne de Pages, le dépôt
+ * a toujours un jour de retard sur les valeurs de fin de journée.
+ *
+ * Prendre l'un OU l'autre, c'est parier ; les unir par jour ne parie rien. Les
+ * sources vont de la plus ancienne à la plus fraîche : sur un même jour, la
+ * dernière l'emporte, par `fusionnePoint` — une mesure absente n'écrase donc
+ * pas une mesure réelle. Tout ce qui n'a pas de `jour` est écarté, et
+ * l'ordre rendu est celui du calendrier, quel que soit celui des sources.
+ */
+export function fusionneHistoriques(...sources) {
+  const parJour = new Map()
+  for (const source of sources) {
+    if (!Array.isArray(source)) continue
+    for (const p of source) {
+      if (!p || typeof p.jour !== 'string') continue
+      parJour.set(p.jour, fusionnePoint(parJour.get(p.jour), p))
+    }
+  }
+  return [...parJour.values()].sort((a, b) => a.jour.localeCompare(b.jour))
+}
+
+/**
+ * Les jours que `historique` porte et que `reference` ignore.
+ *
+ * C'est le déclencheur de l'instantané quotidien : le dépôt reçoit un commit
+ * le premier jour où un point apparaît, et plus aucun ce jour-là. S'il échoue
+ * (poussée refusée), le jour reste absent du dépôt, et le passage suivant
+ * réessaie de lui-même — rien à surveiller.
+ */
+export function joursAbsents(reference, historique) {
+  const connus = new Set((Array.isArray(reference) ? reference : []).map((p) => p?.jour))
+  return (Array.isArray(historique) ? historique : []).map((p) => p?.jour).filter((j) => typeof j === 'string' && !connus.has(j))
+}
+
+/**
+ * Le contenu de `etat.json`, publié à côté de la page à CHAQUE passage.
+ *
+ * `genere` date le relevé que porte la page publiée — le dernier qui ait
+ * changé quelque chose. `verifie` date le passage qui vient d'avoir lieu,
+ * qu'il ait changé quelque chose ou non. Sans ce second champ, une page restée
+ * identique depuis le matin ne saurait pas dire si le relevé a tourné depuis
+ * ou s'il est en panne ; c'est `fraicheur()` de `vue.mjs` qui les lit.
+ */
+export function etatPublie(modele, maintenant) {
+  return { genere: modele?.genere ?? null, verifie: new Date(maintenant).toISOString() }
 }
 
 // LE RELEVÉ PRÉCÉDENT ÉTAIT DÉJÀ LU, PUIS JETÉ. Il servait uniquement à décider

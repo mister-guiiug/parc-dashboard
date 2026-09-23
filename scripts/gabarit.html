@@ -20,10 +20,19 @@
     <a class="evitement" href="#contenu" data-t="a11y.evitement">Aller au contenu</a>
     <div class="enveloppe">
       <header>
+        <!-- UNE RÉGION VIVANTE, TOUJOURS PRÉSENTE, VIDE PAR DÉFAUT. Elle ne
+             parle que lorsqu'un relevé plus récent que la page est en ligne.
+             Pas de `hidden` : un élément caché sort de l'arbre
+             d'accessibilité, et ce qu'on y écrirait ensuite ne serait pas
+             annoncé. Vide, la feuille de style lui retire toute hauteur — et
+             rien ne doit se glisser entre ses balises, pas même une espace,
+             sans quoi `:empty` ne la verrait plus vide. -->
+        <div class="bandeauNouveau" id="bandeauNouveau" role="status"></div>
         <div class="chapeau">
           <div>
             <h1 data-th="page.h1">Parc <span class="mono">mister-guiiug</span> — dépôts, pipelines, librairies</h1>
             <div class="sous" id="sousTitre"></div>
+            <div class="sous fraicheur" id="fraicheur" hidden></div>
           </div>
           <div class="outils">
             <!-- LE SÉLECTEUR EN PREMIER DANS LA RANGÉE : c'est le seul contrôle
@@ -1480,6 +1489,87 @@
         pied.append(el('span', null, T('pied.regenere')))
       }
 
+      /* ---------------- fraîcheur ---------------- */
+
+      /**
+       * LA PAGE DIT DEPUIS QUAND ELLE EST JUSTE — et si une plus récente existe.
+       *
+       * Depuis le 23/09/2026, le relevé passe chaque heure et publie à côté de la
+       * page un `etat.json` : `genere` date le relevé que porte la page en
+       * ligne, `verifie` le dernier passage, qu'il ait changé quelque chose ou
+       * non. La page le relit au chargement, toutes les cinq minutes, et à
+       * chaque retour sur l'onglet. Les règles vivent dans `fraicheur()` de
+       * `vue.mjs`, éprouvées par `node --test`.
+       *
+       * C'EST LA SEULE REQUÊTE RÉSEAU DE LA PAGE, et elle est facultative. En
+       * `file://`, hors ligne ou sans le fichier, rien ne s'affiche de plus et
+       * rien ne casse : tout le reste vient du relevé embarqué, comme avant.
+       */
+      let ETAT = null
+      let nouveauAnnonce = null
+      const URL_RELEVE = `https://github.com/${D.compte}/${D.soi || 'parc-dashboard'}/actions/workflows/releve.yml`
+
+      /** « il y a 12 minutes », « il y a 3 heures » — dans la langue lue, par `Intl`. */
+      function ilYa(minutes) {
+        if (minutes < 1) return T('fraicheur.aLInstant')
+        const rtf = new Intl.RelativeTimeFormat(LANGUE, { numeric: 'always' })
+        if (minutes < 60) return rtf.format(-minutes, 'minute')
+        if (minutes < 48 * 60) return rtf.format(-Math.floor(minutes / 60), 'hour')
+        return rtf.format(-Math.floor(minutes / 1440), 'day')
+      }
+
+      /**
+       * `force` vaut pour un changement de langue : tout se réécrit. Sans lui,
+       * seul ce qui a changé est touché — le bandeau est une région vivante, et
+       * le réécrire à chaque relecture le ferait réannoncer toutes les cinq
+       * minutes.
+       */
+      function rendFraicheur({ force = true } = {}) {
+        const f = fraicheur(D.genere, ETAT, Date.now())
+        const ligne = $('#fraicheur')
+        ligne.textContent = ''
+        ligne.hidden = !f
+        if (f) {
+          if (f.panne) {
+            const g = el('span', 'alerteFraicheur', '⚠ ')
+            g.setAttribute('aria-hidden', 'true')
+            ligne.append(g)
+          }
+          ligne.append(el('span', f.panne ? 'panneFraicheur' : null, T(f.panne ? 'fraicheur.panne' : 'fraicheur.verifie', { quand: ilYa(f.minutes) })))
+          ligne.append(' · ')
+          const a = el('a', null, T('fraicheur.relancer'))
+          a.href = URL_RELEVE
+          a.target = '_blank'
+          a.rel = 'noopener'
+          ligne.append(a)
+        }
+
+        const annonce = f?.nouveau ?? null
+        if (!force && annonce === nouveauAnnonce) return
+        nouveauAnnonce = annonce
+        const bandeau = $('#bandeauNouveau')
+        bandeau.textContent = ''
+        if (!annonce) return
+        bandeau.append(el('span', null, T('fraicheur.nouveau', { quand: fmtHeure(annonce) })))
+        const b = el('button', 'bouton', T('fraicheur.recharger'))
+        b.type = 'button'
+        b.addEventListener('click', () => location.reload())
+        bandeau.append(b)
+      }
+
+      async function litEtat() {
+        if (!/^https?:$/.test(location.protocol)) return
+        try {
+          const r = await fetch('etat.json', { cache: 'no-store' })
+          if (!r.ok) return
+          ETAT = await r.json()
+        } catch {
+          // hors ligne, fichier absent ou illisible : la page reste ce qu'elle était
+          return
+        }
+        rendFraicheur({ force: false })
+      }
+
       /* ---------------- matrice des écarts ---------------- */
 
 
@@ -2301,6 +2391,7 @@
         rendEchecs()
         rendDormance()
         rendPied()
+        rendFraicheur()
         rendActiviteGraphe()
         rendSommaire()
         rendDepots()
@@ -2347,6 +2438,14 @@
       // APRÈS le premier rendu : au chargement, le navigateur cherche l'ancre
       // avant que la grille n'existe, et n'a donc rien à atteindre.
       ouvreDepuisAncre()
+
+      // La fraîcheur, en dernier : rien de ce qui précède n'en dépend, et la
+      // page est déjà lisible quand la réponse arrive.
+      litEtat()
+      setInterval(litEtat, 5 * 60 * 1000)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') litEtat()
+      })
 </script>
   </body>
 </html>
