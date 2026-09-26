@@ -362,6 +362,56 @@ export function etatChecks(checkRuns) {
   return 'vert'
 }
 
+/* ── Sécurité et qualité (Code scanning / CodeQL) ───────────────────────── */
+
+// Une alerte est GRAVE quand GitHub lui donne un niveau de sécurité élevé —
+// c'est le chiffre que l'onglet « Security and quality » met en avant. La
+// sévérité SARIF (`error` / `warning`) reste un second axe : une `error` sans
+// niveau de sécurité compte aussi, mais à part.
+const SCANNING_GRAVE = (a) => ['high', 'critical'].includes(a?.rule?.security_severity_level)
+const SCANNING_ERREUR = (a) => a?.rule?.severity === 'error'
+
+/**
+ * Le résumé d'une liste d'alertes Code scanning déjà lue.
+ *
+ * @param {unknown[]} liste
+ * @returns {{ etat: 'lu', total: number, graves: number, erreurs: number }}
+ */
+export function resumeScanning(liste) {
+  const l = Array.isArray(liste) ? liste : []
+  return {
+    etat: 'lu',
+    total: l.length,
+    graves: l.filter(SCANNING_GRAVE).length,
+    erreurs: l.filter(SCANNING_ERREUR).length,
+  }
+}
+
+/**
+ * Interprète la réponse HTTP de `GET /repos/.../code-scanning/alerts`.
+ *
+ * Trois états, jamais deux — comme les alertes Dependabot : un compte, ou
+ * « pas d'analyse sur ce dépôt », ou « illisible ». Afficher « 0 » quand le
+ * jeton n'a pas le droit de lire serait exactement la fausse assurance que
+ * le relevé refuse ailleurs.
+ *
+ * - `404` « no analysis found » et `403` « not enabled » : le dépôt n'a
+ *   simplement pas d'analyse — `desactivees`.
+ * - tout autre échec : `illisible`.
+ *
+ * @param {number} status
+ * @param {unknown} corps corps JSON, ou texte brut d'erreur
+ */
+export function scanningDepuisReponse(status, corps) {
+  const msg = typeof corps === 'string' ? corps : JSON.stringify(corps ?? '')
+  if (status === 404 || (status === 403 && /not enabled|no analysis found/i.test(msg))) {
+    return { etat: 'desactivees' }
+  }
+  if (status < 200 || status >= 300) return { etat: 'illisible' }
+  if (!Array.isArray(corps)) return { etat: 'illisible' }
+  return resumeScanning(corps)
+}
+
 /* ── Renovate ───────────────────────────────────────────────────────────── */
 
 // Une ligne d'action du « Dependency Dashboard » : une case, un commentaire qui

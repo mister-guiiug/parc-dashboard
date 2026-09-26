@@ -400,9 +400,10 @@ export function changementsDepuis(av, ap) {
   const ka = av.kpi || {}
   const kb = ap.kpi || {}
   if (ka.alertesLisibles && kb.alertesLisibles && ka.alertes !== kb.alertes) out.push({ type: 'alertes', de: ka.alertes, a: kb.alertes })
+  if (ka.scanningLisible && kb.scanningLisible && ka.scanning !== kb.scanning) out.push({ type: 'scanning', de: ka.scanning, a: kb.scanning })
 
   // Le plus parlant d'abord : ce qui casse, puis ce qui se répare.
-  const rang = { 'ci-rouge': 0, 'site-tombe': 0, alertes: 1, 'prod-retard': 1, dormante: 2, 'depot-sorti': 3, 'ci-vert': 4, 'site-revenu': 4, reveillee: 5, amont: 6, 'depot-entre': 7 }
+  const rang = { 'ci-rouge': 0, 'site-tombe': 0, alertes: 1, scanning: 1, 'prod-retard': 1, dormante: 2, 'depot-sorti': 3, 'ci-vert': 4, 'site-revenu': 4, reveillee: 5, amont: 6, 'depot-entre': 7 }
   // un nouveau majeur passe devant les autres versions amont, avec les dormantes
   const rangDe = (x) => (x.type === 'amont' && x.majeur ? 2 : (rang[x.type] ?? 9))
   return out.sort((x, y) => rangDe(x) - rangDe(y)).slice(0, 40)

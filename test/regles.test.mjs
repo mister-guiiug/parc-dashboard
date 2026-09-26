@@ -176,6 +176,14 @@ test('changementsDepuis ne compare les alertes que si les DEUX relevés ont su l
   assert.deepEqual(c, [{ type: 'alertes', de: 12, a: 0 }])
 })
 
+test('changementsDepuis ne compare le scanning que si les DEUX relevés ont su le lire', () => {
+  const illisible = avec([], [], { scanningLisible: false, scanning: null })
+  const lu = avec([], [], { scanningLisible: true, scanning: 3 })
+  assert.deepEqual(changementsDepuis(illisible, lu), [])
+  assert.deepEqual(changementsDepuis(lu, illisible), [])
+  assert.deepEqual(changementsDepuis(lu, avec([], [], { scanningLisible: true, scanning: 0 })), [{ type: 'scanning', de: 3, a: 0 }])
+})
+
 /* ------------------------------------------------------ fusionnePoint */
 
 test('fusionnePoint : une mesure absente n’efface pas une mesure réelle', () => {
