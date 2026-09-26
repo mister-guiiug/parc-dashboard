@@ -580,7 +580,7 @@ export function correctifsDe(l) {
  * L'ordre du bloc, du plus urgent au plus routinier : ce qui est cassé, ce qui
  * est en ligne sans être juste, ce qui attend une main, puis l'entretien.
  */
-export const ORDRE_A_FAIRE = ['rouges', 'sites', 'mortes', 'prod', 'fugaces', 'alertes', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables']
+export const ORDRE_A_FAIRE = ['rouges', 'sites', 'mortes', 'prod', 'fugaces', 'alertes', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables']
 
 /**
  * CE QUE LA PAGE DEMANDE DE FAIRE, et non plus seulement ce qu'elle constate.
@@ -623,6 +623,11 @@ export function aFaire(D) {
     pousse(
       'alertes',
       depots.filter((d) => d.alertes?.etat === 'lu' && d.alertes.total).map((d) => ({ depot: d.nom, n: d.alertes.total, graves: d.alertes.graves || 0 })),
+    )
+  if (D?.kpi?.scanningLisible)
+    pousse(
+      'scanning',
+      depots.filter((d) => d.scanning?.etat === 'lu' && d.scanning.total).map((d) => ({ depot: d.nom, n: d.scanning.total, graves: d.scanning.graves || 0 })),
     )
   pousse(
     'prs',
@@ -711,6 +716,7 @@ export function phraseChangement(c, T) {
   if (c.type === 'dormante') return [c.paquet, T('changements.dormante')]
   if (c.type === 'reveillee') return [c.paquet, T('changements.reveillee')]
   if (c.type === 'alertes') return [T('changements.alertes'), T('changements.alertes.suite', { de: c.de, a: c.a })]
+  if (c.type === 'scanning') return [T('changements.scanning'), T('changements.scanning.suite', { de: c.de, a: c.a })]
   if (c.type === 'site-tombe' || c.type === 'site-revenu') return [c.depot, T('changements.' + c.type)]
   if (c.type === 'prod-retard') return [c.depot, T('changements.prod-retard', { n: c.retard })]
   if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]

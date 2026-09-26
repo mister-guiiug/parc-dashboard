@@ -12,9 +12,9 @@
 // Un point par jour, le DERNIER relevé de la journée : c'est la même règle que
 // le relevé quotidien, sinon une journée agitée pèserait dix fois plus qu'une
 // journée calme. Les compteurs absents d'une vieille révision — `dormantes` et
-// `alertes` n'existent que depuis le 14/09/2026 — restent `null` : une courbe
-// ne se trace qu'à partir de deux points réels, et un zéro inventé ferait
-// croire à une amélioration qui n'a pas eu lieu.
+// `alertes` n'existent que depuis le 14/09/2026, `scanning` depuis le 26/09 —
+// restent `null` : une courbe ne se trace qu'à partir de deux points réels, et
+// un zéro inventé ferait croire à une amélioration qui n'a pas eu lieu.
 //
 // Outil de reprise, pas de production : à relancer seulement si le fichier est
 // perdu. Le relevé quotidien, lui, ajoute son point tout seul.
@@ -63,6 +63,8 @@ for (const l of lignes.reverse()) {
     dormantesArretees: k.dormantesArretees ?? null,
     alertes: k.alertes ?? null,
     alertesGraves: k.alertesGraves ?? null,
+    scanning: k.scanning ?? null,
+    scanningGraves: k.scanningGraves ?? null,
     socleEnRetard: k.socleEnRetard ?? null,
   })
 }

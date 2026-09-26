@@ -31,6 +31,7 @@ Elle se régénère **toute seule chaque heure** (workflow [`releve.yml`](.githu
 | Comment aller droit à un dépôt ou à une librairie ? | recherche de la barre fixe — touche `/` |
 | Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
 | Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
+| Où sont les alertes CodeQL (Security and quality) ? | tuile « Sécurité et qualité », badge et bandeau sur la carte, rubrique « À faire » |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
 | Où suis-je dans la page, et comment revenir en haut ? | barre fixe en haut, chapitre courant souligné ; sommaire flottant en bas à droite sur petit écran |
 | Et en anglais ? | liste déroulante en haut à droite — voir « Les deux langues » |
@@ -254,6 +255,10 @@ laisser glisser en silence dans une autre famille.
   demande un jeton portant « Dependabot alerts : read » — le `GITHUB_TOKEN` du
   dépôt ne l'a pas, même sur des dépôts publics. Sans ce droit la tuile affiche
   `—` et dit pourquoi : « 0 alerte » se lirait comme une bonne nouvelle.
+- Les **alertes Sécurité et qualité** (Code scanning / CodeQL) suivent le même
+  triptyque. Les lire demande `security_events` (ou « Code scanning alerts :
+  read ») sur `PARC_TOKEN`. Un dépôt sans analyse n'est pas un dépôt à zéro :
+  il est compté à part, et la courbe ne démarre que là où une lecture a réussi.
 - Un dépôt dont les **workflows n'ont pas pu être lus** le dit sur sa carte. Le
   relevé abandonne au-delà de 10 % de lectures refusées ; en dessous, sans ce
   bandeau, un dépôt mal lu s'afficherait comme un dépôt sain et vide.

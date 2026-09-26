@@ -611,6 +611,17 @@
                 sens: -1,
               }
             : { etiq: T('tuile.alertes'), val: T('temps.rien'), app: T('tuile.alertes.illisibles', { n: k.depotsAlertesIllisibles }) },
+          k.scanningLisible
+            ? {
+                etiq: T('tuile.scanning'),
+                val: k.scanning,
+                app: k.scanning
+                  ? T('tuile.scanning.dont', { graves: k.scanningGraves, erreurs: k.scanningErreurs })
+                  : T('tuile.scanning.aucune', { n: k.depots - k.depotsSansScanning }),
+                serie: 'scanning',
+                sens: -1,
+              }
+            : { etiq: T('tuile.scanning'), val: T('temps.rien'), app: T('tuile.scanning.illisibles', { n: k.depotsScanningIllisibles }) },
         ]
         // La tuile des workflows au vert porte la courbe : c'est le chiffre du hero.
         tuiles.splice(3, 0, {
@@ -657,6 +668,7 @@
         'ci-rouge': { p: '✕', c: 'var(--critical)' },
         'ci-vert': { p: '✓', c: 'var(--goodInk)' },
         alertes: { p: '!', c: 'var(--critical)' },
+        scanning: { p: '⛨', c: 'var(--critical)' },
         dormante: { p: '·', c: 'var(--warning)' },
         reveillee: { p: '·', c: 'var(--goodInk)' },
         amont: { p: '↑', c: 'var(--ink2)' },
@@ -705,6 +717,7 @@
         prod: 'attention',
         fugaces: 'attention',
         alertes: 'attention',
+        scanning: 'attention',
         introuvables: 'attention',
         prs: 'decision',
         majeures: 'decision',
@@ -815,7 +828,7 @@
 
       function detailAFaire(cle, x) {
         const carte = '#depot-' + x.depot
-        if (cle === 'rouges' || cle === 'alertes') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
+        if (cle === 'rouges' || cle === 'alertes' || cle === 'scanning') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
         if (cle === 'sites') return puceLien(x.depot, carte)
         if (cle === 'prod') return puceLien(T('afaire.detail.prod', { depot: x.depot, n: x.retard }), carte)
         if (cle === 'mortes' || cle === 'fugaces') return puceLien(T('afaire.detail.fichiers', { depot: x.depot, fichiers: x.fichiers.join(T('liste')) }), carte)
@@ -1032,12 +1045,17 @@
         if (d.prive) tete.append(el('span', 'badge prive', T('carte.prive')))
         if (d.role) tete.append(el('span', 'badge', d.role))
         if (d.paquet && d.paquet.version) tete.append(el('span', 'badge', 'v' + d.paquet.version))
-        // Les deux avertissements de la carte se replient avec elle : ils
+        // Les avertissements de la carte se replient avec elle : ils
         // laissent chacun un badge dans la tête, sans quoi plier ferait
-        // disparaître une alerte de vulnérabilité de la page entière.
+        // disparaître une alerte de la page entière.
         if (d.alertes?.etat === 'lu' && d.alertes.total) {
           const b = el('span', 'badge alerte' + (d.alertes.graves ? ' grave' : ''), T('carte.alertes.badge', { n: d.alertes.total }))
           b.title = T('carte.alertes.titre', { n: d.alertes.total })
+          tete.append(b)
+        }
+        if (d.scanning?.etat === 'lu' && d.scanning.total) {
+          const b = el('span', 'badge alerte' + (d.scanning.graves || d.scanning.erreurs ? ' grave' : ''), T('carte.scanning.badge', { n: d.scanning.total }))
+          b.title = T('carte.scanning.titre', { n: d.scanning.total })
           tete.append(b)
         }
         if (d.lectureIncomplete) {
@@ -1094,6 +1112,24 @@
             T('carte.alertes.titre', { n: d.alertes.total }) +
             (d.alertes.graves ? T('carte.alertes.graves', { n: d.alertes.graves }) : '') +
             (d.alertes.production ? T('carte.alertes.production', { n: d.alertes.production }) : '')
+          corps.append(al)
+        }
+        if (d.scanning?.etat === 'lu' && d.scanning.total) {
+          const al = el('div', 'malLu')
+          al.style.borderLeftColor = d.scanning.graves || d.scanning.erreurs ? 'var(--critical)' : 'var(--warning)'
+          const a = el('a', null, T('carte.scanning.lien'))
+          a.href = `https://github.com/${d.nwo}/security/code-scanning`
+          a.target = '_blank'
+          a.rel = 'noopener'
+          al.append(
+            document.createTextNode(
+              T('carte.scanning.titre', { n: d.scanning.total }) +
+                (d.scanning.graves ? T('carte.scanning.graves', { n: d.scanning.graves }) : '') +
+                (d.scanning.erreurs ? T('carte.scanning.erreurs', { n: d.scanning.erreurs }) : '') +
+                ' — ',
+            ),
+            a,
+          )
           corps.append(al)
         }
 

@@ -22,7 +22,9 @@ import {
   pairsDures,
   precacheDe,
   referencesDe,
+  resumeScanning,
   satisfait,
+  scanningDepuisReponse,
   derniereDeSerie,
   plafondEngines,
   unitesDeLArbre,
@@ -130,6 +132,33 @@ test('etatChecks : un seul rouge suffit, et « aucun check » n’est pas un ver
   assert.equal(etatChecks([ok, { status: 'completed', conclusion: 'failure' }, { status: 'queued' }]), 'rouge')
   assert.equal(etatChecks([]), null)
   assert.equal(etatChecks(undefined), null)
+})
+
+/* ── Sécurité et qualité (Code scanning) ────────────────────────────────── */
+
+test('resumeScanning compte les graves et les erreurs', () => {
+  const liste = [
+    { rule: { severity: 'warning', security_severity_level: 'high' } },
+    { rule: { severity: 'error', security_severity_level: 'medium' } },
+    { rule: { severity: 'note', security_severity_level: null } },
+    { rule: { severity: 'warning', security_severity_level: 'critical' } },
+  ]
+  assert.deepEqual(resumeScanning(liste), { etat: 'lu', total: 4, graves: 2, erreurs: 1 })
+  assert.deepEqual(resumeScanning([]), { etat: 'lu', total: 0, graves: 0, erreurs: 0 })
+})
+
+test('scanningDepuisReponse : trois états, jamais deux', () => {
+  assert.deepEqual(scanningDepuisReponse(404, '{"message":"no analysis found"}'), { etat: 'desactivees' })
+  assert.deepEqual(scanningDepuisReponse(403, '{"message":"Code scanning is not enabled for this repository."}'), { etat: 'desactivees' })
+  assert.deepEqual(scanningDepuisReponse(403, '{"message":"Resource not accessible by integration"}'), { etat: 'illisible' })
+  assert.deepEqual(scanningDepuisReponse(500, 'boom'), { etat: 'illisible' })
+  assert.deepEqual(scanningDepuisReponse(200, { oops: true }), { etat: 'illisible' })
+  assert.deepEqual(scanningDepuisReponse(200, [{ rule: { severity: 'error', security_severity_level: 'high' } }]), {
+    etat: 'lu',
+    total: 1,
+    graves: 1,
+    erreurs: 1,
+  })
 })
 
 /* ── Renovate ───────────────────────────────────────────────────────────── */

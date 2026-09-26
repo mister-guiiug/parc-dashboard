@@ -198,7 +198,7 @@ const FAMILLES_DYNAMIQUES = [
   // `changementsDepuis()` de regles.mjs — les onze types de son barème `rang`.
   {
     prefixe: 'changements.',
-    membres: ['ci-rouge', 'ci-vert', 'alertes', 'dormante', 'reveillee', 'amont', 'depot-entre', 'depot-sorti', 'site-tombe', 'site-revenu', 'prod-retard'],
+    membres: ['ci-rouge', 'ci-vert', 'alertes', 'scanning', 'dormante', 'reveillee', 'amont', 'depot-entre', 'depot-sorti', 'site-tombe', 'site-revenu', 'prod-retard'],
     partielle: true,
   },
   // `aFaire()` de vue.mjs : une entrée par clé de `ORDRE_A_FAIRE`, importé —

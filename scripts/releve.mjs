@@ -37,7 +37,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, scanningDepuisReponse, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -541,6 +541,38 @@ await enLot(depots, 5, async (d) => {
 if (!alertesLisibles) {
   console.error(`\nAlertes de vulnérabilité illisibles sur ${alertesRefusees}/${depots.length} dépôts — la section restera muette.`)
   console.error(`Il faut un PAT portant « Dependabot alerts : read » dans le secret PARC_TOKEN ; le GITHUB_TOKEN du dépôt ne suffit pas.`)
+}
+
+/* --------------------------------------- sécurité et qualité (Code scanning) */
+
+// MÊME LOGIQUE QUE LES ALERTES DEPENDABOT : le `GITHUB_TOKEN` d'un dépôt ne
+// lit pas `/code-scanning/alerts` des autres, même publics. Sans `PARC_TOKEN`
+// portant `security_events` (ou « Code scanning alerts : read »), afficher
+// « 0 » serait une fausse assurance — d'où les trois états, jamais deux.
+//
+// C'est ce que l'onglet GitHub appelle « Security and quality » : les alertes
+// CodeQL / Code scanning ouvertes sur la branche par défaut.
+let scanningLisible = false
+let scanningRefuse = 0
+await enLot(depots, 5, async (d) => {
+  d.scanning = null
+  try {
+    appels++
+    const res = await fetch(`${API}/repos/${d.nwo}/code-scanning/alerts?state=open&per_page=100`, {
+      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' },
+    })
+    const corps = res.ok ? await res.json() : await res.text()
+    d.scanning = scanningDepuisReponse(res.status, corps)
+    if (d.scanning.etat === 'lu') scanningLisible = true
+    else if (d.scanning.etat === 'illisible') scanningRefuse++
+  } catch {
+    d.scanning = { etat: 'illisible' }
+    scanningRefuse++
+  }
+})
+if (!scanningLisible) {
+  console.error(`\nSécurité et qualité illisible sur ${scanningRefuse}/${depots.length} dépôts — la section restera muette.`)
+  console.error(`Il faut un PAT portant « security_events » (ou Code scanning alerts : read) dans le secret PARC_TOKEN.`)
 }
 
 /* ------------------------------------------------ détail des échecs */
@@ -1068,6 +1100,13 @@ const kpi = {
   alertesProduction: alertesLisibles ? depots.reduce((n, d) => n + (d.alertes?.production || 0), 0) : null,
   depotsSansAlertes: depots.filter((d) => d.alertes?.etat === 'desactivees').length,
   depotsAlertesIllisibles: depots.filter((d) => d.alertes?.etat === 'illisible').length,
+  // Même triptyque que les alertes Dependabot : un compte, ou l'aveu.
+  scanningLisible,
+  scanning: scanningLisible ? depots.reduce((n, d) => n + (d.scanning?.total || 0), 0) : null,
+  scanningGraves: scanningLisible ? depots.reduce((n, d) => n + (d.scanning?.graves || 0), 0) : null,
+  scanningErreurs: scanningLisible ? depots.reduce((n, d) => n + (d.scanning?.erreurs || 0), 0) : null,
+  depotsSansScanning: depots.filter((d) => d.scanning?.etat === 'desactivees').length,
+  depotsScanningIllisibles: depots.filter((d) => d.scanning?.etat === 'illisible').length,
   lecturesIncompletes: depots.filter((d) => d.lectureIncomplete).length,
   librairiesDatees: libs.filter((l) => l.publieLe).length,
   dormantes: dormantes.length,
@@ -1223,6 +1262,8 @@ if (!inchange) {
     dormantesArretees: kpi.dormantesArretees,
     alertes: kpi.alertes,
     alertesGraves: kpi.alertesGraves,
+    scanning: kpi.scanning,
+    scanningGraves: kpi.scanningGraves,
     socleEnRetard: kpi.socleEnRetard,
   }
   const i = histo.findIndex((p) => p.jour === jour)

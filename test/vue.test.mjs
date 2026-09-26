@@ -600,9 +600,9 @@ const depotAFaire = (nom, extra = {}) => ({ nom, compte: { rouge: 0 }, pages: nu
 test('aFaire range du cassé à l’entretien, et tait ce qui est vide', () => {
   const D = {
     socle: '@s/socle',
-    kpi: { alertesLisibles: true },
+    kpi: { alertesLisibles: true, scanningLisible: true },
     depots: [
-      depotAFaire('a', { compte: { rouge: 2 }, prod: { etat: 'retard', retard: 3 } }),
+      depotAFaire('a', { compte: { rouge: 2 }, prod: { etat: 'retard', retard: 3 }, scanning: { etat: 'lu', total: 3, graves: 2 } }),
       depotAFaire('b', { pages: { url: 'https://b/', ok: false }, prs: [{ num: 7, titre: 'fix', brouillon: false }, { num: 8, titre: 'wip', brouillon: true }] }),
       depotAFaire('c', { renovate: { enAttente: 5, majeures: 2, introuvables: ['@s/socle'], issue: 'https://i' } }),
     ],
@@ -614,7 +614,7 @@ test('aFaire range du cassé à l’entretien, et tait ce qui est vide', () => {
   const r = aFaire(D)
   assert.deepEqual(
     r.map((x) => x.cle),
-    ['rouges', 'sites', 'prod', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables'],
+    ['rouges', 'sites', 'prod', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables'],
   )
   // un brouillon n'est pas « à relire »
   assert.equal(r.find((x) => x.cle === 'prs').n, 1)
