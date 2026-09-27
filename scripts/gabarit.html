@@ -15,6 +15,10 @@
     <style>
       __STYLE__
     </style>
+    <script>
+      document.documentElement.dataset.mod =
+        /Mac|iPhone|iPad/.test(navigator.platform || '') || /Mac/.test(navigator.userAgent || '') ? 'meta' : 'ctrl'
+    </script>
   </head>
   <body>
     <!-- PREMIER ARRÊT DE LA PAGE. Sans lui, atteindre la matrice au clavier
@@ -124,24 +128,37 @@
       <!-- LA BARRE QUI RESTE : onze écrans se parcourent mal à la molette. Elle
            colle en haut dès qu'on la dépasse, porte les chapitres et une
            recherche qui MÈNE à un dépôt ou à une librairie — le filtre de chaque
-           section, lui, ne fait que masquer. « / » y amène le curseur. -->
+           section, lui, ne fait que masquer. « / » et Ctrl+K y amènent le curseur. -->
       <div class="barreNav" id="barreNav">
+        <nav class="sites" data-t-aria-label="nav.sites" aria-label="Pages du parc">
+          <a href="https://mister-guiiug.github.io/" data-t="nav.site.catalogue">Catalogue</a>
+          <a href="https://mister-guiiug.github.io/dev-pwa-config/" data-t="nav.site.showroom">Showroom</a>
+          <a href="https://mister-guiiug.github.io/parc-dashboard/" data-t="nav.site.parc" aria-current="page">Parc</a>
+        </nav>
         <div class="rechercheGlobale">
-          <input
-            class="champ"
-            id="rechercheGlobale"
-            type="search"
-            role="combobox"
-            aria-expanded="false"
-            aria-controls="resultatsGlobaux"
-            aria-autocomplete="list"
-            autocomplete="off"
-            spellcheck="false"
-            data-t-placeholder="nav.recherche"
-            data-t-aria-label="nav.recherche.al"
-            placeholder="Aller à un dépôt, une librairie… ( / )"
-            aria-label="Aller à un dépôt ou à une librairie"
-          />
+          <label class="rechercheChamp">
+            <input
+              class="champ"
+              id="rechercheGlobale"
+              type="search"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="resultatsGlobaux"
+              aria-autocomplete="list"
+              aria-keyshortcuts="Control+K Meta+K"
+              autocomplete="off"
+              spellcheck="false"
+              data-t-placeholder="nav.recherche"
+              data-t-aria-label="nav.recherche.al"
+              placeholder="Aller à un dépôt, une librairie…"
+              aria-label="Aller à un dépôt ou à une librairie"
+            />
+            <kbd class="raccourci" aria-hidden="true">
+              <span data-mod="ctrl">Ctrl</span>
+              <span data-mod="meta">⌘</span>
+              <span>K</span>
+            </kbd>
+          </label>
           <ul class="resultatsGlobaux" id="resultatsGlobaux" role="listbox" hidden></ul>
         </div>
         <nav class="liensSections" id="liensSections" data-t-aria-label="nav.sections" aria-label="Sections de la page"></nav>
@@ -219,6 +236,17 @@
             <button class="bouton" type="button" id="filtreRetard" aria-pressed="false" data-t="libs.filtre.retard">Avec du retard</button>
             <button class="bouton" type="button" id="filtreEclate" aria-pressed="false" data-t="libs.filtre.eclate">Versions éclatées</button>
             <button class="bouton" type="button" id="filtreToutes" aria-pressed="false" data-t="libs.filtre.toutes">Mono-dépôt compris</button>
+            <button
+              class="bouton copier"
+              type="button"
+              id="copiePrompt"
+              hidden
+              data-t="prompt.copier"
+              data-t-title="prompt.titre"
+              title="Instructions à coller dans une IA pour monter les librairies affichées qui sont en retard."
+            >
+              Copier le prompt
+            </button>
             <button class="bouton raz" type="button" id="raz-librairies" hidden data-t="raz">Tout réafficher</button>
           </div>
           <p class="vide" id="aucuneLib" hidden data-t="libs.aucun">Aucun paquet ne répond à ces filtres.</p>
@@ -776,6 +804,29 @@
       }
       /** Plusieurs demandes, datées par le relevé dont elles viennent. */
       const texteDemandes = (liste) => [T('demande.entete', { quand: fmtHeure(D.genere) }), ...liste.map(texteDemande)].join('\n\n')
+
+      /**
+       * LE PROMPT POUR UNE IA, et non plus la demande qu'on relit soi-même.
+       *
+       * Le 27/09/2026, « Copier la demande » donnait la liste ; il restait à
+       * écrire les consignes (branche, lockfile, série, npm 10). Le bouton de
+       * la section ne prend que les librairies AFFICHÉES : un filtre cible
+       * le prompt, et une ligne sans montée n'y entre pas.
+       */
+      let demandesAffichees = []
+      const demandesDeLib = (l) => [...correctifsDe(l), demandeMontee(l)].filter(Boolean)
+      function noteFraiche(dm, l) {
+        const iso = dm.serie || dm.plafond ? dm.publie : l?.publieAmont
+        const h = heuresDepuis(iso, Date.now())
+        return h !== null && h < FRAICHE_H ? T('prompt.fraiche', { paquet: nomDemande(dm), cible: dm.cible }) : null
+      }
+      function textePrompt(paires) {
+        const blocs = paires.map(({ dm, l }) => {
+          const note = noteFraiche(dm, l)
+          return note ? texteDemande(dm) + '\n' + note : texteDemande(dm)
+        })
+        return [T('prompt.role'), '', T('prompt.regles'), '', T('prompt.liste', { quand: fmtHeure(D.genere) }), '', blocs.join('\n\n')].join('\n')
+      }
 
       /**
        * Copier, et le DIRE : le bouton change de libellé deux secondes, et la
@@ -1742,7 +1793,7 @@
           const actions = el('div', 'actionsLib')
           // Les montées sans décision d'abord (correctifs de série, plafonds),
           // puis celle vers l'amont : on copie tout ce que la ligne demande.
-          const demandes = [...correctifsDe(l), demandeMontee(l)].filter(Boolean)
+          const demandes = demandesDeLib(l)
           if (demandes.length) actions.append(boutonCopie(() => texteDemandes(demandes)))
           if (l.depotAmont) {
             const notes = el('a', null, T('libs.notes'))
@@ -1786,6 +1837,8 @@
         // compteur, en haut de la section. Les quatre autres sections filtrantes
         // en avaient un ; celle-ci, la plus grosse, non.
         $('#aucuneLib').hidden = liste.length > 0
+        demandesAffichees = liste.flatMap((l) => demandesDeLib(l).map((dm) => ({ dm, l })))
+        $('#copiePrompt').hidden = demandesAffichees.length === 0
         $('#compteurLibs').textContent =
           liste.length === D.libs.length ? T('libs.compteur.tous', { n: D.libs.length }) : T('libs.compteur.filtre', { vus: liste.length, n: D.libs.length })
         ecritUrl()
@@ -1807,6 +1860,7 @@
         }
       }
       $('#rechercheLib').addEventListener('input', rendLibs)
+      $('#copiePrompt').addEventListener('click', () => copie(textePrompt(demandesAffichees), $('#copiePrompt')))
       for (const id of ['#filtreRetard', '#filtreEclate', '#filtreToutes']) {
         $(id).addEventListener('click', () => {
           const b = $(id)
@@ -3069,10 +3123,18 @@
       champGlobal.addEventListener('blur', () => setTimeout(fermeResultats, 120))
       // « / » amène le curseur dans la recherche — sauf quand on écrit ailleurs.
       document.addEventListener('keydown', (e) => {
+        const mod = e.ctrlKey || e.metaKey
+        if (mod && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+          e.preventDefault()
+          champGlobal.focus()
+          champGlobal.select()
+          return
+        }
         if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
         if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return
         e.preventDefault()
         champGlobal.focus()
+        champGlobal.select()
       })
 
       litUrl()
