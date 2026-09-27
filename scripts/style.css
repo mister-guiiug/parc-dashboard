@@ -127,18 +127,27 @@ h3 {
   clip-path: inset(50%);
 }
 
-/* ---------- en-tête ---------- */
+/* ---------- en-tête collé ---------- */
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: -28px -24px 8px;
+  padding: 14px 24px 12px;
+  background: color-mix(in srgb, var(--page) 92%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
 .chapeau {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-end;
+  gap: 12px 16px;
+  align-items: center;
   justify-content: space-between;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
 }
 .chapeau h1 {
-  font-size: 21px;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  line-height: 1.15;
 }
 .chapeau .sous {
   color: var(--ink2);
@@ -1545,7 +1554,7 @@ footer {
 /* ---------- barre de navigation fixe ---------- */
 .barreNav {
   position: sticky;
-  top: 0;
+  top: var(--entete-h, 0px);
   z-index: 30;
   display: flex;
   flex-wrap: wrap;
