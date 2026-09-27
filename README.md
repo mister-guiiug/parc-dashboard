@@ -24,6 +24,7 @@ Elle se régénère **toute seule chaque heure** (workflow [`releve.yml`](.githu
 | La page est-elle à jour ? | ligne « Vérifié il y a … » sous le titre, et bandeau « relevé plus récent » en tête |
 | Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, PR, majeurs, correctifs, socle, Renovate |
 | Comment demander une montée sans ambiguïté ? | bouton « Copier la demande » : nom exact, cible, gravité, chaque dépôt et sa version |
+| Comment faire faire la montée par une IA ? | bouton « Copier le prompt », dans Librairies : les consignes, puis les montées des lignes affichées |
 | Ce qui tourne en ligne est-il ce qui est fusionné ? | ligne « Production » de chaque carte (`version.json` comparé à `main`) |
 | Une URL de production va-t-elle mourir ? | morceaux fugaces et URL mortes, sur la carte et dans « À faire » |
 | Qu'attend Renovate, et que ne voit-il pas ? | ligne « Renovate » de chaque carte, et deux rubriques de « À faire » |
