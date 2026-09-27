@@ -22,7 +22,10 @@
          il y en a vingt-huit. Il ne se voit qu'au focus. -->
     <a class="evitement" href="#contenu" data-t="a11y.evitement">Aller au contenu</a>
     <div class="enveloppe">
-      <header>
+      <!-- LE TITRE RESTE EN HAUT PENDANT LE DÉFILEMENT. Le reste de l'en-tête
+           (à faire, chiffres, familles) défile ; la barre de recherche, plus
+           bas, se cale juste sous cette bande. -->
+      <div class="entete" id="entete">
         <!-- UNE RÉGION VIVANTE, TOUJOURS PRÉSENTE, VIDE PAR DÉFAUT. Elle ne
              parle que lorsqu'un relevé plus récent que la page est en ligne.
              Pas de `hidden` : un élément caché sort de l'arbre
@@ -50,6 +53,8 @@
             <a class="bouton" href="#librairies" data-t="outils.librairies">Librairies</a>
           </div>
         </div>
+      </div>
+      <header>
 
         <!-- CE QUE LA PAGE DEMANDE DE FAIRE, avant ce qu'elle constate. Le
              23/09/2026, tirer d'un relevé les montées à faire demandait de lire
@@ -2487,6 +2492,14 @@
         titre.tabIndex = -1
         titre.focus({ preventScroll: true })
       })
+      const entete = document.getElementById('entete')
+      const mesureEntete = () => {
+        if (!entete) return
+        document.documentElement.style.setProperty('--entete-h', entete.offsetHeight + 'px')
+      }
+      if (entete && 'ResizeObserver' in window) new ResizeObserver(mesureEntete).observe(entete)
+      mesureEntete()
+
       const suitDefilement = () => {
         haut.hidden = window.scrollY < 600
       }
