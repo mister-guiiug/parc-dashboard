@@ -1565,14 +1565,82 @@ footer {
   background: var(--page);
   border-bottom: 1px solid var(--border);
 }
+.sites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sites a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink2);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sites a[aria-current='page'] {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--ghost2);
+}
 .rechercheGlobale {
   position: relative;
   flex: 0 1 340px;
   min-width: 200px;
 }
+.rechercheChamp {
+  position: relative;
+  display: block;
+}
 .rechercheGlobale .champ {
   width: 100%;
   max-width: none;
+  padding-right: 4.8rem;
+}
+.rechercheChamp:focus-within .champ {
+  padding-right: 14px;
+}
+.raccourci {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  gap: 3px;
+  margin: 0;
+  pointer-events: none;
+}
+.raccourci span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--page);
+  color: var(--muted);
+  font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.raccourci [data-mod='meta'] {
+  display: none;
+}
+html[data-mod='meta'] .raccourci [data-mod='ctrl'] {
+  display: none;
+}
+html[data-mod='meta'] .raccourci [data-mod='meta'] {
+  display: inline-flex;
+}
+.rechercheChamp:focus-within .raccourci {
+  opacity: 0;
 }
 .resultatsGlobaux {
   position: absolute;
