@@ -7,7 +7,7 @@ verrouillées dans les lockfiles.
 
 **→ https://mister-guiiug.github.io/parc-dashboard/**
 
-Elle se régénère **toute seule chaque heure** (workflow [`releve.yml`](.github/workflows/releve.yml), à :17), et **dit elle-même depuis quand elle est juste** : « Vérifié il y a 12 minutes » sous le titre, un bandeau quand un relevé plus récent est en ligne, une alerte si le relevé ne passe plus. Voir « Comment la page est publiée ».
+Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflows/releve.yml) demande un passage par heure, à :17, mais GitHub n'en exécute qu'une partie (du 24 au 28/09/2026, quatre à six passages planifiés par jour, espacés de près de cinq heures en médiane et jusqu'à 8,6 heures). Elle **dit elle-même depuis quand elle est juste** : « Vérifié il y a 12 minutes » sous le titre, un bandeau quand un relevé plus récent est en ligne, une alerte au-delà de six heures sans passage, seuil que ces trous franchissent sans qu'il y ait de panne. Voir « Comment la page est publiée ».
 
 ## Ce que la page répond
 
@@ -85,8 +85,8 @@ main — et la recopie du matin même avait donné « node 26.6.1 » pour `@type
   ce qui attend le samedi, et ce que Renovate ne sait pas résoudre. Le socle,
   publié sur GitHub Packages, en fait partie : Renovate ne proposera jamais sa
   montée tant qu'on ne lui donne pas de jeton.
-- **Le flux Atom** `changements.xml` : chaque transition horaire, datée, avec les
-  phrases de la page (`phraseChangement`).
+- **Le flux Atom** `changements.xml` : chaque transition, datée du passage qui
+  l'a vue, avec les phrases de la page (`phraseChangement`).
 - **La barre fixe** : les chapitres, et une recherche qui MÈNE au dépôt ou à la
   librairie — la touche `/` y amène le curseur. Deux sections longues et peu
   consultées se replient ; le Ctrl+F du navigateur les rouvre.
@@ -118,11 +118,12 @@ mélangerait les deux.
 | rouge | écart de version **majeure** |
 | `·` grisé | ce dépôt ne dépend pas de ce paquet |
 
-Par défaut, seuls les paquets réellement éclatés sont montrés — les quatorze
-qui divergent le plus. *Choisir les colonnes* les ajoute et les retire une à
-une ; relâcher *Seulement les paquets éclatés* ouvre la liste aux cent paquets
-du parc. La dernière colonne compte les écarts d'une ligne, et le tri par
-défaut met les dépôts les plus en retard en tête.
+Par défaut, seuls les paquets réellement éclatés sont montrés, quatorze au plus :
+ceux qui divergent le plus. Au relevé du 28/09/2026, un seul l'était,
+`typescript`, en 6.0.3 et 7.0.2 par décision. *Choisir les colonnes* les ajoute
+et les retire une à une ; relâcher *Seulement les paquets éclatés* ouvre la
+liste aux cent six paquets du parc. La dernière colonne compte les écarts d'une
+ligne, et le tri par défaut met les dépôts les plus en retard en tête.
 
 Les lignes se filtrent par **famille** et par **maturité**. Aucun bouton pressé
 les montre toutes ; plusieurs se cumulent, et les deux axes se croisent. Le
@@ -133,8 +134,8 @@ Les boutons de famille sont construits d'après le relevé — une famille
 qu'aucun dépôt à lockfile ne porte n'obtient pas de bouton qui ne filtrerait
 rien. Ils ne portent volontairement pas de compte : le choix des colonnes fait
 varier les lignes visibles, et un nombre écrit là finirait par contredire le
-tableau. `create-lg-pwa-app` en est l'exemple — il est du socle, mais ne
-dépend d'aucun des quatorze paquets montrés par défaut.
+tableau. `create-lg-pwa-app` en est l'exemple : il est du socle, mais ne
+dépend d'aucun des paquets montrés par défaut.
 
 La **maturité** — alpha, bêta, stable, ou non renseignée — est d'une autre
 nature : elle est **éditoriale**. Aucun signal du dépôt ne la donne, et sa
@@ -148,8 +149,9 @@ filtrer sur un critère invisible obligerait à croire le filtre sur parole. La
 pastille de famille reste en pointillé et sans couleur — dans cette section,
 une couleur veut dire « écart », et rien d'autre.
 
-Les huit dépôts qui n'en portent pas sont ceux qui ne sont pas des
-applications — les trois couches du socle, l'outillage, et `.github`.
+Les dépôts qui n'en portent pas sont ceux que `FAMILY_APPS` ne liste pas : les
+trois couches du socle, les applications desktop, l'outillage, `.github`, le
+profil et le site racine du compte. Ils étaient dix au relevé du 28/09/2026.
 
 ## Les deux langues
 
@@ -160,7 +162,7 @@ La langue servie se décide dans cet ordre — **l'URL**, puis le **choix
 mémorisé**, puis le **navigateur**. L'URL passe devant parce qu'elle est ce
 qu'on envoie à quelqu'un : un lien qui s'ouvrirait dans la langue du
 destinataire ne montrerait pas ce qu'on voulait montrer. Le paramètre `?lang=en`
-rejoint donc les onze autres que la page sait déjà transmettre, et le défaut ne
+rejoint donc les treize autres que la page sait déjà transmettre, et le défaut ne
 s'écrit pas.
 
 Tout le texte vit dans [`scripts/libelles.mjs`](scripts/libelles.mjs), recopié
@@ -219,7 +221,9 @@ laisser glisser en silence dans une autre famille.
   pour « jamais exécuté » ce qui tourne en réalité chez les consommateurs.
 - Les **versions de librairies** sont lues dans `package-lock.json`, pas dans
   `package.json` : une plage `^4.7.0` accepte déjà `4.9.0`, elle ne dit pas ce
-  qui est installé. Pour les deux dépôts Cargo, la source est `Cargo.lock`.
+  qui est installé. Pour un dépôt Cargo, la source est `Cargo.lock` : un seul au
+  relevé du 28/09/2026, `mister-commitia`, car `miss-ticket`, privé, n'est pas
+  relevé.
 - Un **alias npm** (`"typescript-7": "npm:typescript@~7.0.2"`) porte un nom qui
   n'existe pas au registre : interrogé sur `typescript-7`, npm répond **404**.
   L'alias est donc résolu vers le paquet réellement publié, et la ligne porte le
@@ -243,11 +247,12 @@ laisser glisser en silence dans une autre famille.
   mai 2023 mais reçoit des commits le jour même ; `react-qr-reader` en est à
   une préversion de 2022 et son dépôt n'a pas bougé depuis 2023. Le même
   « plus d'un an » recouvrait les deux.
-- **« Ce qui a bougé » compare au relevé précédent**, pas à hier au sens strict :
-  le bandeau nomme la date à laquelle il se compare. Cette liste décrit une
-  transition, pas un état — elle est donc exclue de la comparaison « le fond
-  a-t-il changé ? », sinon un jour de changement serait suivi d'un second commit
-  le lendemain, celui qui remet la liste à vide.
+- **« Ce qui a bougé » compare à la photo du jour**, l'`index.html` que le
+  premier passage d'un jour commite, et non au passage précédent : le bandeau
+  nomme la date à laquelle il se compare. Cette liste décrit une transition, pas
+  un état : elle est donc exclue de la comparaison « le fond a-t-il changé ? »,
+  sinon chaque changement serait suivi d'une seconde page au passage suivant,
+  celle qui remet la liste à vide.
 - Les **courbes** ne se tracent qu'à partir de **deux points** : une ligne d'un
   seul point laisserait croire à une tendance plate. `historique.json` reçoit un
   point par jour au maximum, et seulement quand le fond a bougé.
@@ -283,7 +288,7 @@ chercher l'API, rien n'y serait testable autrement. Aucune dépendance, aucun
 jeton, `node:test` suffit.
 
 C'est `fond()` qui justifie surtout ces tests : elle décide si le relevé publie
-une page neuve. Une régression y ferait republier à chaque passage horaire sans
+une page neuve. Une régression y ferait republier à chaque passage sans
 que rien n'ait bougé — et annoncer à chaque lecteur « un relevé plus récent »
 qui n'apporte rien.
 
@@ -303,8 +308,8 @@ corrigée — qui ne change aucune donnée — n'atteindrait jamais la page publ
 node scripts/releve.mjs
 ```
 
-Un seul script, sans dépendance : `GITHUB_TOKEN` (ou `PARC_TOKEN`) dans
-l'environnement, environ 350 appels d'API (un de plus par PR ouverte, pour sa CI, et un par dépôt dont la tête a bougé, pour ses dossiers), et `index.html` est réécrit.
+Un seul script, sans dépendance : `PARC_TOKEN`, sinon `GITHUB_TOKEN`, dans
+l'environnement, environ 400 appels d'API (384 à 405 sur les passages des 27 et 28/09/2026 ; un de plus par PR ouverte, pour sa CI, et un par dépôt dont la tête a bougé, pour ses dossiers), et `index.html` est réécrit.
 
 | Option | Effet | Écrit dans |
 |---|---|---|
@@ -313,20 +318,27 @@ l'environnement, environ 350 appels d'API (un de plus par PR ouverte, pour sa CI
 | `--prives` | inclut les dépôts privés du compte (demande un PAT, pas le `GITHUB_TOKEN`) | — |
 | `--sortie <chemin>` | force le fichier de sortie | — |
 | `--precedente <url>` | prend la page **en ligne** pour état précédent — voir ci-dessous | — |
-| `--publier <dossier>` | écrit le site à déployer : `index.html`, `etat.json`, `historique.json` | `<dossier>` |
+| `--publier <dossier>` | écrit le site à déployer : `index.html`, `etat.json`, `historique.json`, et `changements.xml` avec `--precedente` | `<dossier>` |
 | `--instantane` | avec `--publier`, écrit aussi la photo du jour dans le dépôt, quand un jour nouveau apparaît | `index.html`, `historique.json` |
 
 La CI lance `--precedente <url de la page> --publier _site --instantane`.
 
 ### Comment la page est publiée
 
-Depuis le 23/09/2026, **chaque heure**, et sans commit — la page part sur Pages
-comme artefact (`upload-pages-artifact`, puis `deploy-pages`). Elle passait une
-fois par jour, et le cron « 05:17 UTC » partait en réalité vers 09:55 : GitHub
-ne tient ses crons qu'au mieux. Un passage coûte ~45 s et 343 appels, quand le
-`GITHUB_TOKEN` en permet 1 000 par heure — 376 le 24/09/2026 au premier passage
-qui lit l'arbre de chaque dépôt, 346 ensuite, les arbres étant repris tant que
-la tête ne bouge pas.
+Depuis le 23/09/2026, **à chaque passage du cron horaire**, et sans commit : la
+page part sur Pages comme artefact (`upload-pages-artifact`, puis
+`deploy-pages`). Elle passait une fois par jour, et le cron « 05:17 UTC »
+partait en réalité vers 09:55 : GitHub ne tient ses crons qu'au mieux, et il en
+saute. Du 24 au 28/09/2026, il n'a lancé que quatre à six des vingt-quatre
+passages demandés chaque jour, espacés de près de cinq heures en médiane, et
+jusqu'à 8,6 heures.
+
+Un passage dure environ une minute et coûte 384 à 405 appels d'API (passages
+des 27 et 28/09/2026), les arbres des dépôts étant repris tant que leur tête ne
+bouge pas. Ils passent par `PARC_TOKEN`, que le relevé préfère au
+`GITHUB_TOKEN` : ils comptent donc sur le quota du compte, 5 000 appels par
+heure partagés avec tout ce que ce compte fait par l'API. Les 1 000 appels par
+heure du `GITHUB_TOKEN` ne valent que pour le repli.
 
 - **L'état précédent est la page EN LIGNE**, relue à chaque passage avec un
   paramètre inédit (le CDN garde une page dix minutes). C'est elle qui dit s'il
@@ -336,12 +348,14 @@ la tête ne bouge pas.
   l'identique, et seul `etat.json` avance. `genere` y date le relevé que porte la
   page, `verifie` le passage. C'est ce qui permet à la page de dire « Vérifié il
   y a 12 minutes », d'annoncer un relevé plus récent que celle qu'on a ouverte,
-  et de signaler un relevé qui ne passe plus depuis six heures. Cette lecture
-  est **la seule requête réseau de la page**, et elle est facultative : en
-  `file://`, rien ne s'affiche de plus.
+  et de signaler un relevé qui ne passe plus depuis six heures. Les trous du
+  cron suffisent à franchir ce seuil : six fois du 24 au 28/09/2026, alors que
+  tous les passages avaient réussi. Cette lecture est **la seule requête réseau
+  de la page**, et elle est facultative : en `file://`, rien ne s'affiche de
+  plus.
 - **La photo du jour** : le premier passage qui voit un jour nouveau commite
   `index.html` et `historique.json` dans le dépôt. C'est le repère de « Ce qui a
-  bougé » (sinon le bandeau ne couvrirait que la dernière heure), la copie
+  bougé » (sinon le bandeau ne couvrirait que le dernier passage), la copie
   durable de l'historique, et l'activité qui empêche GitHub de désactiver le
   cron d'un dépôt public resté soixante jours sans commit.
 - **L'historique est recomposé jour par jour** depuis la page en ligne et le
