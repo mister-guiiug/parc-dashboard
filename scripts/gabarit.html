@@ -9,6 +9,12 @@
          document tel qu'il arrive, et `noscript` n'aurait plus rien à dire. -->
     <title data-t="page.titre">Parc mister-guiiug — dépôts, pipelines, librairies</title>
     <meta name="description" data-t-content="page.description" content="État des dépôts git du parc : pipelines GitHub Actions, dernier CI/CD, versions des librairies." />
+    <!-- HORS DES MOTEURS. C'est un tableau de bord technique, pas une page de
+         destination : il n'a rien à répondre à une recherche, et son texte
+         change à chaque relevé horaire. GitHub Pages ne permet aucun en-tête
+         HTTP (pas de `X-Robots-Tag`) : la consigne passe donc par cette
+         balise, dans le gabarit, seul endroit où la page est écrite. -->
+    <meta name="robots" content="noindex" />
     <!-- Le flux des changements, publié à côté de la page à chaque relevé :
          un lecteur de flux le découvre ici, sans qu'on ait à le lui donner. -->
     <link rel="alternate" type="application/atom+xml" href="changements.xml" title="Parc mister-guiiug — ce qui a bougé" />
