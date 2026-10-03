@@ -270,7 +270,7 @@ const MOTIFS = [
   [/^@sentry\/|^web-vitals$|^tracing$/, 'obs'],
   [/^@testing-library\/|^@playwright\/|playwright|^axe-core$|^jsdom$|^fake-indexeddb$|coverage|rules-unit-testing/, 'test'],
   [/eslint|prettier|husky|lint-staged|commitlint|changesets/, 'qual'],
-  [/^@tailwindcss\/|^vite$|^@vitejs\/|vite-plugin|^esbuild$|^rollup-|^sharp$|^cross-env$|^concurrently$|^wait-on$|^electron/, 'build'],
+  [/^@tailwindcss\/|^vite$|^@vitejs\/|vite-plugin|^esbuild$|^rollup-|^sharp$|^concurrently$|^wait-on$|^electron/, 'build'],
   [/^vitest$|^@vitest\//, 'test'],
   [/^react$|^react-dom$|^react-router|^tailwindcss$|^lucide-react$|^framer-motion$|^@rive-app\/|^leaflet$|^maplibre-gl$|^recharts$/, 'ui'],
   [/^zustand$|^zod$|^@tanstack\/|date-fns|^uqr$|^qr-scanner$|^jszip$|^uuid$|^yaml$|^jsonc-parser$|^sql\.js$|^rusqlite$|^chrono$|^regex$/, 'data'],
