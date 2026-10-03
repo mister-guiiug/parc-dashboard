@@ -130,6 +130,32 @@
       <div class="enveloppe">
       <header>
 
+        <!-- C1 + C12 : un contexte pour TOUTES les sections, et des presets
+             qui écrivent l'URL. -->
+        <section class="carte contexteParc" id="contexte" aria-labelledby="titreContexte">
+          <div class="titreSection">
+            <h2 id="titreContexte" data-t="contexte.h2">Contexte du parc</h2>
+          </div>
+          <p class="chapo" data-t="contexte.chapo">
+            Un filtre pour toutes les sections. Les presets écrivent aussi l’URL, partageable.
+          </p>
+          <div class="filtres" id="filtresContexteFamille" role="group" data-t-aria-label="matrice.famille.al" aria-label="Filtrer par famille"></div>
+          <div class="filtres">
+            <button class="bouton" type="button" id="contexteRetard" aria-pressed="false" data-t="contexte.retard">Avec du retard</button>
+            <button class="bouton" type="button" id="contexteEchec" aria-pressed="false" data-t="contexte.echec">Avec échec</button>
+            <label class="presetLabel">
+              <span class="sr" data-t="contexte.preset">Preset</span>
+              <select class="bouton" id="presetEcran" data-t-aria-label="contexte.preset.al" aria-label="Choisir un preset d’écran">
+                <option value="" data-t="contexte.preset.aucun">Aucun preset</option>
+                <option value="matin-ci" data-t="contexte.preset.matin-ci">Matin CI</option>
+                <option value="entretien-majeurs" data-t="contexte.preset.entretien-majeurs">Entretien majeurs</option>
+                <option value="prod-drift" data-t="contexte.preset.prod-drift">Prod drift</option>
+              </select>
+            </label>
+            <button class="bouton raz" type="button" id="razContexte" data-t="contexte.raz">Réinitialiser</button>
+          </div>
+        </section>
+
         <!-- CE QUE LA PAGE DEMANDE DE FAIRE, avant ce qu'elle constate. Le
              23/09/2026, tirer d'un relevé les montées à faire demandait de lire
              onze écrans puis de recopier à la main — deux erreurs sur cinq
@@ -138,6 +164,10 @@
           <div class="titreSection">
             <h2 id="titreAFaire" data-t="afaire.h2">À faire</h2>
             <span class="compteur" id="compteurAFaire"></span>
+          </div>
+          <div class="filtres">
+            <button class="bouton" type="button" id="masquerTraites" aria-pressed="false" data-t="afaire.masquerTraites">Masquer les traités</button>
+            <button class="bouton copier" type="button" id="copierLotAFaire" data-t="afaire.copierLot">Copier le lot visible</button>
           </div>
           <ul class="listeAFaire" id="listeAFaire"></ul>
         </section>
@@ -219,6 +249,7 @@
                   <th scope="col" data-t="echecs.th.etat">État</th>
                   <th scope="col" data-t="echecs.th.ou">Où ça casse</th>
                   <th scope="col" class="num" data-t="echecs.th.depuis">Depuis</th>
+                  <th scope="col" data-t="echecs.th.runbook">Piste</th>
                   <th scope="col"></th>
                 </tr>
               </thead>
@@ -326,6 +357,7 @@
                   <th scope="col" data-t="dormance.th.amont">Dépôt amont</th>
                   <th scope="col" class="num" data-t="dormance.th.commit">Dernier commit</th>
                   <th scope="col" data-t="dormance.th.lecture">Lecture</th>
+                  <th scope="col" data-t="dormance.decision">Décision</th>
                 </tr>
               </thead>
               <tbody id="corpsDormance"></tbody>
@@ -354,6 +386,9 @@
             <button class="bouton" type="button" id="basculeColonnes" aria-expanded="false" aria-controls="colonnes" data-t="matrice.colonnes">Choisir les colonnes</button>
             <button class="bouton" type="button" id="matriceEclate" aria-pressed="true" data-t="matrice.eclate">Seulement les paquets éclatés</button>
             <button class="bouton" type="button" id="matriceLignes" aria-pressed="true" data-t="matrice.lignes">Seulement les dépôts en écart</button>
+            <button class="bouton" type="button" id="matricePresetSocle" data-t="matrice.presetSocle">Pairs du socle</button>
+            <button class="bouton copier" type="button" id="matriceCopierSelection" data-t="matrice.copierSelection">Copier les montées sélectionnées</button>
+            <span class="compteur" id="matriceSelectionCompteur"></span>
             <select class="bouton" id="matriceTri" data-t-aria-label="matrice.tri.al" aria-label="Trier les lignes de la matrice">
               <option value="ecarts" data-t="matrice.tri.ecarts">Trier : plus d'écarts d'abord</option>
               <option value="nom" data-t="matrice.tri.nom">Trier : nom</option>
@@ -362,6 +397,13 @@
             </select>
             <button class="bouton raz" type="button" id="raz-matrice" hidden data-t="raz">Tout réafficher</button>
           </div>
+          <aside class="carte panneauMatrice" id="panneauMatrice" hidden>
+            <div class="titreSection">
+              <h3 id="panneauMatriceTitre" class="mono"></h3>
+              <button class="bouton" type="button" id="fermePanneauMatrice" data-t="matrice.panneau.ferme">Fermer</button>
+            </div>
+            <dl class="panneauMatriceDl" id="panneauMatriceCorps"></dl>
+          </aside>
           <div class="filtres" id="filtresFamilleMatrice" role="group" data-t-aria-label="matrice.famille.al" aria-label="Filtrer par famille">
             <span class="etiquetteFiltre" data-t="matrice.famille.etiq">Famille</span>
           </div>
@@ -382,6 +424,81 @@
           </div>
           <p class="vide" id="aucuneColonne" hidden data-t="matrice.aucuneColonne">Aucune colonne sélectionnée.</p>
           <p class="vide" id="aucuneLigne" hidden data-t="matrice.aucuneLigne">Aucun dépôt ne répond à ces filtres.</p>
+        </section>
+
+        <section id="cockpit">
+          <div class="titreSection">
+            <h2 data-t="cockpit.h2">Production & sites</h2>
+            <span class="compteur" id="compteurCockpit"></span>
+          </div>
+          <p class="chapo" data-t="cockpit.chapo">
+            Déploiements en cours, production en retard, sites hors ligne, URL mortes et morceaux fugaces.
+          </p>
+          <div id="corpsCockpit"></div>
+          <p class="vide" id="cockpitVide" hidden data-t="cockpit.vide">Rien à signaler côté production.</p>
+        </section>
+
+        <section id="tendances">
+          <div class="titreSection">
+            <h2 data-t="tendances.h2">Tendances</h2>
+            <span class="compteur" id="compteurTendances"></span>
+          </div>
+          <p class="chapo" data-t="tendances.chapo">
+            Évolution sur l’historique du relevé — la page dit si le parc s’améliore.
+          </p>
+          <div class="tuiles" id="tuilesTendances"></div>
+          <p class="vide" id="tendancesVide" hidden data-t="tendances.insuffisant">Pas assez d’historique pour une tendance.</p>
+        </section>
+
+        <section id="renovate">
+          <div class="titreSection">
+            <h2 data-t="renovate.h2">Salle Renovate</h2>
+            <span class="compteur" id="compteurRenovate"></span>
+          </div>
+          <p class="chapo" data-t="renovate.chapo">
+            Backlog Renovate agrégé sur tout le parc : en attente, majeures, et paquets que Renovate ne sait pas résoudre.
+          </p>
+          <div class="carte tableEnveloppe">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" data-t="renovate.th.depot">Dépôt</th>
+                  <th scope="col" class="num" data-t="renovate.th.attente">En attente</th>
+                  <th scope="col" class="num" data-t="renovate.th.majeures">Majeures</th>
+                  <th scope="col" data-t="renovate.th.issue">Dashboard</th>
+                </tr>
+              </thead>
+              <tbody id="corpsRenovate"></tbody>
+            </table>
+          </div>
+          <h3 class="titreSous" data-t="renovate.introuvables.h3">Irrésolubles</h3>
+          <ul class="listeIntrouvables" id="listeIntrouvables"></ul>
+          <p class="vide" id="renovateVide" hidden data-t="renovate.vide">Rien en attente chez Renovate.</p>
+        </section>
+
+        <section id="secu">
+          <div class="titreSection">
+            <h2 data-t="secu.h2">Alertes cross-parc</h2>
+            <span class="compteur" id="compteurSecu"></span>
+            <button class="bouton copier" type="button" id="copierPromptSecu" data-t="secu.copier">Copier le prompt sécu</button>
+          </div>
+          <p class="chapo" data-t="secu.chapo">
+            Dependabot et CodeQL agrégés : quels dépôts portent combien d’alertes, et les graves d’abord.
+          </p>
+          <div class="carte tableEnveloppe">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" data-t="secu.th.depot">Dépôt</th>
+                  <th scope="col" data-t="secu.th.kind">Source</th>
+                  <th scope="col" class="num" data-t="secu.th.n">Alertes</th>
+                  <th scope="col" class="num" data-t="secu.th.graves">Graves</th>
+                </tr>
+              </thead>
+              <tbody id="corpsSecu"></tbody>
+            </table>
+          </div>
+          <p class="vide" id="secuVide" hidden data-t="secu.vide">Aucune alerte lisible.</p>
         </section>
 
         <!-- DEUX SECTIONS REPLIÉES PAR DÉFAUT, les moins consultées et les plus
@@ -973,7 +1090,25 @@
           // première donnée, pour une rubrique dont la ligne de tête dit déjà
           // l'essentiel.
           const details = el('div', 'aFaireDetails')
-          const pastilles = it.details.map((x) => detailAFaire(it.cle, x))
+          const pastilles = []
+          for (const x of it.details) {
+            const cle = cleActionAFaire(it.cle, x)
+            if (masquerTraitesOn && traites.has(cle)) continue
+            const wrap = el('div', 'aFaireDetail')
+            const cb = el('input')
+            cb.type = 'checkbox'
+            cb.checked = traites.has(cle)
+            cb.title = T('afaire.traite')
+            cb.setAttribute('aria-label', T('afaire.traite'))
+            cb.addEventListener('change', () => {
+              if (cb.checked) traites.add(cle)
+              else traites.delete(cle)
+              sauveTraites()
+              if (masquerTraitesOn) rendAFaire()
+            })
+            wrap.append(cb, detailAFaire(it.cle, x))
+            pastilles.push(wrap)
+          }
           pastilles.forEach((p, i) => {
             if (i >= DETAILS_VISIBLES) p.hidden = true
             details.append(p)
@@ -1087,13 +1222,14 @@
           if (!e.demarrage && e.jobs.length) c4.append(el('div', 'quand', T('echecs.job', { jobs: e.jobs.map((j) => j.name).join(' · ') })))
           const c5 = el('td', 'num', depuis(e.jours))
           c5.title = fmtDate(e.date)
+          const cRb = el('td', null, T('echecs.runbook.' + runbookEchec(e)))
           const c6 = el('td')
           const lien = el('a', null, T('echecs.run'))
           lien.href = e.url
           lien.target = '_blank'
           lien.rel = 'noopener'
           c6.append(lien)
-          tr.append(c1, c2, c3, c4, c5, c6)
+          tr.append(c1, c2, c3, c4, c5, cRb, c6)
           corpsE.append(tr)
         }
       }
@@ -1140,6 +1276,12 @@
         a.setAttribute('aria-label', a.title)
         tete.append(a)
         if (d.prive) tete.append(el('span', 'badge prive', T('carte.prive')))
+        {
+          const s = scoreSante(d)
+          const b = el('span', 'badge sante', T('carte.sante', { n: s.score }))
+          b.title = T('carte.sante.titre', { ci: s.axes.ci, prod: s.axes.prod, deps: s.axes.deps, secu: s.axes.secu })
+          tete.append(b)
+        }
         if (d.role) tete.append(el('span', 'badge', d.role))
         if (d.paquet && d.paquet.version) tete.append(el('span', 'badge', 'v' + d.paquet.version))
         // Les avertissements de la carte se replient avec elle : ils
@@ -2039,7 +2181,37 @@
           b.title = T('dormance.' + etat + '.aide')
           c7.append(b)
 
-          tr.append(c1, c2, c3, c4, c5, c6, c7)
+          const c8 = el('td')
+          const sel = el('select', 'bouton decisionDormance')
+          sel.setAttribute('aria-label', T('dormance.decision') + ' ' + l.paquet)
+          for (const [val, cle] of [
+            ['', 'dormance.sans'],
+            ['garder', 'dormance.garder'],
+            ['remplacer', 'dormance.remplacer'],
+            ['ignorer', 'dormance.ignorer'],
+          ]) {
+            const o = el('option', null, T(cle))
+            o.value = val
+            sel.append(o)
+          }
+          const actuelle = decisionsDormance[l.paquet]
+          if (actuelle?.decision === 'ignorer' && actuelle.jusqua && Date.parse(actuelle.jusqua) < Date.now()) {
+            delete decisionsDormance[l.paquet]
+            sauveDormance()
+          }
+          sel.value = decisionsDormance[l.paquet]?.decision || ''
+          sel.addEventListener('change', () => {
+            if (!sel.value) delete decisionsDormance[l.paquet]
+            else {
+              const entry = { decision: sel.value }
+              if (sel.value === 'ignorer') entry.jusqua = new Date(Date.now() + 90 * 86400000).toISOString()
+              decisionsDormance[l.paquet] = entry
+            }
+            sauveDormance()
+          })
+          c8.append(sel)
+
+          tr.append(c1, c2, c3, c4, c5, c6, c7, c8)
           tb.append(tr)
         }
         $('#aucuneDormante').hidden = dormantes.length > 0
@@ -2259,9 +2431,16 @@
           cb.type = 'checkbox'
           cb.checked = colonnes.has(l.paquet)
           cb.addEventListener('change', () => {
-            if (cb.checked) colonnes.add(l.paquet)
-            else colonnes.delete(l.paquet)
+            if (cb.checked) {
+              colonnes.add(l.paquet)
+              colonnesCochees.add(l.paquet)
+            } else {
+              colonnes.delete(l.paquet)
+              colonnesCochees.delete(l.paquet)
+            }
+            majSelectionMatrice()
             rendMatrice()
+            ecritUrl()
           })
           lab.append(cb, el('span', 'mono', l.paquet), el('span', 'pastilleCol', T('matrice.pastilleCol', { versions: l.nbVersions, depots: l.nbDepots })))
           zone.append(lab)
@@ -2417,6 +2596,18 @@
                   recente: ref.plusRecente,
                 })
               : T('matrice.cellule.absent', { depot: r.depot, paquet: c.paquet })
+            if (c.version) {
+              td.tabIndex = 0
+              td.classList.add('celluleAction')
+              const ouvrir = () => ouvrePanneauMatrice(r.depot, c.paquet, c.version, ref?.plusRecente)
+              td.addEventListener('click', ouvrir)
+              td.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.preventDefault()
+                  ouvrir()
+                }
+              })
+            }
             l.append(td)
           }
           // LE POIDS NE DISPARAÎT PAS, il change de place. La colonne porte le
@@ -2708,7 +2899,16 @@
 
           const grille = el('div', 'elements')
           for (const e of dedans) {
-            const c = el('div', 'element')
+            const c = el(e.synthese ? 'div' : 'button', 'element')
+            if (!e.synthese) {
+              c.type = 'button'
+              c.setAttribute('aria-label', T('elements.versLibs') + ' — ' + e.nom)
+              c.addEventListener('click', () => {
+                const cible = '#lib-' + e.nom
+                if (location.hash === cible) ouvreDepuisAncre()
+                else location.hash = cible
+              })
+            }
             c.style.setProperty('--teinte', `var(--g-${e.groupe})`)
             if (e.socle) c.dataset.socle = 'true'
             // `ver` est un numéro de version pour un paquet, et une CLÉ pour
@@ -2716,7 +2916,8 @@
             const version = T.ouTelQuel(e.ver)
             c.title =
               T('elements.case.titre', { nom: e.nom, depots: T('elements.case.depots', { n: e.n }), version, groupe: T('groupe.' + e.groupe) }) +
-              (e.synthese ? T('elements.case.deduit') : '')
+              (e.synthese ? T('elements.case.deduit') : '') +
+              (e.synthese ? '' : ' — ' + T('elements.versLibs'))
             c.append(el('span', 'elementN', String(e.n)), el('div', 'elementSym', e.sym))
             const bas2 = el('div')
             // L'étiquette raccourcit, SAUF quand raccourcir rendrait deux cases
@@ -3029,13 +3230,324 @@
        * leur clé (`data-t-aria-label`), donc la traduction les rattrape sans
        * qu'on y retouche.
        */
+
+      /* ---------- pilotage C1-C12 ---------- */
+      const CLE_TRAITES = 'parc-dashboard:afaire-traites'
+      const CLE_DORMANCE = 'parc-dashboard:dormance-decisions'
+      const traites = new Set(litStockage(CLE_TRAITES, []))
+      const decisionsDormance = litStockage(CLE_DORMANCE, {}) || {}
+      const colonnesCochees = new Set()
+      let masquerTraitesOn = false
+
+      function sauveTraites() {
+        ecritStockage(CLE_TRAITES, [...traites])
+      }
+      function sauveDormance() {
+        ecritStockage(CLE_DORMANCE, decisionsDormance)
+      }
+
+      function rendFiltresContexte() {
+        const hote = $('#filtresContexteFamille')
+        if (!hote) return
+        hote.textContent = ''
+        for (const f of ORDRE_FAMILLES) {
+          const b = el('button', 'bouton', titreFamille(f))
+          b.type = 'button'
+          b.dataset.famille = f
+          b.setAttribute('aria-pressed', String(famillesActives.has(f)))
+          b.addEventListener('click', () => {
+            if (famillesActives.has(f)) famillesActives.delete(f)
+            else famillesActives.add(f)
+            syncContexteVersSections()
+          })
+          hote.append(b)
+        }
+      }
+
+      function syncContexteVersSections() {
+        const retard = $('#contexteRetard')?.getAttribute('aria-pressed') === 'true'
+        const echec = $('#contexteEchec')?.getAttribute('aria-pressed') === 'true'
+        for (const b of document.querySelectorAll('#filtresFamilles button[data-famille], #filtresFamilleMatrice button[data-famille], #filtresContexteFamille button[data-famille]')) {
+          b.setAttribute('aria-pressed', String(famillesActives.has(b.dataset.famille)))
+        }
+        if (echec) filtresActifs.add('echec')
+        else filtresActifs.delete('echec')
+        for (const b of document.querySelectorAll('#depots [data-filtre="echec"]')) b.setAttribute('aria-pressed', String(echec))
+        const fr = $('#filtreRetard')
+        if (fr) fr.setAttribute('aria-pressed', String(retard))
+        if (retard) $('#matriceLignes')?.setAttribute('aria-pressed', 'true')
+        rendFiltresContexte()
+        rendDepots()
+        rendLibs()
+        rendMatrice()
+        rendAFaire()
+        ecritUrl()
+      }
+
+      function appliquePreset(id) {
+        const p = PRESETS[id]
+        if (!p) return
+        famillesActives.clear()
+        for (const f of p.familles || []) famillesActives.add(f)
+        $('#contexteRetard')?.setAttribute('aria-pressed', String(!!p.retard))
+        $('#contexteEchec')?.setAttribute('aria-pressed', String(!!p.echec))
+        syncContexteVersSections()
+        if (p.hash) {
+          const cible = '#' + p.hash
+          if (location.hash !== cible) location.hash = cible
+          else document.getElementById(p.hash)?.scrollIntoView({ block: 'start' })
+        }
+      }
+
+      $('#contexteRetard')?.addEventListener('click', () => {
+        const b = $('#contexteRetard')
+        b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+        syncContexteVersSections()
+      })
+      $('#contexteEchec')?.addEventListener('click', () => {
+        const b = $('#contexteEchec')
+        b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+        syncContexteVersSections()
+      })
+      $('#razContexte')?.addEventListener('click', () => {
+        famillesActives.clear()
+        $('#contexteRetard')?.setAttribute('aria-pressed', 'false')
+        $('#contexteEchec')?.setAttribute('aria-pressed', 'false')
+        if ($('#presetEcran')) $('#presetEcran').value = ''
+        syncContexteVersSections()
+      })
+      $('#presetEcran')?.addEventListener('change', () => {
+        const v = $('#presetEcran').value
+        if (v) appliquePreset(v)
+        ecritUrl()
+      })
+      $('#masquerTraites')?.addEventListener('click', () => {
+        const b = $('#masquerTraites')
+        masquerTraitesOn = b.getAttribute('aria-pressed') !== 'true'
+        b.setAttribute('aria-pressed', String(masquerTraitesOn))
+        rendAFaire()
+      })
+      $('#copierLotAFaire')?.addEventListener('click', async () => {
+        const items = aFaire(D)
+        const details = []
+        for (const it of items) {
+          if (it.cle !== 'majeures' && it.cle !== 'correctifs' && it.cle !== 'socle') continue
+          for (const d of it.details) {
+            if (masquerTraitesOn && traites.has(cleActionAFaire(it.cle, d))) continue
+            details.push(d)
+          }
+        }
+        if (!details.length) return
+        try {
+          await navigator.clipboard.writeText(texteDemandes(details))
+          $('#annonce').textContent = T('afaire.copierLot')
+        } catch {}
+      })
+
+      function rendCockpit() {
+        const c = cockpitProd(D.depots)
+        const hote = $('#corpsCockpit')
+        if (!hote) return
+        hote.textContent = ''
+        let n = 0
+        for (const [cle, liste] of [
+          ['encours', c.enCours],
+          ['retard', c.retard],
+          ['sites', c.sitesDown],
+          ['mortes', c.mortes],
+          ['fugaces', c.fugaces],
+        ]) {
+          if (!liste.length) continue
+          n += liste.length
+          const bloc = el('div', 'carte cockpitBloc')
+          bloc.append(el('h3', null, T('cockpit.' + cle)))
+          const ul = el('ul', 'listeCockpit')
+          for (const x of liste) {
+            const li = el('li')
+            const a = el('a', 'depotLien mono', x.depot)
+            a.href = '#depot-' + x.depot
+            li.append(a)
+            if (x.retard != null) li.append(document.createTextNode(' · ' + x.retard))
+            if (x.url) li.append(document.createTextNode(' · ' + x.url))
+            if (x.fichiers) li.append(document.createTextNode(' · ' + x.fichiers.join(T('liste'))))
+            ul.append(li)
+          }
+          bloc.append(ul)
+          hote.append(bloc)
+        }
+        $('#compteurCockpit').textContent = n ? String(n) : ''
+        $('#cockpitVide').hidden = n > 0
+      }
+
+      function rendTendances() {
+        const t = tendances(HISTO.length ? HISTO : D.historique || [], 30)
+        const hote = $('#tuilesTendances')
+        if (!hote) return
+        hote.textContent = ''
+        if (!t.ok) {
+          $('#tendancesVide').hidden = false
+          $('#compteurTendances').textContent = ''
+          return
+        }
+        $('#tendancesVide').hidden = true
+        $('#compteurTendances').textContent = T('tendances.fenetre', { n: t.pts, de: t.de, a: t.a })
+        for (const [cle, val, delta, suf] of [
+          ['taux', t.dernier.taux, t.delta.taux, '%'],
+          ['rouges', t.dernier.rouges, t.delta.rouges, ''],
+          ['alertes', t.dernier.alertes, t.delta.alertes, ''],
+          ['dormantes', t.dernier.dormantes, t.delta.dormantes, ''],
+          ['socle', t.dernier.socleEnRetard, t.delta.socleEnRetard, ''],
+        ]) {
+          if (val == null) continue
+          const tuile = el('div', 'tuile')
+          tuile.append(el('div', 'etiq', T('tendances.' + cle)))
+          tuile.append(el('div', 'val', String(val) + suf))
+          tuile.append(el('div', 'app', delta == null ? '—' : (delta > 0 ? '+' : '') + delta + suf))
+          hote.append(tuile)
+        }
+      }
+
+      function rendRenovate() {
+        const s = salleRenovate(D.depots)
+        const tb = $('#corpsRenovate')
+        const ul = $('#listeIntrouvables')
+        if (!tb) return
+        tb.textContent = ''
+        ul.textContent = ''
+        $('#compteurRenovate').textContent = T('renovate.compteur', { n: s.total })
+        for (const x of s.enAttente) {
+          const tr = el('tr')
+          const c1 = el('td')
+          const a = el('a', 'depotLien mono', x.depot)
+          a.href = '#depot-' + x.depot
+          c1.append(a)
+          const c4 = el('td')
+          if (x.url) {
+            const l = el('a', null, T('renovate.ouvrir'))
+            l.href = x.url
+            l.target = '_blank'
+            l.rel = 'noopener'
+            c4.append(l)
+          }
+          tr.append(c1, el('td', 'num', String(x.n)), el('td', 'num', String(x.majeures)), c4)
+          tb.append(tr)
+        }
+        for (const x of s.introuvables) {
+          const li = el('li')
+          li.append(el('span', 'mono', x.paquet), document.createTextNode(' — ' + x.depots.join(T('liste'))))
+          ul.append(li)
+        }
+        $('#renovateVide').hidden = s.total > 0 || s.introuvables.length > 0
+      }
+
+      function rendSecu() {
+        const a = alertesCrossParc(D.depots)
+        const tb = $('#corpsSecu')
+        if (!tb) return
+        tb.textContent = ''
+        $('#compteurSecu').textContent = T('secu.compteur', { depots: a.depotsTouches, n: a.total, graves: a.graves })
+        for (const l of a.lignes) {
+          const tr = el('tr')
+          const c1 = el('td')
+          const link = el('a', 'depotLien mono', l.depot)
+          link.href = '#depot-' + l.depot
+          c1.append(link)
+          tr.append(c1, el('td', null, T('secu.kind.' + l.kind)), el('td', 'num', String(l.n)), el('td', 'num', String(l.graves)))
+          tb.append(tr)
+        }
+        $('#secuVide').hidden = a.lignes.length > 0
+      }
+
+      $('#copierPromptSecu')?.addEventListener('click', async () => {
+        const a = alertesCrossParc(D.depots)
+        const texte = ['Remedier aux alertes de securite du parc mister-guiiug :', ...a.lignes.map((l) => '- ' + l.depot + ' (' + l.kind + ') : ' + l.n + ' dont ' + l.graves + ' graves')].join('\n')
+        try {
+          await navigator.clipboard.writeText(texte)
+          $('#annonce').textContent = T('secu.copier')
+        } catch {}
+      })
+
+      $('#matricePresetSocle')?.addEventListener('click', () => {
+        for (const l of D.libs) {
+          if (/^(vite|react|react-dom|typescript|zod|eslint|tailwindcss|@mister-guiiug\/dev-pwa-config)$/.test(l.paquet) || l.paquet === D.socle) {
+            colonnes.add(l.paquet)
+            colonnesCochees.add(l.paquet)
+          }
+        }
+        majSelectionMatrice()
+        rendChoixColonnes()
+        rendMatrice()
+        ecritUrl()
+      })
+
+      $('#matriceCopierSelection')?.addEventListener('click', async () => {
+        const demandes = [...colonnesCochees].map((p) => D.libs.find((l) => l.paquet === p)).filter(Boolean).map(demandeMontee).filter(Boolean)
+        if (!demandes.length) return
+        try {
+          await navigator.clipboard.writeText(texteDemandes(demandes))
+          $('#annonce').textContent = T('matrice.copierSelection')
+        } catch {}
+      })
+
+      $('#fermePanneauMatrice')?.addEventListener('click', () => {
+        $('#panneauMatrice').hidden = true
+      })
+
+      function ouvrePanneauMatrice(depot, paquet, version, plusRecente) {
+        const pan = $('#panneauMatrice')
+        if (!pan) return
+        pan.hidden = false
+        $('#panneauMatriceTitre').textContent = depot + ' · ' + paquet
+        const corps = $('#panneauMatriceCorps')
+        corps.textContent = ''
+        const add = (dt, dd) => {
+          corps.append(el('dt', null, dt), el('dd', 'mono', dd))
+        }
+        add(T('matrice.panneau.version'), version || '·')
+        add(T('matrice.panneau.parc'), plusRecente || '·')
+        const a = el('a', 'depotLien', depot)
+        a.href = '#depot-' + depot
+        const dd = el('dd')
+        dd.append(a)
+        corps.append(el('dt', null, T('renovate.th.depot')), dd)
+      }
+
+      function majSelectionMatrice() {
+        const n = colonnesCochees.size
+        const c = $('#matriceSelectionCompteur')
+        if (c) c.textContent = n ? T('matrice.selection', { n }) : ''
+      }
+
+      etatUrl(
+        'preset',
+        () => $('#presetEcran')?.value || null,
+        (v) => {
+          if ($('#presetEcran')) $('#presetEcran').value = v
+        },
+      )
+      etatUrl(
+        'ctx.retard',
+        () => ($('#contexteRetard')?.getAttribute('aria-pressed') === 'true' ? '1' : null),
+        (v) => $('#contexteRetard')?.setAttribute('aria-pressed', String(v === '1')),
+      )
+      etatUrl(
+        'ctx.echec',
+        () => ($('#contexteEchec')?.getAttribute('aria-pressed') === 'true' ? '1' : null),
+        (v) => $('#contexteEchec')?.setAttribute('aria-pressed', String(v === '1')),
+      )
+
       function rendTout() {
         rendEntete()
+        rendFiltresContexte()
         rendAFaire()
         rendChangements()
         rendFamilles()
         rendEchecs()
         rendDormance()
+        rendCockpit()
+        rendTendances()
+        rendRenovate()
+        rendSecu()
         rendPied()
         rendFraicheur()
         rendActiviteGraphe()
@@ -3046,6 +3558,8 @@
         rendMatrice()
         rendElements()
         rendActivite()
+        majSelectionMatrice()
+      }
       }
 
       /**

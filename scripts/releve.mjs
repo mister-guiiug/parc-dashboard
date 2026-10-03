@@ -1182,6 +1182,7 @@ const sansModule = (src, nom) => {
 
 const regles = readFileSync(join(ICI, 'regles.mjs'), 'utf8')
 const vue = readFileSync(join(ICI, 'vue.mjs'), 'utf8')
+const pilotage = readFileSync(join(ICI, 'pilotage.mjs'), 'utf8')
 
 // LES LIBELLÉS, POUR LA MÊME RAISON — et une de plus. Le texte de la page
 // vivait à trois endroits : les nœuds du gabarit, les chaînes du JavaScript en
@@ -1210,6 +1211,7 @@ modele.gabarit = createHash('sha256')
   .update(gabarit)
   .update(regles)
   .update(vue)
+  .update(pilotage)
   .update(libelles)
   .update(style)
   .digest('hex')
@@ -1297,7 +1299,9 @@ const page = gabarit
   // Le saut de ligne final du fichier est retiré ici : il est de rigueur dans un
   // fichier source, et poserait une ligne vide de plus avant `</style>`.
   .replace('__STYLE__', () => style.replace(/\n$/, ''))
-  .replace('__VUE__', () => [sansModule(regles, 'regles.mjs'), sansModule(vue, 'vue.mjs'), sansModule(libelles, 'libelles.mjs')].join('\n'))
+  .replace('__VUE__', () =>
+    [sansModule(regles, 'regles.mjs'), sansModule(vue, 'vue.mjs'), sansModule(pilotage, 'pilotage.mjs'), sansModule(libelles, 'libelles.mjs')].join('\n'),
+  )
   .replace('__DONNEES__', () => charge)
 
 // LE SITE À DÉPLOYER, écrit à CHAQUE passage — même quand rien n'a bougé. La
