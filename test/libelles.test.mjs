@@ -218,6 +218,14 @@ const FAMILLES_DYNAMIQUES = [
   { prefixe: 'groupe.', membres: GROUPES },
   // `surN()` de la matrice : deux formes par axe.
   { prefixe: 'matrice.compteur.', membres: ['paquets', 'paquetsSur', 'depots', 'depotsSur', 'ecarts'], partielle: true },
+  // `runbookEchec()` de pilotage.mjs.
+  { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique'] },
+  // `cockpitProd()` — clés de rubrique rendues dans le gabarit.
+  { prefixe: 'cockpit.', membres: ['encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
+  // `tendances()` — tuiles du gabarit.
+  { prefixe: 'tendances.', membres: ['taux', 'rouges', 'alertes', 'dormantes', 'socle'], partielle: true },
+  // `alertesCrossParc()` — kind dependabot | codeql.
+  { prefixe: 'secu.kind.', membres: ['dependabot', 'codeql'] },
 ]
 
 test('les familles de clés construites à l’exécution sont complètes', () => {
@@ -437,6 +445,7 @@ test('l’empreinte du relevé compte libelles.mjs', () => {
   const empreinte = /modele\.gabarit = createHash\('sha256'\)([\s\S]*?)\.digest/.exec(src)
   assert.ok(empreinte, 'calcul d’empreinte introuvable')
   assert.match(empreinte[1], /\.update\(libelles\)/)
+  assert.match(empreinte[1], /\.update\(pilotage\)/)
 })
 
 test('le sélecteur de langue offre chaque langue livrée, nommée dans sa langue', () => {
