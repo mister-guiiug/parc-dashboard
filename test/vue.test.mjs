@@ -628,6 +628,27 @@ test('aFaire range du cassé à l’entretien, et tait ce qui est vide', () => {
   assert.deepEqual(rangs, [...rangs].sort((a, b) => a - b))
 })
 
+test('aFaire demande de PUBLIER le socle coupé sur main, avant toute montée — le 03/10/2026', () => {
+  // `main` en 6.23.0, la dernière Release en 6.22.0 : la montée vise la version
+  // PUBLIÉE, et la publication se demande à part, plus haut dans le bloc.
+  const D = {
+    socle: '@s/socle',
+    socleAPublier: { version: '6.23.0', publiee: '6.22.0', nwo: 'o/socle' },
+    kpi: {},
+    depots: [depotAFaire('a', { prs: [{ num: 7, titre: 'fix', brouillon: false }] }), depotAFaire('b')],
+    libs: [{ ...lib('@s/socle', '6.22.0', [['6.22.0', ['a']], ['6.21.3', ['b']]]), enRetard: 1 }],
+  }
+  const r = aFaire(D)
+  assert.deepEqual(
+    r.map((x) => x.cle),
+    ['prs', 'publier', 'socle'],
+  )
+  assert.deepEqual(r.find((x) => x.cle === 'publier').details, [{ version: '6.23.0', publiee: '6.22.0', nwo: 'o/socle' }])
+  assert.equal(r.find((x) => x.cle === 'socle').details[0].cible, '6.22.0')
+  // Publiée : la rubrique se tait.
+  assert.ok(!aFaire({ ...D, socleAPublier: null }).some((x) => x.cle === 'publier'))
+})
+
 test('aFaire est vide pour un parc sain, sans lever sur un modèle incomplet', () => {
   assert.deepEqual(aFaire({ depots: [depotAFaire('a')], libs: [], kpi: {} }), [])
   assert.deepEqual(aFaire(null), [])

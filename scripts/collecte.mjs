@@ -156,6 +156,49 @@ export function plafondEngines(paquet, pkg, publiees) {
   return meilleure
 }
 
+/* ── La version publiée du socle ────────────────────────────────────────── */
+
+/**
+ * La version de référence du socle, et celle que `main` a coupée sans la
+ * publier.
+ *
+ * Le socle ne paraît pas sur npm public, et le `package.json` de `main` n'est
+ * pas une référence : une version y est COUPÉE (PR `chore(release)`) avant
+ * d'être PUBLIÉE (`gh workflow run publish.yml`), qui est un second geste, à
+ * la main. Le 03/10/2026, la page annonçait « 6.22.0 → 6.23.0 dans 22 dépôts »
+ * deux heures et demie avant la publication, et la 6.22.1, coupée le même
+ * jour, ne l'a jamais été. Une montée lancée sur cette ligne échoue au premier
+ * `npm install` : la version n'existe pas au registre.
+ *
+ * La publication se lit dans les Releases. `publish.yml` pose le tag, publie le
+ * paquet, puis crée la Release, en dernier : une Release dit que tout est
+ * passé. Le registre le dirait aussi, mais GitHub Packages demande un jeton
+ * `read:packages`, que le `GITHUB_TOKEN` du relevé n'a pas ; les Releases d'un
+ * dépôt public se lisent sans. On garde la PLUS HAUTE version stable, ni
+ * brouillon ni préversion, plutôt que la « latest » de GitHub, qui suit la
+ * date de création.
+ *
+ * @param {Array<{tag_name?: string, draft?: boolean, prerelease?: boolean, published_at?: string|null}>|null} releases
+ *   La réponse de `GET /repos/{dépôt}/releases`, `null` si illisible.
+ * @param {string|null} versionMain La version du `package.json` de `main`.
+ * @returns {{ version: string|null, publieLe: string|null, aPublier: string|null }}
+ *   `version` et `publieLe` : la dernière publiée et sa date, `null` sans
+ *   Release lisible. `aPublier` : la version de `main` quand elle la dépasse.
+ */
+export function socleDeReference(releases, versionMain) {
+  let meilleure = null
+  for (const r of releases || []) {
+    if (!r || r.draft || r.prerelease) continue
+    const v = String(r.tag_name || '').replace(/^v/, '')
+    if (!STABLE.test(v)) continue
+    if (!meilleure || cmpVersion(v, meilleure.version) > 0) meilleure = { version: v, publieLe: r.published_at || null }
+  }
+  if (!meilleure) return { version: null, publieLe: null, aPublier: null }
+  const main = String(versionMain || '')
+  const aPublier = STABLE.test(main) && cmpVersion(main, meilleure.version) > 0 ? main : null
+  return { version: meilleure.version, publieLe: meilleure.publieLe, aPublier }
+}
+
 /* ── Les package.json imbriqués, et les `.nvmrc` ────────────────────────── */
 
 // Ce qui ne porte pas le code du dépôt : un `package.json` d'exemple, de jeu

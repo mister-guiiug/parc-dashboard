@@ -580,7 +580,7 @@ export function correctifsDe(l) {
  * L'ordre du bloc, du plus urgent au plus routinier : ce qui est cassé, ce qui
  * est en ligne sans être juste, ce qui attend une main, puis l'entretien.
  */
-export const ORDRE_A_FAIRE = ['rouges', 'sites', 'mortes', 'prod', 'fugaces', 'alertes', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables']
+export const ORDRE_A_FAIRE = ['rouges', 'sites', 'mortes', 'prod', 'fugaces', 'alertes', 'scanning', 'prs', 'publier', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables']
 
 /**
  * CE QUE LA PAGE DEMANDE DE FAIRE, et non plus seulement ce qu'elle constate.
@@ -633,6 +633,11 @@ export function aFaire(D) {
     'prs',
     depots.flatMap((d) => (d.prs || []).filter((p) => !p.brouillon).map((p) => ({ depot: d.nom, ...p }))),
   )
+  // UNE VERSION DU SOCLE COUPÉE SUR `main`, PAS PUBLIÉE : la publication est
+  // un geste à la main, et aucune app ne peut monter avant. Sans cette ligne,
+  // le 03/10/2026, la page a demandé pendant deux heures et demie une montée
+  // vers une version qui n'existait pas encore.
+  if (D?.socleAPublier) pousse('publier', [{ ...D.socleAPublier }])
 
   const demandes = libs
     .filter((l) => l.paquet !== socle && l.enRetard > 0)

@@ -911,6 +911,7 @@
         scanning: 'attention',
         introuvables: 'attention',
         prs: 'decision',
+        publier: 'decision',
         majeures: 'decision',
         correctifs: 'entretien',
         socle: 'entretien',
@@ -1055,6 +1056,8 @@
         if (cle === 'renovate')
           return puceLien(T('afaire.detail.renovate', { depot: x.depot, n: x.n }) + (x.majeures ? T('afaire.detail.renovate.majeures', { n: x.majeures }) : ''), x.url, true)
         if (cle === 'introuvables') return el('span', 'chipDepot', T('afaire.detail.introuvable', { paquet: x.paquet, n: x.depots.length }))
+        // la publication se lance depuis la page du workflow : on y mène
+        if (cle === 'publier') return puceLien(T('afaire.detail.publier', { version: x.version, publiee: x.publiee }), `https://github.com/${x.nwo}/actions/workflows/publish.yml`, true)
         // majeures, correctifs, socle : une demande de montée, qui mène à sa ligne
         const a = puceLien(T('afaire.detail.lib', { paquet: nomDemande(x), de: versionsDe(x), cible: x.cible, n: nbDepotsDe(x) }), '#lib-' + x.paquet)
         if (x.serie) a.append(document.createTextNode(' '), el('span', 'badge serie', T('afaire.detail.serie', { serie: x.serie })))
@@ -1128,6 +1131,7 @@
           }
           corps.append(tete, details)
           if (it.cle === 'introuvables') corps.append(el('p', 'aFaireAide', T('afaire.introuvables.aide')))
+          if (it.cle === 'publier') corps.append(el('p', 'aFaireAide', T('afaire.publier.aide')))
           li.append(g, corps)
           ul.append(li)
         }

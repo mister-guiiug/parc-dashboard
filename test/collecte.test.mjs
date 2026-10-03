@@ -31,6 +31,7 @@ import {
   espacesDeTravail,
   verrouilleesDe,
   versionNvmrc,
+  socleDeReference,
 } from '../scripts/collecte.mjs'
 
 /* ── Pairs du socle ─────────────────────────────────────────────────────── */
@@ -43,6 +44,52 @@ test('pairsDures garde les pairs que npm installe d’office, pas les optionnell
   assert.deepEqual(pairsDures(pkg), ['typescript-eslint', 'vitest'])
   assert.deepEqual(pairsDures(null), [])
   assert.deepEqual(pairsDures({}), [])
+})
+
+/* ── La version publiée du socle ────────────────────────────────────────── */
+
+// Les Releases telles que l'API les rend : la plus récemment CRÉÉE d'abord.
+const release = (tag, publieLe, extra = {}) => ({ tag_name: tag, draft: false, prerelease: false, published_at: publieLe, ...extra })
+
+test('socleDeReference : la version PUBLIÉE, pas celle de main — 6.23.0 coupée le 03/10/2026', () => {
+  // L'état de 18:00Z : #426 fusionnée, `main` en 6.23.0, la 6.22.1 coupée et
+  // jamais publiée ; le registre, lui, en 6.22.0.
+  const avant = [release('v6.22.0', '2026-10-01T21:32:56Z'), release('v6.21.3', '2026-10-01T16:43:30Z')]
+  assert.deepEqual(socleDeReference(avant, '6.23.0'), { version: '6.22.0', publieLe: '2026-10-01T21:32:56Z', aPublier: '6.23.0' })
+  // Publiée à 20:29Z : plus rien à publier, et la date est celle de la Release.
+  const apres = [release('v6.23.0', '2026-10-03T20:29:35Z'), ...avant]
+  assert.deepEqual(socleDeReference(apres, '6.23.0'), { version: '6.23.0', publieLe: '2026-10-03T20:29:35Z', aPublier: null })
+})
+
+test('socleDeReference écarte brouillons, préversions et étiquettes qui ne sont pas des versions', () => {
+  const releases = [
+    release('v7.0.0', null, { draft: true }),
+    release('v7.0.0-rc.1', '2026-10-05T00:00:00Z', { prerelease: true }),
+    release('v6', '2026-10-04T00:00:00Z'),
+    release('outil-2026', '2026-10-04T00:00:00Z'),
+    release('v6.23.0', '2026-10-03T20:29:35Z'),
+  ]
+  assert.equal(socleDeReference(releases, '6.23.0').version, '6.23.0')
+})
+
+test('socleDeReference prend la plus HAUTE version, pas la plus récente', () => {
+  // Un correctif d'une ancienne série, publié après coup, ne fait pas reculer
+  // la référence : la « latest » de GitHub suit la date de création.
+  const releases = [release('v5.4.1', '2026-10-04T08:00:00Z'), release('v6.23.0', '2026-10-03T20:29:35Z')]
+  assert.deepEqual(socleDeReference(releases, '6.23.0'), { version: '6.23.0', publieLe: '2026-10-03T20:29:35Z', aPublier: null })
+})
+
+test('socleDeReference ne conclut rien sans Release lisible, et rien d’une version de main illisible', () => {
+  // Sans Release, on ne sait pas ce qui est publié : ni référence, ni « à
+  // publier » — plutôt une ligne muette qu'une cible qui n'existe pas.
+  assert.deepEqual(socleDeReference(null, '6.23.0'), { version: null, publieLe: null, aPublier: null })
+  assert.deepEqual(socleDeReference([], '6.23.0'), { version: null, publieLe: null, aPublier: null })
+  const releases = [release('v6.23.0', '2026-10-03T20:29:35Z')]
+  assert.equal(socleDeReference(releases, '7.0.0-beta.1').aPublier, null)
+  assert.equal(socleDeReference(releases, null).aPublier, null)
+  // `main` en retard sur la Release (une branche par défaut changée) n'est pas
+  // une version à publier.
+  assert.equal(socleDeReference(releases, '6.22.0').aPublier, null)
 })
 
 /* ── Production ─────────────────────────────────────────────────────────── */
