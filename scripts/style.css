@@ -1898,8 +1898,16 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
 }
 
 /* ---------- pilotage C1–C12 ---------- */
+.contexteParc {
+  padding: 14px 18px;
+  margin: 0 0 18px;
+}
 .contexteParc .filtres {
-  margin-top: 8px;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.contexteParc .filtres:last-child {
+  margin-bottom: 0;
 }
 .aFaireDetail {
   display: inline-flex;
