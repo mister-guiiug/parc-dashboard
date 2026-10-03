@@ -22,7 +22,7 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
 | Qu'est-ce qui a changé depuis la photo du jour ? | bandeau « Ce qui a bougé », sous les tuiles |
 | La page est-elle à jour ? | ligne « Vérifié il y a … » sous le titre, et bandeau « relevé plus récent » en tête |
-| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, PR, majeurs, correctifs, socle, Renovate |
+| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, PR, socle à publier, majeurs, correctifs, socle, Renovate |
 | Comment demander une montée sans ambiguïté ? | bouton « Copier la demande » : nom exact, cible, gravité, chaque dépôt et sa version |
 | Comment faire faire la montée par une IA ? | bouton « Copier le prompt », dans Librairies : les consignes, puis les montées des lignes affichées |
 | Ce qui tourne en ligne est-il ce qui est fusionné ? | ligne « Production » de chaque carte (`version.json` comparé à `main`) |
@@ -224,6 +224,17 @@ laisser glisser en silence dans une autre famille.
   qui est installé. Pour un dépôt Cargo, la source est `Cargo.lock` : un seul au
   relevé du 28/09/2026, `mister-commitia`, car `miss-ticket`, privé, n'est pas
   relevé.
+- La **référence du socle est sa dernière Release**, pas le `package.json` de
+  `main`. Le socle n'est pas sur npm public, et une version y est COUPÉE (PR
+  `chore(release)`) avant d'être PUBLIÉE (`gh workflow run publish.yml`), qui
+  est un second geste, à la main. Le 03/10/2026, la page annonçait « 6.22.0 →
+  6.23.0 dans 22 dépôts » deux heures et demie avant la publication, et la
+  6.22.1, coupée le même jour, ne l'a jamais été : une montée lancée sur cette
+  ligne échoue au premier `npm install`. `publish.yml` crée la Release en
+  dernier, et une Release se lit sans jeton quand GitHub Packages en demande
+  un : sa version fait la référence, sa date la fraîcheur (`socleDeReference`
+  de [`collecte.mjs`](scripts/collecte.mjs)). Une version de `main` plus haute
+  devient la rubrique « Version du socle à publier » de « À faire ».
 - Un **alias npm** (`"typescript-7": "npm:typescript@~7.0.2"`) porte un nom qui
   n'existe pas au registre : interrogé sur `typescript-7`, npm répond **404**.
   L'alias est donc résolu vers le paquet réellement publié, et la ligne porte le

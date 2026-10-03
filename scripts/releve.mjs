@@ -37,7 +37,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, scanningDepuisReponse, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -807,12 +807,16 @@ for (const [nom, reel] of REEL) {
   if (depotAmont[reel]) depotAmont[nom] = depotAmont[reel]
   if (temps[reel]) temps[nom] = temps[reel]
 }
-// le socle n'est pas sur npm public : sa référence est la version de son dépôt
+// LE SOCLE N'EST PAS SUR NPM PUBLIC : sa référence est sa dernière Release, et
+// sa date celle de la Release. Le `package.json` de `main` porte une version
+// dès qu'elle est COUPÉE, avant d'être publiée : le 03/10/2026, la page a
+// annoncé une montée vers la 6.23.0 deux heures et demie avant qu'elle existe.
+// Voir `socleDeReference` (collecte.mjs). Un appel de plus.
 const socle = depots.find((d) => d.nom === 'dev-pwa-config')
-if (socle?.paquet?.version) amont[NOM_SOCLE] = socle.paquet.version
-// et sa « dernière publication » est son dernier push : il paraît plusieurs
-// fois par jour, l'interroger sur npm public rendrait un 404.
-if (socle?.pushGitHub) publieLe[NOM_SOCLE] = socle.pushGitHub
+const refSocle = socleDeReference(socle ? await api(`/repos/${socle.nwo}/releases?per_page=30`) : null, socle?.paquet?.version ?? null)
+if (refSocle.version) amont[NOM_SOCLE] = refSocle.version
+else if (socle) console.error('  ATTENTION : aucune Release lisible du socle — sa ligne reste sans version de référence')
+if (refSocle.publieLe) publieLe[NOM_SOCLE] = refSocle.publieLe
 if (socle) depotAmont[NOM_SOCLE] = `${COMPTE}/dev-pwa-config`
 
 /* ------------------------------------------------------------- modèle */
@@ -908,8 +912,8 @@ for (const paquet of SUIVIES) {
     majeursAdmis: MAJEURS_ADMIS[paquet] ?? null,
     plusRecente: versions[0].version,
     publieLe: publieLe[paquet] || null,
-    // la date de la version amont ADMISE ; pour le socle, publié hors npm, son
-    // dernier push fait foi, comme pour `publieLe`
+    // la date de la version amont ADMISE ; pour le socle, publié hors npm, celle
+    // de sa Release, comme pour `publieLe`
     publieAmont: (a && temps[paquet]?.[a]) || (paquet === NOM_SOCLE ? publieLe[paquet] || null : null),
     depotAmont: depotAmont[paquet] || null,
   })
@@ -1135,6 +1139,9 @@ const modele = {
   motifsPartages,
   activite,
   socle: NOM_SOCLE,
+  // Une version coupée sur `main` et pas encore publiée : aucune app ne peut y
+  // monter avant la publication, que « À faire » demande alors.
+  socleAPublier: refSocle.aPublier ? { version: refSocle.aPublier, publiee: refSocle.version, nwo: socle.nwo } : null,
   seuilDormanceJours: SEUIL_DORMANCE_JOURS,
   // la recherche des tableaux Renovate a-t-elle abouti ? Sans ce drapeau, une
   // carte muette sur Renovate ne dirait pas si rien n'attend ou si rien n'a

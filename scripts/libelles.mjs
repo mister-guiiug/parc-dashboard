@@ -531,6 +531,7 @@ const LIBELLES_FR = {
   'afaire.prs': { one: '{n} pull request à relire', other: '{n} pull requests à relire' },
   'afaire.majeures': { one: '{n} nouveau majeur à arbitrer', other: '{n} nouveaux majeurs à arbitrer' },
   'afaire.correctifs': { one: '{n} correctif ou mineure à monter', other: '{n} correctifs et mineures à monter' },
+  'afaire.publier': 'Version du socle à publier',
   'afaire.socle': { one: 'Socle à monter dans {n} dépôt', other: 'Socle à monter dans {n} dépôts' },
   'afaire.renovate': { one: '{n} mise à jour Renovate en attente', other: '{n} mises à jour Renovate en attente' },
   'afaire.introuvables': { one: '{n} paquet que Renovate ne sait pas résoudre', other: '{n} paquets que Renovate ne sait pas résoudre' },
@@ -544,8 +545,11 @@ const LIBELLES_FR = {
   'afaire.detail.renovate.majeures': { one: ', dont {n} majeure', other: ', dont {n} majeures' },
   'afaire.detail.introuvable': { one: '{paquet} — {n} dépôt', other: '{paquet} — {n} dépôts' },
   'afaire.detail.lib': { one: '{paquet} {de} → {cible} ({n} dépôt)', other: '{paquet} {de} → {cible} ({n} dépôts)' },
+  'afaire.detail.publier': '{version} coupée sur main, dernière publiée : {publiee}',
   'afaire.introuvables.aide':
     "Renovate ne proposera jamais la montée d'un paquet qu'il ne résout pas. Le socle est publié sur GitHub Packages, que Renovate n'interroge pas sans jeton : tant qu'on ne lui en donne pas un, le socle se monte à la main.",
+  'afaire.publier.aide':
+    "Une version coupée n'est pas publiée : aucune app ne peut y monter tant que le workflow de publication du socle n'a pas tourné. Il se lance à la main, depuis l'onglet Actions du socle (« Run workflow » sur main).",
   'pr.ci.vert': 'CI verte',
   'pr.ci.rouge': 'CI rouge',
   'pr.ci.encours': 'CI en cours',
@@ -1168,6 +1172,7 @@ const LIBELLES_EN = {
   'afaire.prs': { one: '{n} pull request to review', other: '{n} pull requests to review' },
   'afaire.majeures': { one: '{n} new major to decide on', other: '{n} new majors to decide on' },
   'afaire.correctifs': { one: '{n} patch or minor to upgrade', other: '{n} patches and minors to upgrade' },
+  'afaire.publier': 'Core version to publish',
   'afaire.socle': { one: 'Core to upgrade in {n} repository', other: 'Core to upgrade in {n} repositories' },
   'afaire.renovate': { one: '{n} Renovate update pending', other: '{n} Renovate updates pending' },
   'afaire.introuvables': { one: '{n} package Renovate cannot resolve', other: '{n} packages Renovate cannot resolve' },
@@ -1181,8 +1186,11 @@ const LIBELLES_EN = {
   'afaire.detail.renovate.majeures': { one: ', {n} major', other: ', {n} majors' },
   'afaire.detail.introuvable': { one: '{paquet} — {n} repository', other: '{paquet} — {n} repositories' },
   'afaire.detail.lib': { one: '{paquet} {de} → {cible} ({n} repository)', other: '{paquet} {de} → {cible} ({n} repositories)' },
+  'afaire.detail.publier': '{version} cut on main, last published: {publiee}',
   'afaire.introuvables.aide':
     'Renovate will never propose upgrading a package it cannot resolve. The core is published on GitHub Packages, which Renovate does not query without a token: until it gets one, the core is upgraded by hand.',
+  'afaire.publier.aide':
+    "A cut version is not a published one: no app can upgrade to it until the core's publish workflow has run. It is started by hand, from the core's Actions tab (Run workflow, on main).",
   'pr.ci.vert': 'CI green',
   'pr.ci.rouge': 'CI red',
   'pr.ci.encours': 'CI running',
