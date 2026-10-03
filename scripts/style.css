@@ -1,21 +1,31 @@
 :root {
   color-scheme: light;
-  --page: #f9f9f7;
-  --surface: #fcfcfb;
-  --ink: #0b0b0b;
-  --ink2: #52514e;
-  --muted: #898781;
-  --grid: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
-  --ghost: rgba(11, 11, 11, 0.035);
-  --ghost2: rgba(11, 11, 11, 0.07);
-  --series1: #2a78d6;
+  /* Ops Console — thème clair : surfaces froides, accent teal, sans System UI. */
+  --page: #f3f5f7;
+  --surface: #ffffff;
+  --ink: #101820;
+  --ink2: #4a5563;
+  --muted: #7a8494;
+  --grid: #dde3ea;
+  --baseline: #c5ced8;
+  --border: rgba(16, 24, 32, 0.12);
+  --ghost: rgba(16, 24, 32, 0.04);
+  --ghost2: rgba(16, 24, 32, 0.08);
+  --series1: #0d9488;
+  --accent: #0d9488;
+  --accent-ink: #042f2e;
+  --rail: #0f1419;
+  --rail-ink: #e8eef5;
+  --rail-muted: #93a0b0;
+  --rail-line: #2a3542;
+  --rail-surface: #171d25;
   --good: #0ca30c;
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
   --goodInk: #006300;
+  --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
   /* rampe ordinale claire : les pas 650/500/400/250. Le pas 450 (#2a78d6)
      est écarté volontairement — sa luminance tombe au point de bascule
      blanc/noir, où AUCUNE encre ne dépasse 4,5:1 pour l'étiquette posée
@@ -42,18 +52,20 @@
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme='light'])) {
     color-scheme: dark;
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --ink: #ffffff;
-    --ink2: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --ghost: rgba(255, 255, 255, 0.04);
-    --ghost2: rgba(255, 255, 255, 0.08);
-    --series1: #3987e5;
-    --goodInk: #0ca30c;
+    --page: #0f1419;
+    --surface: #171d25;
+    --ink: #e8eef5;
+    --ink2: #93a0b0;
+    --muted: #7a8796;
+    --grid: #2a3542;
+    --baseline: #334155;
+    --border: rgba(232, 238, 245, 0.1);
+    --ghost: rgba(232, 238, 245, 0.04);
+    --ghost2: rgba(232, 238, 245, 0.08);
+    --series1: #2dd4bf;
+    --accent: #2dd4bf;
+    --accent-ink: #042f2e;
+    --goodInk: #34d399;
     --ord1: #b7d3f6;
     --ord2: #86b6ef;
     --ord3: #3987e5;
@@ -63,18 +75,20 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --ink: #ffffff;
-  --ink2: #c3c2b7;
-  --muted: #898781;
-  --grid: #2c2c2a;
-  --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --ghost: rgba(255, 255, 255, 0.04);
-  --ghost2: rgba(255, 255, 255, 0.08);
-  --series1: #3987e5;
-  --goodInk: #0ca30c;
+  --page: #0f1419;
+  --surface: #171d25;
+  --ink: #e8eef5;
+  --ink2: #93a0b0;
+  --muted: #7a8796;
+  --grid: #2a3542;
+  --baseline: #334155;
+  --border: rgba(232, 238, 245, 0.1);
+  --ghost: rgba(232, 238, 245, 0.04);
+  --ghost2: rgba(232, 238, 245, 0.08);
+  --series1: #2dd4bf;
+  --accent: #2dd4bf;
+  --accent-ink: #042f2e;
+  --goodInk: #34d399;
   --ord1: #b7d3f6;
   --ord2: #86b6ef;
   --ord3: #3987e5;
@@ -101,13 +115,22 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font: 400 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font: 400 15px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
+}
+.shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+  align-items: start;
+}
+.colonne {
+  min-width: 0;
 }
 .enveloppe {
   max-width: 1380px;
   margin: 0 auto;
-  padding: 28px 24px 72px;
+  padding: 20px 24px 96px;
 }
 a {
   color: inherit;
@@ -127,13 +150,106 @@ h3 {
   clip-path: inset(50%);
 }
 
+/* ---------- rail Ops Console ---------- */
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 14px 24px;
+  background: var(--rail);
+  color: var(--rail-ink);
+  border-right: 1px solid var(--rail-line);
+  z-index: 50;
+}
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px;
+}
+.brand strong {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+.brand .mono {
+  color: var(--rail-muted);
+  font-size: 11.5px;
+}
+.railEtiquette {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rail-muted);
+  margin: 0 0 6px 4px;
+}
+.ecosysteme .sites {
+  display: grid;
+  gap: 6px;
+}
+.ecosysteme .sites a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--rail-line);
+  border-radius: 8px;
+  background: var(--rail-surface);
+  color: var(--rail-ink);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.ecosysteme .sites a small {
+  color: var(--rail-muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+.ecosysteme .sites a[aria-current='page'] {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--rail-surface));
+}
+.railChapitres {
+  flex: 1;
+  min-height: 0;
+}
+.rail .liensSections {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: visible;
+  white-space: normal;
+  font-size: 13px;
+}
+.rail .liensSections a {
+  color: var(--rail-muted);
+  text-decoration: none;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border-bottom: 0;
+}
+.rail .liensSections a:hover,
+.rail .liensSections a[aria-current='true'] {
+  background: var(--rail-surface);
+  color: var(--rail-ink);
+  border-bottom-color: transparent;
+}
+
 /* ---------- en-tête collé ---------- */
 .entete {
   position: sticky;
   top: 0;
   z-index: 40;
-  margin: -28px -24px 8px;
-  padding: 14px 24px 12px;
+  margin: 0;
+  padding: 12px 24px 10px;
   background: color-mix(in srgb, var(--page) 92%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(10px);
@@ -145,9 +261,14 @@ h3 {
   align-items: center;
   justify-content: space-between;
 }
+.titreBloc {
+  flex: 1 1 220px;
+  min-width: 0;
+}
 .chapeau h1 {
-  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  font-size: clamp(1.1rem, 2vw, 1.3rem);
   line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 .chapeau .sous {
   color: var(--ink2);
@@ -156,6 +277,43 @@ h3 {
 }
 .chapeau .fraicheur {
   margin-top: 3px;
+}
+.entete .rechercheGlobale {
+  flex: 1 1 240px;
+  max-width: 360px;
+  min-width: 180px;
+}
+.sitesMobile {
+  display: none;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.sitesMobile a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink2);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sitesMobile a[aria-current='page'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.basculeRail {
+  display: none;
+}
+.dockMobile {
+  display: none;
 }
 /* La panne se dit par le TEXTE, pas par la couleur : `--critical` ne tient pas
    le 4,5:1 sur le fond sombre. L'encre pleine et la graisse suffisent ; le
@@ -200,12 +358,13 @@ h3 {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink2);
-  border-radius: 999px;
-  padding: 6px 13px;
+  border-radius: 8px;
+  padding: 7px 12px;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  min-height: 36px;
 }
 .bouton:hover {
   background: var(--ghost2);
@@ -482,7 +641,7 @@ th.num {
 }
 code,
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.92em;
 }
 .depotLien {
@@ -1403,8 +1562,15 @@ footer {
   .outils,
   .filtres,
   .flottant,
-  .colonnes {
+  .colonnes,
+  .rail,
+  .dockMobile,
+  .basculeRail,
+  .sitesMobile {
     display: none;
+  }
+  .shell {
+    display: block;
   }
 }
 
@@ -1551,47 +1717,9 @@ footer {
   margin-right: 2px;
 }
 
-/* ---------- barre de navigation fixe ---------- */
-.barreNav {
-  position: sticky;
-  top: var(--entete-h, 0px);
-  z-index: 30;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  margin: 0 -8px 12px;
-  padding: 8px;
-  background: var(--page);
-  border-bottom: 1px solid var(--border);
-}
-.sites {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.sites a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 2px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink2);
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-}
-.sites a[aria-current='page'] {
-  border-color: var(--ink);
-  color: var(--ink);
-  background: var(--ghost2);
-}
+/* ---------- recherche globale (dans l'en-tête) ---------- */
 .rechercheGlobale {
   position: relative;
-  flex: 0 1 340px;
-  min-width: 200px;
 }
 .rechercheChamp {
   position: relative;
@@ -1626,7 +1754,7 @@ footer {
   border-radius: 5px;
   background: var(--page);
   color: var(--muted);
-  font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+  font-family: var(--mono);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -1670,31 +1798,95 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
 .resultat:hover {
   background: var(--ghost2);
 }
-.liensSections {
-  display: flex;
-  gap: 4px 14px;
-  overflow-x: auto;
-  white-space: nowrap;
-  font-size: 13px;
-  scrollbar-width: thin;
-}
-.liensSections a {
-  color: var(--ink2);
-  text-decoration: none;
-  padding: 2px 0;
-  border-bottom: 2px solid transparent;
-}
-.liensSections a:hover,
-.liensSections a[aria-current='true'] {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-}
-/* La barre porte déjà les chapitres : sur un écran large, le sommaire flottant
-   ferait double emploi. Il reste utile là où la barre les fait défiler. */
-@media (min-width: 900px) {
+/* Le rail porte déjà les chapitres : sur un écran large, le sommaire flottant
+   ferait double emploi. Il reste utile sur mobile avec le dock. */
+@media (min-width: 960px) {
   #basculeSommaire,
   #sommaire {
     display: none;
+  }
+}
+
+/* ---------- mobile : rail → tiroir, chips écosystème, dock ---------- */
+@media (max-width: 959px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: min(300px, 88vw);
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+    box-shadow: none;
+  }
+  .shell[data-rail-ouvert='true'] .rail {
+    transform: translateX(0);
+    box-shadow: 16px 0 40px rgba(0, 0, 0, 0.35);
+  }
+  .shell[data-rail-ouvert='true']::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 45;
+  }
+  .basculeRail {
+    display: inline-flex;
+  }
+  .sitesMobile {
+    display: flex;
+  }
+  .entete {
+    padding: 12px 16px 10px;
+  }
+  .enveloppe {
+    padding: 16px 16px 110px;
+  }
+  .dockMobile {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 42;
+    background: color-mix(in srgb, var(--page) 92%, transparent);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0));
+  }
+  .dockMobile a {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    padding: 6px 4px;
+    color: var(--ink2);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 8px;
+  }
+  .dockMobile a:hover,
+  .dockMobile a:focus-visible {
+    color: var(--accent);
+    background: var(--ghost);
+  }
+  .flottant {
+    bottom: 72px;
+  }
+  .tableEnveloppe,
+  .matriceEnveloppe {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    transition: none;
   }
 }
 
