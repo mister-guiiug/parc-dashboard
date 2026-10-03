@@ -1896,3 +1896,81 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
   padding: 3px 11px;
   font-size: 12px;
 }
+
+/* ---------- pilotage C1–C12 ---------- */
+.contexteParc .filtres {
+  margin-top: 8px;
+}
+.aFaireDetail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.aFaireDetail input[type='checkbox'] {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.badge.sante {
+  border-color: var(--baseline);
+  font-variant-numeric: tabular-nums;
+}
+.celluleAction {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.celluleAction:hover,
+.celluleAction:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.panneauMatrice {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+}
+.panneauMatriceDl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 8px 0 0;
+}
+.panneauMatriceDl dt {
+  color: var(--ink2);
+  font-size: 12.5px;
+}
+.panneauMatriceDl dd {
+  margin: 0;
+}
+.decisionDormance {
+  font-size: 12px;
+  padding: 2px 8px;
+  max-width: 12rem;
+}
+.cockpitBloc {
+  margin-bottom: 12px;
+}
+.cockpitBloc h3 {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+}
+.listeCockpit {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 13px;
+}
+.listeCockpit li {
+  margin: 2px 0;
+}
+button.element {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  appearance: none;
+  cursor: pointer;
+}
+button.element:hover,
+button.element:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
