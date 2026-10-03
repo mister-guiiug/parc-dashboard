@@ -31,10 +31,42 @@
          demandait 993 tabulations : chaque carte de dépôt porte ses liens, et
          il y en a vingt-huit. Il ne se voit qu'au focus. -->
     <a class="evitement" href="#contenu" data-t="a11y.evitement">Aller au contenu</a>
-    <div class="enveloppe">
-      <!-- LE TITRE RESTE EN HAUT PENDANT LE DÉFILEMENT. Le reste de l'en-tête
-           (à faire, chiffres, familles) défile ; la barre de recherche, plus
-           bas, se cale juste sous cette bande. -->
+    <!-- SHELL OPS CONSOLE. Rail gauche permanent (écosystème + chapitres),
+         colonne de contenu à droite. Sur petit écran le rail se replie en
+         tiroir ; Catalogue / Showroom restent en chips sous l'en-tête, et un
+         dock bas porte les quatre destinations les plus utilisées. -->
+    <div class="shell" id="shell">
+      <aside class="rail" id="rail" data-t-aria-label="rail.al" aria-label="Navigation du parc">
+        <div class="brand">
+          <strong data-t="rail.marque">Parc</strong>
+          <span class="mono">mister-guiiug</span>
+        </div>
+        <div class="ecosysteme">
+          <div class="railEtiquette" data-t="nav.ecosysteme">Écosystème</div>
+          <nav class="sites" data-t-aria-label="nav.sites" aria-label="Pages du parc">
+            <a href="https://mister-guiiug.github.io/">
+              <span data-t="nav.site.catalogue">Catalogue</span>
+              <small data-t="nav.site.catalogue.sub">apps</small>
+            </a>
+            <a href="https://mister-guiiug.github.io/dev-pwa-config/">
+              <span data-t="nav.site.showroom">Showroom</span>
+              <small data-t="nav.site.showroom.sub">socle</small>
+            </a>
+            <a href="https://mister-guiiug.github.io/parc-dashboard/" aria-current="page">
+              <span data-t="nav.site.parc">Parc</span>
+              <small data-t="nav.site.parc.sub">ops</small>
+            </a>
+          </nav>
+        </div>
+        <div class="railChapitres">
+          <div class="railEtiquette" data-t="nav.sections">Sections de la page</div>
+          <nav class="liensSections" id="liensSections" data-t-aria-label="nav.sections" aria-label="Sections de la page"></nav>
+        </div>
+      </aside>
+      <div class="colonne">
+      <!-- UNE SEULE BANDE STICKY : titre, fraîcheur, recherche, langue, thème.
+           Les raccourcis Échecs / Dépôts / Librairies vivent dans le rail
+           (et le dock mobile) — deux barres sticky se disputaient la hauteur. -->
       <div class="entete" id="entete">
         <!-- UNE RÉGION VIVANTE, TOUJOURS PRÉSENTE, VIDE PAR DÉFAUT. Elle ne
              parle que lorsqu'un relevé plus récent que la page est en ligne.
@@ -45,10 +77,36 @@
              sans quoi `:empty` ne la verrait plus vide. -->
         <div class="bandeauNouveau" id="bandeauNouveau" role="status"></div>
         <div class="chapeau">
-          <div>
+          <div class="titreBloc">
             <h1 data-th="page.h1">Parc <span class="mono">mister-guiiug</span> — dépôts, pipelines, librairies</h1>
             <div class="sous" id="sousTitre"></div>
             <div class="sous fraicheur" id="fraicheur" hidden></div>
+          </div>
+          <div class="rechercheGlobale">
+            <label class="rechercheChamp">
+              <input
+                class="champ"
+                id="rechercheGlobale"
+                type="search"
+                role="combobox"
+                aria-expanded="false"
+                aria-controls="resultatsGlobaux"
+                aria-autocomplete="list"
+                aria-keyshortcuts="Control+K Meta+K"
+                autocomplete="off"
+                spellcheck="false"
+                data-t-placeholder="nav.recherche"
+                data-t-aria-label="nav.recherche.al"
+                placeholder="Aller à un dépôt, une librairie…"
+                aria-label="Aller à un dépôt ou à une librairie"
+              />
+              <kbd class="raccourci" aria-hidden="true">
+                <span data-mod="ctrl">Ctrl</span>
+                <span data-mod="meta">⌘</span>
+                <span>K</span>
+              </kbd>
+            </label>
+            <ul class="resultatsGlobaux" id="resultatsGlobaux" role="listbox" hidden></ul>
           </div>
           <div class="outils">
             <!-- LE SÉLECTEUR EN PREMIER DANS LA RANGÉE : c'est le seul contrôle
@@ -58,12 +116,18 @@
                  fait pour qu'en ajouter une soit un fichier. -->
             <select class="bouton" id="langue" data-t-aria-label="outils.langue" aria-label="Langue"></select>
             <button class="bouton" id="basculeTheme" type="button" data-t="outils.theme">Thème</button>
-            <a class="bouton" href="#echecs" data-t="outils.echecs">Échecs</a>
-            <a class="bouton" href="#depots" data-t="outils.depots">Dépôts</a>
-            <a class="bouton" href="#librairies" data-t="outils.librairies">Librairies</a>
+            <button class="bouton basculeRail" id="basculeRail" type="button" aria-expanded="false" aria-controls="rail" data-t="dock.menu">Menu</button>
           </div>
         </div>
+        <!-- Sur mobile, le rail est masqué : Catalogue / Showroom / Parc restent
+             accessibles ici, sans attendre le bas de page ni ouvrir le tiroir. -->
+        <nav class="sitesMobile" data-t-aria-label="nav.sites" aria-label="Pages du parc">
+          <a href="https://mister-guiiug.github.io/" data-t="nav.site.catalogue">Catalogue</a>
+          <a href="https://mister-guiiug.github.io/dev-pwa-config/" data-t="nav.site.showroom">Showroom</a>
+          <a href="https://mister-guiiug.github.io/parc-dashboard/" data-t="nav.site.parc" aria-current="page">Parc</a>
+        </nav>
       </div>
+      <div class="enveloppe">
       <header>
 
         <!-- CE QUE LA PAGE DEMANDE DE FAIRE, avant ce qu'elle constate. Le
@@ -131,44 +195,6 @@
         <button class="bouton" type="button" id="retourHaut" hidden data-t="sommaire.haut">↑ Haut de page</button>
       </div>
 
-      <!-- LA BARRE QUI RESTE : onze écrans se parcourent mal à la molette. Elle
-           colle en haut dès qu'on la dépasse, porte les chapitres et une
-           recherche qui MÈNE à un dépôt ou à une librairie — le filtre de chaque
-           section, lui, ne fait que masquer. « / » et Ctrl+K y amènent le curseur. -->
-      <div class="barreNav" id="barreNav">
-        <nav class="sites" data-t-aria-label="nav.sites" aria-label="Pages du parc">
-          <a href="https://mister-guiiug.github.io/" data-t="nav.site.catalogue">Catalogue</a>
-          <a href="https://mister-guiiug.github.io/dev-pwa-config/" data-t="nav.site.showroom">Showroom</a>
-          <a href="https://mister-guiiug.github.io/parc-dashboard/" data-t="nav.site.parc" aria-current="page">Parc</a>
-        </nav>
-        <div class="rechercheGlobale">
-          <label class="rechercheChamp">
-            <input
-              class="champ"
-              id="rechercheGlobale"
-              type="search"
-              role="combobox"
-              aria-expanded="false"
-              aria-controls="resultatsGlobaux"
-              aria-autocomplete="list"
-              aria-keyshortcuts="Control+K Meta+K"
-              autocomplete="off"
-              spellcheck="false"
-              data-t-placeholder="nav.recherche"
-              data-t-aria-label="nav.recherche.al"
-              placeholder="Aller à un dépôt, une librairie…"
-              aria-label="Aller à un dépôt ou à une librairie"
-            />
-            <kbd class="raccourci" aria-hidden="true">
-              <span data-mod="ctrl">Ctrl</span>
-              <span data-mod="meta">⌘</span>
-              <span>K</span>
-            </kbd>
-          </label>
-          <ul class="resultatsGlobaux" id="resultatsGlobaux" role="listbox" hidden></ul>
-        </div>
-        <nav class="liensSections" id="liensSections" data-t-aria-label="nav.sections" aria-label="Sections de la page"></nav>
-      </div>
       <!-- Ce que la page annonce sans le montrer : « Copié », pour qui ne voit
            pas le bouton changer. -->
       <div class="sr" role="status" id="annonce"></div>
@@ -420,8 +446,17 @@
       </main>
 
       <footer id="pied"></footer>
+      </div>
+      </div>
     </div>
-
+    <!-- DOCK MOBILE : les quatre gestes du quotidien. Le reste des chapitres
+         reste dans le tiroir (Menu) et le sommaire flottant. -->
+    <nav class="dockMobile" id="dockMobile" data-t-aria-label="dock.al" aria-label="Raccourcis mobiles">
+      <a href="#afaire" data-t="dock.afaire">À faire</a>
+      <a href="#echecs" data-t="dock.echecs">Échecs</a>
+      <a href="#depots" data-t="dock.depots">Dépôts</a>
+      <a href="#librairies" data-t="dock.libs">Libs</a>
+    </nav>
 
     <script type="application/json" id="donnees">
       __DONNEES__
@@ -2559,6 +2594,39 @@
       }
       if (entete && 'ResizeObserver' in window) new ResizeObserver(mesureEntete).observe(entete)
       mesureEntete()
+
+      // Tiroir du rail sur petit écran. Le overlay est le `::after` du shell :
+      // un clic dessus (ou sur un lien du rail) referme le menu.
+      const shell = document.getElementById('shell')
+      const basculeRail = document.getElementById('basculeRail')
+      const fermeRail = () => {
+        if (!shell || !basculeRail) return
+        shell.dataset.railOuvert = 'false'
+        basculeRail.setAttribute('aria-expanded', 'false')
+      }
+      const ouvreRail = () => {
+        if (!shell || !basculeRail) return
+        shell.dataset.railOuvert = 'true'
+        basculeRail.setAttribute('aria-expanded', 'true')
+      }
+      if (basculeRail && shell) {
+        basculeRail.addEventListener('click', () => {
+          if (shell.dataset.railOuvert === 'true') fermeRail()
+          else ouvreRail()
+        })
+        shell.addEventListener('click', (e) => {
+          if (shell.dataset.railOuvert !== 'true') return
+          // Clic sur le voile (le shell lui-même via ::after ne reçoit pas
+          // l'événement) : on ferme si la cible est hors du rail.
+          if (!e.target.closest('#rail') && !e.target.closest('#basculeRail')) fermeRail()
+        })
+        document.getElementById('rail')?.addEventListener('click', (e) => {
+          if (e.target.closest('a[href^="#"]')) fermeRail()
+        })
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') fermeRail()
+        })
+      }
 
       const suitDefilement = () => {
         haut.hidden = window.scrollY < 600
