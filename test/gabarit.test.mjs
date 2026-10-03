@@ -23,3 +23,18 @@ test('le gabarit porte noindex dans son <head>', () => {
   // Une seule consigne : deux balises contradictoires se liraient mal.
   assert.equal([...tete.matchAll(/<meta name="robots"/g)].length, 1)
 })
+
+test('le script principal du gabarit est syntaxiquement valide', () => {
+  // Une accolade de trop (injectée le 03/10/2026) a publié une page blanche :
+  // le navigateur refuse tout le script, donc tout le rendu. Les tests de
+  // libellés ne parse jamais ce JS — il fallait ce filet.
+  const scripts = [...GABARIT.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map((m) => m[1])
+  const principal = scripts.at(-1)
+  assert.ok(principal && principal.includes('function rendTout'), 'script principal introuvable')
+  const source = principal
+    .replaceAll('__VUE__', "'use strict';")
+    .replaceAll('__DONNEES__', '{}')
+    .replaceAll('__EMPREINTE__', 'x')
+    .replaceAll('__STYLE__', '')
+  assert.doesNotThrow(() => new Function(source))
+})
