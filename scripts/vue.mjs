@@ -148,10 +148,59 @@ export const foinDepot = (d) =>
     .toLowerCase()
 
 /**
+ * Un dépôt a-t-il du « retard » au sens du contexte ops : prod, site,
+ * Renovate, ou présence dans les montées de librairies.
+ *
+ * @param {object} d
+ * @param {Set<string> | null} [nomsEnRetardLib]
+ */
+export function depotEnRetard(d, nomsEnRetardLib = null) {
+  if (!d) return false
+  if (d.prod?.etat === 'retard') return true
+  if (d.pages?.url && d.pages.ok === false) return true
+  if (d.prod?.mortes?.length || d.prod?.fugaces?.length) return true
+  if ((d.renovate?.enAttente || 0) > 0) return true
+  if (nomsEnRetardLib?.has(d.nom)) return true
+  return false
+}
+
+/** Rubriques « À faire » concernées par le filtre retard (entretien / drift). */
+export const RUBRIQUES_RETARD = new Set([
+  'sites',
+  'mortes',
+  'prod',
+  'fugaces',
+  'publier',
+  'majeures',
+  'correctifs',
+  'socle',
+  'renovate',
+])
+
+/**
+ * Noms de dépôts qui apparaissent dans au moins une librairie en retard.
+ * @param {object[]} libs
+ * @returns {Set<string>}
+ */
+export function nomsDepotsEnRetardLib(libs = []) {
+  const out = new Set()
+  for (const l of libs) {
+    if (!l?.enRetard) continue
+    for (const v of l.versions || []) {
+      for (const x of v.depots || []) {
+        const nom = typeof x === 'string' ? x : x?.depot
+        if (nom) out.add(nom)
+      }
+    }
+  }
+  return out
+}
+
+/**
  * Un dépôt répond-il aux filtres ?
  *
  * @param {object} d
- * @param {{ q?: string, familles?: Set<string>, drapeaux?: Set<string> }} c
+ * @param {{ q?: string, familles?: Set<string>, drapeaux?: Set<string>, nomsEnRetard?: Set<string> }} c
  */
 export function correspondDepot(d, c = {}) {
   const familles = c.familles ?? new Set()
@@ -161,15 +210,21 @@ export function correspondDepot(d, c = {}) {
   if (drapeaux.has('modifie') && !d.local?.modifies) return false
   if (drapeaux.has('prive') && !d.prive) return false
   if (drapeaux.has('site') && !d.pages?.ok) return false
+  if (drapeaux.has('retard') && !depotEnRetard(d, c.nomsEnRetard ?? null)) return false
   const q = (c.q ?? '').trim().toLowerCase()
   return !q || foinDepot(d).includes(q)
 }
 
+/** @param {object[]} depots @param {object} c */
+export function depotsFiltres(depots, c = {}) {
+  return (depots || []).filter((d) => correspondDepot(d, c))
+}
+
 /**
- * Les échecs visibles sous le contexte global (familles / échec).
+ * Les échecs visibles sous le contexte global (familles / échec / retard).
  * @param {object[]} echecs
  * @param {object[]} depots
- * @param {{ familles?: Set<string>, drapeaux?: Set<string> }} c
+ * @param {{ familles?: Set<string>, drapeaux?: Set<string>, nomsEnRetard?: Set<string> }} c
  */
 export function filtreEchecs(echecs, depots, c = {}) {
   const parNom = new Map((depots || []).map((d) => [d.nom, d]))
@@ -181,11 +236,12 @@ export function filtreEchecs(echecs, depots, c = {}) {
 
 /**
  * La file « À faire » restreinte au même contexte que les cartes.
- * Les entrées sans dépôt (socle à publier, paquet introuvable) restent.
+ * Les entrées sans dépôt (socle à publier, paquet introuvable) restent
+ * sauf sous le filtre retard, qui ne garde que l'entretien / drift.
  *
  * @param {{ cle: string, n: number, details: object[] }[]} items
  * @param {object[]} depots
- * @param {{ familles?: Set<string>, drapeaux?: Set<string> }} c
+ * @param {{ familles?: Set<string>, drapeaux?: Set<string>, nomsEnRetard?: Set<string> }} c
  */
 export function filtreAFaire(items, depots, c = {}) {
   const familles = c.familles ?? new Set()
@@ -198,6 +254,7 @@ export function filtreAFaire(items, depots, c = {}) {
   }
   const out = []
   for (const it of items || []) {
+    if (drapeaux.has('retard') && !RUBRIQUES_RETARD.has(it.cle)) continue
     let details = it.details || []
     if (details.some((x) => x && x.depot && !Array.isArray(x.depots))) {
       details = details.filter((x) => !x.depot || okDepot(x.depot))
@@ -217,6 +274,23 @@ export function filtreAFaire(items, depots, c = {}) {
     out.push({ ...it, details, n })
   }
   return out
+}
+
+/**
+ * Liens GitHub pour les rubriques de conformité.
+ * @param {string} cle
+ * @param {{ depot?: string, nwo?: string, branche?: string }} x
+ * @param {object[]} depots
+ */
+export function lienConformite(cle, x, depots = []) {
+  const d = depots.find((y) => y.nom === x.depot)
+  const nwo = x.nwo || d?.nwo
+  if (!nwo) return null
+  const branche = x.branche || d?.brancheDefaut || 'main'
+  if (cle === 'envManifest') return `https://github.com/${nwo}/blob/${encodeURIComponent(branche)}/config/env.manifest.json`
+  if (cle === 'rulesets') return `https://github.com/${nwo}/settings/rules`
+  if (cle === 'scanningOff') return `https://github.com/${nwo}/security/code-scanning`
+  return null
 }
 
 /** Les quatre ordres de la liste des dépôts. */

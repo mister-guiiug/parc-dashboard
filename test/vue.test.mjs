@@ -24,10 +24,14 @@ import {
   TRIS_DEPOT,
   correspondDepot,
   correspondLib,
+  depotEnRetard,
+  depotsFiltres,
   elementsHorsNpm,
   etiquettes,
   foinDepot,
   groupeDe,
+  lienConformite,
+  nomsDepotsEnRetardLib,
   periodeDe,
   symboles,
   SEUIL_PANNE_MIN,
@@ -710,6 +714,47 @@ test('filtreEchecs et filtreAFaire suivent le contexte familles / échec', () =>
   )
   assert.deepEqual(filtré[0].details.map((d) => d.depot), ['pwa-a'])
   assert.equal(filtré[0].n, 1)
+})
+
+test('depotEnRetard et filtre retard sur À faire / listes', () => {
+  const ok = { nom: 'a', famille: 'pwa', compte: {}, prod: { etat: 'ok' }, renovate: { enAttente: 0 } }
+  const retard = { nom: 'b', famille: 'pwa', compte: {}, prod: { etat: 'retard', retard: 2 }, renovate: { enAttente: 0 } }
+  const reno = { nom: 'c', famille: 'pwa', compte: {}, renovate: { enAttente: 3 } }
+  assert.equal(depotEnRetard(ok), false)
+  assert.equal(depotEnRetard(retard), true)
+  assert.equal(depotEnRetard(reno), true)
+  const libs = [{ enRetard: true, versions: [{ depots: [{ depot: 'a' }] }] }]
+  assert.ok(nomsDepotsEnRetardLib(libs).has('a'))
+  assert.equal(depotEnRetard(ok, nomsDepotsEnRetardLib(libs)), true)
+  assert.deepEqual(
+    depotsFiltres([ok, retard, reno], { drapeaux: new Set(['retard']) }).map((d) => d.nom),
+    ['b', 'c'],
+  )
+  const items = [
+    { cle: 'rouges', n: 1, details: [{ depot: 'b', n: 1 }] },
+    { cle: 'prod', n: 1, details: [{ depot: 'b', retard: 2 }] },
+    { cle: 'alertes', n: 1, details: [{ depot: 'b', n: 1 }] },
+  ]
+  const f = filtreAFaire(items, [retard], { drapeaux: new Set(['retard']) })
+  assert.deepEqual(
+    f.map((x) => x.cle),
+    ['prod'],
+    'retard ne garde que les rubriques entretien / drift',
+  )
+})
+
+test('lienConformite mène aux bons endroits GitHub', () => {
+  const depots = [{ nom: 'miss-x', nwo: 'mister-guiiug/miss-x', brancheDefaut: 'main' }]
+  assert.equal(
+    lienConformite('envManifest', { depot: 'miss-x' }, depots),
+    'https://github.com/mister-guiiug/miss-x/blob/main/config/env.manifest.json',
+  )
+  assert.equal(lienConformite('rulesets', { depot: 'miss-x' }, depots), 'https://github.com/mister-guiiug/miss-x/settings/rules')
+  assert.equal(
+    lienConformite('scanningOff', { depot: 'miss-x' }, depots),
+    'https://github.com/mister-guiiug/miss-x/security/code-scanning',
+  )
+  assert.equal(lienConformite('envManifest', { depot: 'inconnu' }, depots), null)
 })
 
 /* ── La recherche de la barre ───────────────────────────────────────────── */

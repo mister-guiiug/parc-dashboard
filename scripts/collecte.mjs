@@ -422,11 +422,45 @@ const SCANNING_ERREUR = (a) => a?.rule?.severity === 'error'
  */
 export function resumeScanning(liste) {
   const l = Array.isArray(liste) ? liste : []
+  const ids = l
+    .slice(0, 8)
+    .map((a) => a?.rule?.id || (a?.number != null ? String(a.number) : null))
+    .filter(Boolean)
   return {
     etat: 'lu',
     total: l.length,
     graves: l.filter(SCANNING_GRAVE).length,
     erreurs: l.filter(SCANNING_ERREUR).length,
+    ids,
+  }
+}
+
+/**
+ * Échantillon d’identifiants Dependabot (CVE / GHSA / numéro).
+ * @param {unknown[]} liste
+ * @returns {string[]}
+ */
+export function idsDependabot(liste) {
+  const l = Array.isArray(liste) ? liste : []
+  return l
+    .slice(0, 8)
+    .map((a) => a?.security_advisory?.cve_id || a?.security_advisory?.ghsa_id || (a?.number != null ? String(a.number) : null))
+    .filter(Boolean)
+}
+
+/**
+ * Noms d’entrées d’un env.manifest (catalogue attendu du socle / starter).
+ * @param {string | null | undefined} texte
+ * @returns {string[] | null}
+ */
+export function nomsEnvManifest(texte) {
+  if (texte == null || texte === '') return null
+  try {
+    const j = JSON.parse(texte)
+    if (!j || !Array.isArray(j.entries)) return null
+    return j.entries.map((e) => e?.name).filter((n) => typeof n === 'string' && n)
+  } catch {
+    return null
   }
 }
 
@@ -462,11 +496,14 @@ export function scanningDepuisReponse(status, corps) {
  *
  * Le relevé ne lance pas pwa-env audit (session gh + secrets) : il dit
  * si le fichier est là, lisible, et si chaque entrée porte name / store /
- * phase. Les orphelins GitHub restent hors de portée de cette lecture.
+ * phase. Avec `attendus` (noms du starter / socle), un manifeste valide
+ * mais incomplet est signalé à part — `incomplet` — sans confondre avec
+ * « fichier absent ».
  *
  * @param {string | null | undefined} texte corps brut, ou null si 404
+ * @param {string[] | null} [attendus] noms d'entrées attendus du catalogue
  */
-export function resumeEnvManifest(texte) {
+export function resumeEnvManifest(texte, attendus = null) {
   if (texte == null || texte === '') return { etat: 'absent' }
   try {
     const j = JSON.parse(texte)
@@ -479,6 +516,11 @@ export function resumeEnvManifest(texte) {
       if (typeof e.name !== 'string' || !e.name) return { etat: 'invalide' }
       if (typeof e.store !== 'string' || !e.store) return { etat: 'invalide' }
       if (typeof e.phase !== 'string' || !e.phase) return { etat: 'invalide' }
+    }
+    if (Array.isArray(attendus) && attendus.length) {
+      const names = new Set(j.entries.map((e) => e.name))
+      const manquants = attendus.filter((n) => !names.has(n))
+      if (manquants.length) return { etat: 'incomplet', n: j.entries.length, manquants }
     }
     return { etat: 'ok', n: j.entries.length }
   } catch {

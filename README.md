@@ -46,20 +46,20 @@ console d'exploitation.
 
 | Surface | Rôle |
 |---|---|
-| **Contexte du parc** | Un filtre (familles, retard, échec) pour toutes les sections ; presets d'écran (`matin-ci`, `entretien-majeurs`, `prod-drift`) dans l'URL |
-| **À faire** | File d'actions ordonnée, cases « traité » en `localStorage`, copier le lot visible |
+| **Contexte du parc** | Un filtre (familles, retard, échec) pour À faire, échecs, cartes, cockpit, Renovate et sécu ; presets (`matin-ci`, `entretien-majeurs`, `prod-drift`) dans l'URL — `prod-drift` = PWA + retard → `#cockpit` |
+| **À faire** | File d'actions, cases « traité », export/import JSON, deep links conformité (env.manifest, rulesets, CodeQL) |
 | **Score santé** | Badge 0–100 sur chaque carte (CI, prod, deps, sécu / conformité) |
 | **Ce qui est rouge** | Table des échecs + colonne piste (runbook) menant au run GitHub |
 | **Production & sites** | Cockpit : déploiements, retard prod, sites down, URL mortes, fugaces |
-| **Tendances** | Deltas sur l'historique (taux, rouges, alertes, dormantes, socle) |
+| **Tendances** | Deltas sur l'historique (taux, rouges, alertes, dormantes, socle, env.manifest, rulesets) |
 | **Salle Renovate** | Backlog agrégé + paquets irrésolubles |
-| **Alertes cross-parc** | Dependabot + CodeQL, avec prompt de remédiation |
+| **Alertes cross-parc** | Dependabot + CodeQL (échantillon d'ids CVE/GHSA), avec prompt de remédiation |
 | **Décisions dormance** | Garder / remplacer / ignorer 90 j, mémorisé localement |
 
 Le secret `PARC_TOKEN` porte plusieurs scopes (Dependabot, Code scanning,
-Administration pour les rulesets). Le workflow
-[`scopes-pat.yml`](.github/workflows/scopes-pat.yml) les sonde à la demande
-(`workflow_dispatch`) sans relever tout le parc.
+Administration pour les rulesets). Si l'un manque, un bandeau en tête de page
+pointe vers le workflow [`scopes-pat.yml`](.github/workflows/scopes-pat.yml)
+(`workflow_dispatch`) — la sonde reste manuelle, le cron du relevé ne bloque pas.
 
 ## Ce que la page demande de faire
 

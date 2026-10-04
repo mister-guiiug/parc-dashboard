@@ -22,7 +22,7 @@ export function lienSuivant(link) {
  * Agrège les pages d'une collection JSON GitHub (Link: rel="next").
  *
  * @param {string} urlPremiere
- * @param {(url: string) => Promise<Response>} fetchFn
+ * @param {(url: string, init?: object) => Promise<Response>} fetchFn
  * @param {{ maxPages?: number, headers?: Record<string, string> }} [opts]
  * @returns {Promise<{ ok: boolean, status: number, items: unknown[], corpsTexte?: string }>}
  */
@@ -49,13 +49,52 @@ export async function paginerJson(urlPremiere, fetchFn, opts = {}) {
 
 /**
  * Les règles effectives d'une branche indiquent-elles un Protect main solide
- * (PR obligatoire + checks requis) ?
+ * (PR obligatoire + checks requis avec au moins un contexte nommé) ?
+ *
+ * Aligné sur l'esprit de `apply-rulesets.mjs` : un ruleset « active » sans
+ * contexte exigé n'est pas une protection réelle — `false`, pas `true`.
  *
  * @param {unknown} regles réponse de /repos/.../rules/branches/{branch}
+ * @param {{ minContexts?: number }} [opts]
  * @returns {boolean | null} null si illisible
  */
-export function protectMainSolide(regles) {
+export function protectMainSolide(regles, opts = {}) {
+  const minContexts = opts.minContexts ?? 1
   if (!Array.isArray(regles)) return null
   const types = new Set(regles.map((r) => r && r.type).filter(Boolean))
-  return types.has('pull_request') && types.has('required_status_checks')
+  if (!types.has('pull_request') || !types.has('required_status_checks')) return false
+  if (minContexts <= 0) return true
+  const checks = regles.find((r) => r && r.type === 'required_status_checks')
+  const liste = checks?.parameters?.required_status_checks
+  if (!Array.isArray(liste)) return false
+  const n = liste.filter((c) => c && (typeof c === 'string' ? c : c.context)).length
+  return n >= minContexts
+}
+
+/**
+ * Lit les rulesets d'un dépôt puis, s'il y a un actif, les règles effectives
+ * de la branche par défaut — headers communs, contrat métier inchangé.
+ *
+ * @param {string} nwo
+ * @param {string | null | undefined} branche
+ * @param {(url: string, init?: object) => Promise<Response>} fetchFn
+ * @param {{ api?: string, headers?: Record<string, string> }} [opts]
+ * @returns {Promise<{ status: number, liste: unknown, protect: boolean | null, appels: number }>}
+ */
+export async function lireRulesetsDepot(nwo, branche, fetchFn, opts = {}) {
+  const api = opts.api || 'https://api.github.com'
+  const headers = opts.headers || {}
+  let appels = 1
+  const res = await fetchFn(`${api}/repos/${nwo}/rulesets`, { headers })
+  if (!res.ok) {
+    return { status: res.status, liste: null, protect: null, appels }
+  }
+  const liste = await res.json()
+  let protect = null
+  if (Array.isArray(liste) && liste.some((r) => r && r.enforcement === 'active') && branche) {
+    appels++
+    const br = await fetchFn(`${api}/repos/${nwo}/rules/branches/${encodeURIComponent(branche)}`, { headers })
+    if (br.ok) protect = protectMainSolide(await br.json())
+  }
+  return { status: res.status, liste, protect, appels }
 }

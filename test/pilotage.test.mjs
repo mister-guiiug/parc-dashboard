@@ -11,6 +11,9 @@ import {
   cleActionAFaire,
   litStockage,
   ecritStockage,
+  exporteTraites,
+  importeTraites,
+  scopesIncomplets,
 } from '../scripts/pilotage.mjs'
 
 test('scoreSante : dépôt sain proche de 100', () => {
@@ -93,15 +96,35 @@ test('alertesCrossParc compte dépôts et gravité', () => {
   assert.equal(a.graves, 1)
 })
 
-test('tendances exige deux points', () => {
+test('tendances exige deux points et expose la conformité', () => {
   assert.equal(tendances([{ jour: '2026-01-01', taux: 90 }]).ok, false)
   const t = tendances([
-    { jour: '2026-01-01', taux: 90, rouges: 2, alertes: 10, dormantes: 3, socleEnRetard: 1 },
-    { jour: '2026-01-10', taux: 100, rouges: 0, alertes: 8, dormantes: 3, socleEnRetard: 0 },
+    {
+      jour: '2026-01-01',
+      taux: 90,
+      rouges: 2,
+      alertes: 10,
+      dormantes: 3,
+      socleEnRetard: 1,
+      sansEnvManifest: 4,
+      depotsSansRuleset: 2,
+    },
+    {
+      jour: '2026-01-10',
+      taux: 100,
+      rouges: 0,
+      alertes: 8,
+      dormantes: 3,
+      socleEnRetard: 0,
+      sansEnvManifest: 1,
+      depotsSansRuleset: 0,
+    },
   ])
   assert.equal(t.ok, true)
   assert.equal(t.delta.taux, 10)
   assert.equal(t.delta.rouges, -2)
+  assert.equal(t.delta.sansEnvManifest, -3)
+  assert.equal(t.delta.depotsSansRuleset, -2)
 })
 
 test('runbookEchec reconnaît les familles', () => {
@@ -132,5 +155,23 @@ test('stockage session lit et écrit', () => {
 test('PRESETS portent hash et drapeaux', () => {
   assert.ok(PRESETS['matin-ci'].hash)
   assert.equal(PRESETS['entretien-majeurs'].retard, true)
+  assert.deepEqual(PRESETS['prod-drift'].familles, ['pwa'])
+  assert.equal(PRESETS['prod-drift'].retard, true)
+  assert.equal(PRESETS['prod-drift'].hash, 'cockpit')
   assert.ok(Object.keys(PRESETS).length >= 3)
+})
+
+test('exporteTraites / importeTraites rond-trip', () => {
+  const json = exporteTraites(['rouges:a', 'prod:b'])
+  assert.deepEqual(importeTraites(json), ['prod:b', 'rouges:a'])
+  assert.equal(importeTraites('{'), null)
+  assert.deepEqual(importeTraites('["x"]'), ['x'])
+})
+
+test('scopesIncomplets lit les KPI', () => {
+  assert.deepEqual(scopesIncomplets({ alertesLisibles: true, scanningLisible: true, rulesetsLisibles: true }), [])
+  assert.deepEqual(scopesIncomplets({ alertesLisibles: false, scanningLisible: true, rulesetsLisibles: false }), [
+    'dependabot',
+    'rulesets',
+  ])
 })
