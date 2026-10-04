@@ -37,7 +37,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, scanningDepuisReponse, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -575,6 +575,52 @@ if (!scanningLisible) {
   console.error(`Il faut un PAT portant « security_events » (ou Code scanning alerts : read) dans le secret PARC_TOKEN.`)
 }
 
+/* --------------------------------------- env.manifest (apps PWA) */
+
+// APRÈS LE CHANTIER PHASE 3 : le relevé doit dire quelles apps PWA n'ont
+// toujours pas de manifeste, plutôt que de le découvrir à la main. Lecture
+// raw du fichier versionné — pas `pwa-env audit` (session gh + secrets).
+await enLot(depots, 8, async (d) => {
+  const concerne = d.famille === 'pwa' || d.nom === 'pwa-starter-kit'
+  if (!concerne) {
+    d.envManifest = { etat: 'hors-scope' }
+    return
+  }
+  const texte = await fichier(d.nwo, d.brancheDefaut, 'config/env.manifest.json')
+  d.envManifest = resumeEnvManifest(texte)
+})
+
+/* --------------------------------------- rulesets (Protect main) */
+
+// L'incident miss-contraction (ruleset `disabled`) a montré qu'un chiffre
+// « N/N protégés » dans un doc vieillit. On lit l'API, on ne suppose pas.
+let rulesetsLisibles = false
+let rulesetsRefuse = 0
+await enLot(depots, 5, async (d) => {
+  d.ruleset = null
+  try {
+    appels++
+    const res = await fetch(`${API}/repos/${d.nwo}/rulesets`, {
+      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' },
+    })
+    if (!res.ok) {
+      d.ruleset = resumeRuleset(null, res.status)
+      if (d.ruleset.etat === 'illisible') rulesetsRefuse++
+      return
+    }
+    const liste = await res.json()
+    d.ruleset = resumeRuleset(liste, res.status)
+    if (d.ruleset.etat !== 'illisible') rulesetsLisibles = true
+  } catch {
+    d.ruleset = { etat: 'illisible' }
+    rulesetsRefuse++
+  }
+})
+if (!rulesetsLisibles) {
+  console.error(`\nRulesets illisibles sur ${rulesetsRefuse}/${depots.length} dépôts — la rubrique restera muette.`)
+  console.error(`Il faut un PAT portant « Administration : Read » (rulesets) dans PARC_TOKEN.`)
+}
+
 /* ------------------------------------------------ détail des échecs */
 
 const cibles = depots.flatMap((d) => d.workflows.filter((w) => w.etat === 'rouge' && w.idDernier).map((w) => ({ d, w })))
@@ -1107,6 +1153,12 @@ const kpi = {
   scanningErreurs: scanningLisible ? depots.reduce((n, d) => n + (d.scanning?.erreurs || 0), 0) : null,
   depotsSansScanning: depots.filter((d) => d.scanning?.etat === 'desactivees').length,
   depotsScanningIllisibles: depots.filter((d) => d.scanning?.etat === 'illisible').length,
+  envManifestLisibles: depots.some((d) => d.envManifest && d.envManifest.etat !== 'hors-scope'),
+  sansEnvManifest: depots.filter((d) => d.envManifest?.etat === 'absent' || d.envManifest?.etat === 'invalide').length,
+  rulesetsLisibles,
+  depotsSansRuleset: rulesetsLisibles
+    ? depots.filter((d) => d.ruleset?.etat === 'absent' || d.ruleset?.etat === 'disabled').length
+    : null,
   lecturesIncompletes: depots.filter((d) => d.lectureIncomplete).length,
   librairiesDatees: libs.filter((l) => l.publieLe).length,
   dormantes: dormantes.length,

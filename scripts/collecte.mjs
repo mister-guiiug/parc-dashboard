@@ -412,6 +412,46 @@ export function scanningDepuisReponse(status, corps) {
   return resumeScanning(corps)
 }
 
+/* ── Conformité env.manifest + rulesets ─────────────────────────────────── */
+
+/**
+ * Présence et forme minimale d'un `config/env.manifest.json` versionné.
+ *
+ * Le relevé ne lance pas `pwa-env audit` (session `gh` + secrets) : il dit
+ * seulement si le fichier est là et lisible. Les orphelins GitHub restent
+ * hors de portée de cette lecture.
+ *
+ * @param {string | null | undefined} texte corps brut, ou `null` si 404
+ */
+export function resumeEnvManifest(texte) {
+  if (texte == null || texte === '') return { etat: 'absent' }
+  try {
+    const j = JSON.parse(texte)
+    if (!j || typeof j !== 'object' || !Array.isArray(j.entries)) {
+      return { etat: 'invalide' }
+    }
+    return { etat: 'ok', n: j.entries.length }
+  } catch {
+    return { etat: 'invalide' }
+  }
+}
+
+/**
+ * État des rulesets GitHub d'un dépôt.
+ *
+ * @param {unknown} liste réponse JSON de `/repos/.../rulesets`, ou `null` si refus
+ * @param {number} [status] code HTTP quand la liste n'est pas un tableau
+ */
+export function resumeRuleset(liste, status) {
+  if (status === 403 || status === 404) return { etat: 'illisible' }
+  if (liste == null) return { etat: 'illisible' }
+  if (!Array.isArray(liste)) return { etat: 'illisible' }
+  if (liste.length === 0) return { etat: 'absent' }
+  const actifs = liste.filter((r) => r && r.enforcement === 'active')
+  if (actifs.length === 0) return { etat: 'disabled' }
+  return { etat: 'actif', n: actifs.length }
+}
+
 /* ── Renovate ───────────────────────────────────────────────────────────── */
 
 // Une ligne d'action du « Dependency Dashboard » : une case, un commentaire qui

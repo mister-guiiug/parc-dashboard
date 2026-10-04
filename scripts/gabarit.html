@@ -1043,7 +1043,17 @@
       function detailAFaire(cle, x) {
         const carte = '#depot-' + x.depot
         if (cle === 'rouges' || cle === 'alertes' || cle === 'scanning') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
-        if (cle === 'sites') return puceLien(x.depot, carte)
+        if (cle === 'sites' || cle === 'scanningOff') return puceLien(x.depot, carte)
+        if (cle === 'envManifest') {
+          const etat =
+            x.etat === 'absent' ? T('afaire.etat.absent') : x.etat === 'invalide' ? T('afaire.etat.invalide') : x.etat
+          return puceLien(T('afaire.detail.envManifest', { depot: x.depot, etat }), carte)
+        }
+        if (cle === 'rulesets') {
+          const etat =
+            x.etat === 'absent' ? T('afaire.etat.absent') : x.etat === 'disabled' ? T('afaire.etat.disabled') : x.etat
+          return puceLien(T('afaire.detail.ruleset', { depot: x.depot, etat }), carte)
+        }
         if (cle === 'prod') return puceLien(T('afaire.detail.prod', { depot: x.depot, n: x.retard }), carte)
         if (cle === 'mortes' || cle === 'fugaces') return puceLien(T('afaire.detail.fichiers', { depot: x.depot, fichiers: x.fichiers.join(T('liste')) }), carte)
         if (cle === 'prs') {

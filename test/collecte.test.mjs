@@ -22,6 +22,8 @@ import {
   pairsDures,
   precacheDe,
   referencesDe,
+  resumeEnvManifest,
+  resumeRuleset,
   resumeScanning,
   satisfait,
   scanningDepuisReponse,
@@ -398,4 +400,21 @@ test('versionNvmrc : seule une version COMPLÈTE est comparable', () => {
   assert.equal(versionNvmrc('26'), null)
   assert.equal(versionNvmrc('lts/*'), null)
   assert.equal(versionNvmrc(null), null)
+})
+
+test('resumeEnvManifest : absent, invalide, ou ok avec son compte', () => {
+  assert.deepEqual(resumeEnvManifest(null), { etat: 'absent' })
+  assert.deepEqual(resumeEnvManifest('{'), { etat: 'invalide' })
+  assert.deepEqual(resumeEnvManifest('{"app":"x"}'), { etat: 'invalide' })
+  assert.deepEqual(resumeEnvManifest('{"app":"x","entries":[{},{}]}'), { etat: 'ok', n: 2 })
+})
+
+test('resumeRuleset : absent, disabled, actif, ou illisible', () => {
+  assert.deepEqual(resumeRuleset(null, 403), { etat: 'illisible' })
+  assert.deepEqual(resumeRuleset([]), { etat: 'absent' })
+  assert.deepEqual(resumeRuleset([{ enforcement: 'disabled' }]), { etat: 'disabled' })
+  assert.deepEqual(resumeRuleset([{ enforcement: 'active' }, { enforcement: 'disabled' }]), {
+    etat: 'actif',
+    n: 1,
+  })
 })
