@@ -187,13 +187,19 @@ test('etatChecks : un seul rouge suffit, et « aucun check » n’est pas un ver
 
 test('resumeScanning compte les graves et les erreurs', () => {
   const liste = [
-    { rule: { severity: 'warning', security_severity_level: 'high' } },
-    { rule: { severity: 'error', security_severity_level: 'medium' } },
-    { rule: { severity: 'note', security_severity_level: null } },
-    { rule: { severity: 'warning', security_severity_level: 'critical' } },
+    { number: 1, rule: { id: 'js/a', severity: 'warning', security_severity_level: 'high' } },
+    { number: 2, rule: { id: 'js/b', severity: 'error', security_severity_level: 'medium' } },
+    { number: 3, rule: { severity: 'note', security_severity_level: null } },
+    { number: 4, rule: { severity: 'warning', security_severity_level: 'critical' } },
   ]
-  assert.deepEqual(resumeScanning(liste), { etat: 'lu', total: 4, graves: 2, erreurs: 1 })
-  assert.deepEqual(resumeScanning([]), { etat: 'lu', total: 0, graves: 0, erreurs: 0 })
+  assert.deepEqual(resumeScanning(liste), {
+    etat: 'lu',
+    total: 4,
+    graves: 2,
+    erreurs: 1,
+    ids: ['js/a', 'js/b', '3', '4'],
+  })
+  assert.deepEqual(resumeScanning([]), { etat: 'lu', total: 0, graves: 0, erreurs: 0, ids: [] })
 })
 
 test('scanningDepuisReponse : trois états, jamais deux', () => {
@@ -202,11 +208,12 @@ test('scanningDepuisReponse : trois états, jamais deux', () => {
   assert.deepEqual(scanningDepuisReponse(403, '{"message":"Resource not accessible by integration"}'), { etat: 'illisible' })
   assert.deepEqual(scanningDepuisReponse(500, 'boom'), { etat: 'illisible' })
   assert.deepEqual(scanningDepuisReponse(200, { oops: true }), { etat: 'illisible' })
-  assert.deepEqual(scanningDepuisReponse(200, [{ rule: { severity: 'error', security_severity_level: 'high' } }]), {
+  assert.deepEqual(scanningDepuisReponse(200, [{ number: 9, rule: { id: 'js/x', severity: 'error', security_severity_level: 'high' } }]), {
     etat: 'lu',
     total: 1,
     graves: 1,
     erreurs: 1,
+    ids: ['js/x'],
   })
 })
 
@@ -449,7 +456,7 @@ test('versionNvmrc : seule une version COMPLÈTE est comparable', () => {
   assert.equal(versionNvmrc(null), null)
 })
 
-test('resumeEnvManifest : absent, invalide, ou ok avec son compte', () => {
+test('resumeEnvManifest : absent, invalide, ok, ou incomplet vs catalogue', () => {
   assert.deepEqual(resumeEnvManifest(null), { etat: 'absent' })
   assert.deepEqual(resumeEnvManifest('{'), { etat: 'invalide' })
   assert.deepEqual(resumeEnvManifest('{"app":"x"}'), { etat: 'invalide' })
@@ -459,6 +466,12 @@ test('resumeEnvManifest : absent, invalide, ou ok avec son compte', () => {
     entries: [{ name: 'VITE_A', store: 'vars', phase: 'build' }],
   })
   assert.deepEqual(resumeEnvManifest(ok), { etat: 'ok', n: 1 })
+  assert.deepEqual(resumeEnvManifest(ok, ['VITE_A', 'VITE_B']), {
+    etat: 'incomplet',
+    n: 1,
+    manquants: ['VITE_B'],
+  })
+  assert.deepEqual(resumeEnvManifest(ok, ['VITE_A']), { etat: 'ok', n: 1 })
 })
 
 test('resumeRuleset : absent, disabled, actif, faible, ou illisible', () => {

@@ -52,8 +52,8 @@ export const PRESETS = {
   },
   'prod-drift': {
     hash: 'cockpit',
-    familles: [],
-    retard: false,
+    familles: ['pwa'],
+    retard: true,
     echec: false,
   },
 }
@@ -142,7 +142,7 @@ export function salleRenovate(depots = []) {
   }
 }
 
-/** Alertes sécu cross-parc (C11) — agrégat approximatif par dépôt (pas d’id CVE dans le modèle). */
+/** Alertes sécu cross-parc (C11) — agrégat par dépôt, avec un échantillon d’ids. */
 export function alertesCrossParc(depots = []) {
   const lignes = []
   for (const d of depots) {
@@ -152,6 +152,7 @@ export function alertesCrossParc(depots = []) {
         kind: 'dependabot',
         n: d.alertes.total,
         graves: d.alertes.graves || 0,
+        ids: Array.isArray(d.alertes.ids) ? d.alertes.ids.slice(0, 5) : [],
       })
     }
     if (d.scanning?.etat === 'lu' && d.scanning.total) {
@@ -160,6 +161,7 @@ export function alertesCrossParc(depots = []) {
         kind: 'codeql',
         n: d.scanning.total,
         graves: d.scanning.graves || 0,
+        ids: Array.isArray(d.scanning.ids) ? d.scanning.ids.slice(0, 5) : [],
       })
     }
   }
@@ -172,7 +174,7 @@ export function alertesCrossParc(depots = []) {
 
 /**
  * Tendances sur l’historique (C9).
- * @param {Array<{jour:string,taux?:number,rouges?:number,alertes?:number,socleEnRetard?:number,dormantes?:number}>} histo
+ * @param {Array<{jour:string,taux?:number,rouges?:number,alertes?:number,socleEnRetard?:number,dormantes?:number,sansEnvManifest?:number,depotsSansRuleset?:number}>} histo
  * @param {number} fenetre jours
  */
 export function tendances(histo = [], fenetre = 30) {
@@ -197,6 +199,8 @@ export function tendances(histo = [], fenetre = 30) {
       alertes: delta('alertes'),
       dormantes: delta('dormantes'),
       socleEnRetard: delta('socleEnRetard'),
+      sansEnvManifest: delta('sansEnvManifest'),
+      depotsSansRuleset: delta('depotsSansRuleset'),
     },
     dernier: {
       taux: b.taux,
@@ -204,8 +208,45 @@ export function tendances(histo = [], fenetre = 30) {
       alertes: b.alertes,
       dormantes: b.dormantes,
       socleEnRetard: b.socleEnRetard,
+      sansEnvManifest: b.sansEnvManifest,
+      depotsSansRuleset: b.depotsSansRuleset,
     },
   }
+}
+
+/**
+ * Export / import des actions « traitées » (C2) — JSON partageable entre postes.
+ * @param {Iterable<string>} cles
+ */
+export function exporteTraites(cles) {
+  return JSON.stringify({ version: 1, traites: [...cles].sort() }, null, 2)
+}
+
+/**
+ * @param {string} texte
+ * @returns {string[] | null}
+ */
+export function importeTraites(texte) {
+  try {
+    const j = JSON.parse(texte)
+    const liste = Array.isArray(j) ? j : j?.traites
+    if (!Array.isArray(liste)) return null
+    return liste.filter((x) => typeof x === 'string' && x)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Scopes PAT incomplets d’après les KPI du relevé.
+ * @param {object} kpi
+ */
+export function scopesIncomplets(kpi = {}) {
+  const manques = []
+  if (!kpi.alertesLisibles) manques.push('dependabot')
+  if (!kpi.scanningLisible) manques.push('scanning')
+  if (!kpi.rulesetsLisibles) manques.push('rulesets')
+  return manques
 }
 
 /** Suggestion de runbook pour un échec CI (C3). */

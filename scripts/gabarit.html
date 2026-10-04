@@ -130,6 +130,9 @@
       <div class="enveloppe">
       <header>
 
+        <!-- PAT incomplet : sonde manuelle (scopes-pat), pas un job bloquant du cron. -->
+        <div class="bandeauPat" id="bandeauPat" role="status" hidden></div>
+
         <!-- C1 + C12 : un contexte pour TOUTES les sections, et des presets
              qui écrivent l'URL. -->
         <section class="carte contexteParc" id="contexte" aria-labelledby="titreContexte">
@@ -137,7 +140,7 @@
             <h2 id="titreContexte" data-t="contexte.h2">Contexte du parc</h2>
           </div>
           <p class="chapo" data-t="contexte.chapo">
-            Un filtre pour toutes les sections. Les presets écrivent aussi l’URL, partageable.
+            Un filtre pour toutes les sections — y compris À faire, cockpit, Renovate et sécu. Les presets écrivent aussi l’URL, partageable.
           </p>
           <div class="filtres" id="filtresContexteFamille" role="group" data-t-aria-label="matrice.famille.al" aria-label="Filtrer par famille"></div>
           <div class="filtres">
@@ -168,6 +171,11 @@
           <div class="filtres">
             <button class="bouton" type="button" id="masquerTraites" aria-pressed="false" data-t="afaire.masquerTraites">Masquer les traités</button>
             <button class="bouton copier" type="button" id="copierLotAFaire" data-t="afaire.copierLot">Copier le lot visible</button>
+            <button class="bouton" type="button" id="exportTraites" data-t="afaire.exportTraites">Exporter les traités</button>
+            <label class="bouton importTraites">
+              <span data-t="afaire.importTraites">Importer les traités</span>
+              <input type="file" id="importTraites" accept="application/json,.json" hidden />
+            </label>
           </div>
           <ul class="listeAFaire" id="listeAFaire"></ul>
         </section>
@@ -571,6 +579,7 @@
     <nav class="dockMobile" id="dockMobile" data-t-aria-label="dock.al" aria-label="Raccourcis mobiles">
       <a href="#afaire" data-t="dock.afaire">À faire</a>
       <a href="#echecs" data-t="dock.echecs">Échecs</a>
+      <a href="#cockpit" data-t="dock.cockpit">Cockpit</a>
       <a href="#depots" data-t="dock.depots">Dépôts</a>
       <a href="#librairies" data-t="dock.libs">Libs</a>
     </nav>
@@ -1045,11 +1054,22 @@
       function detailAFaire(cle, x) {
         const carte = '#depot-' + x.depot
         if (cle === 'rouges' || cle === 'alertes' || cle === 'scanning') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
-        if (cle === 'sites' || cle === 'scanningOff' || cle === 'dossiersIncertains') return puceLien(x.depot, carte)
+        if (cle === 'sites' || cle === 'dossiersIncertains') return puceLien(x.depot, carte)
+        if (cle === 'scanningOff') {
+          const href = lienConformite(cle, x, D.depots) || carte
+          return puceLien(x.depot, href, Boolean(lienConformite(cle, x, D.depots)))
+        }
         if (cle === 'envManifest') {
           const etat =
-            x.etat === 'absent' ? T('afaire.etat.absent') : x.etat === 'invalide' ? T('afaire.etat.invalide') : x.etat
-          return puceLien(T('afaire.detail.envManifest', { depot: x.depot, etat }), carte)
+            x.etat === 'absent'
+              ? T('afaire.etat.absent')
+              : x.etat === 'invalide'
+                ? T('afaire.etat.invalide')
+                : x.etat === 'incomplet'
+                  ? T('afaire.etat.incomplet')
+                  : x.etat
+          const href = lienConformite(cle, x, D.depots) || carte
+          return puceLien(T('afaire.detail.envManifest', { depot: x.depot, etat }), href, Boolean(lienConformite(cle, x, D.depots)))
         }
         if (cle === 'rulesets') {
           const etat =
@@ -1060,7 +1080,8 @@
                 : x.etat === 'faible'
                   ? T('afaire.etat.faible')
                   : x.etat
-          return puceLien(T('afaire.detail.ruleset', { depot: x.depot, etat }), carte)
+          const href = lienConformite(cle, x, D.depots) || carte
+          return puceLien(T('afaire.detail.ruleset', { depot: x.depot, etat }), href, Boolean(lienConformite(cle, x, D.depots)))
         }
         if (cle === 'prod') return puceLien(T('afaire.detail.prod', { depot: x.depot, n: x.retard }), carte)
         if (cle === 'mortes' || cle === 'fugaces') return puceLien(T('afaire.detail.fichiers', { depot: x.depot, fichiers: x.fichiers.join(T('liste')) }), carte)
@@ -1090,7 +1111,31 @@
       function criteresContexte() {
         const drapeaux = new Set()
         if ($('#contexteEchec')?.getAttribute('aria-pressed') === 'true') drapeaux.add('echec')
-        return { familles: famillesActives, drapeaux }
+        if ($('#contexteRetard')?.getAttribute('aria-pressed') === 'true') drapeaux.add('retard')
+        return {
+          familles: famillesActives,
+          drapeaux,
+          nomsEnRetard: nomsDepotsEnRetardLib(D.libs),
+        }
+      }
+
+      function rendBandeauPat() {
+        const hote = $('#bandeauPat')
+        if (!hote) return
+        const manques = scopesIncomplets(D.kpi || {})
+        if (!manques.length) {
+          hote.hidden = true
+          hote.textContent = ''
+          return
+        }
+        hote.hidden = false
+        hote.textContent = ''
+        hote.append(document.createTextNode(T('pat.bandeau', { manques: manques.join(T('liste')) }) + ' '))
+        const a = el('a', null, T('pat.sonder'))
+        a.href = `https://github.com/${D.compte || 'mister-guiiug'}/parc-dashboard/actions/workflows/scopes-pat.yml`
+        a.target = '_blank'
+        a.rel = 'noopener'
+        hote.append(a)
       }
 
       function rendAFaire() {
@@ -1686,7 +1731,14 @@
       function rendDepots() {
         const q = $('#recherche').value.trim().toLowerCase()
         const tri = $('#tri').value
-        const liste = D.depots.filter((d) => correspondDepot(d, { q, familles: famillesActives, drapeaux: filtresActifs }))
+        const liste = D.depots.filter((d) =>
+          correspondDepot(d, {
+            q,
+            familles: famillesActives,
+            drapeaux: filtresActifs,
+            nomsEnRetard: nomsDepotsEnRetardLib(D.libs),
+          }),
+        )
         visiblesDepots = liste
         const comparateurs = TRIS_DEPOT
         const hote = $('#grilleDepots')
@@ -3335,6 +3387,8 @@
         }
         if (echec) filtresActifs.add('echec')
         else filtresActifs.delete('echec')
+        if (retard) filtresActifs.add('retard')
+        else filtresActifs.delete('retard')
         for (const b of document.querySelectorAll('#depots [data-filtre="echec"]')) b.setAttribute('aria-pressed', String(echec))
         const fr = $('#filtreRetard')
         if (fr) fr.setAttribute('aria-pressed', String(retard))
@@ -3345,6 +3399,9 @@
         rendMatrice()
         rendAFaire()
         rendEchecs()
+        rendCockpit()
+        rendRenovate()
+        rendSecu()
         ecritUrl()
       }
 
@@ -3415,9 +3472,36 @@
           $('#annonce').textContent = T('afaire.copierLot')
         } catch {}
       })
+      $('#exportTraites')?.addEventListener('click', () => {
+        const blob = new Blob([exporteTraites(traites)], { type: 'application/json' })
+        const a = el('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = 'parc-dashboard-traites.json'
+        a.click()
+        URL.revokeObjectURL(a.href)
+        $('#annonce').textContent = T('afaire.exportTraites.ok')
+      })
+      $('#importTraites')?.addEventListener('change', async () => {
+        const f = $('#importTraites')?.files?.[0]
+        if (!f) return
+        try {
+          const liste = importeTraites(await f.text())
+          if (!liste) {
+            $('#annonce').textContent = T('afaire.importTraites.err')
+            return
+          }
+          for (const c of liste) traites.add(c)
+          sauveTraites()
+          rendAFaire()
+          $('#annonce').textContent = T('afaire.importTraites.ok', { n: liste.length })
+        } catch {
+          $('#annonce').textContent = T('afaire.importTraites.err')
+        }
+        if ($('#importTraites')) $('#importTraites').value = ''
+      })
 
       function rendCockpit() {
-        const c = cockpitProd(D.depots)
+        const c = cockpitProd(depotsFiltres(D.depots, criteresContexte()))
         const hote = $('#corpsCockpit')
         if (!hote) return
         hote.textContent = ''
@@ -3469,6 +3553,8 @@
           ['alertes', t.dernier.alertes, t.delta.alertes, ''],
           ['dormantes', t.dernier.dormantes, t.delta.dormantes, ''],
           ['socle', t.dernier.socleEnRetard, t.delta.socleEnRetard, ''],
+          ['envManifest', t.dernier.sansEnvManifest, t.delta.sansEnvManifest, ''],
+          ['rulesets', t.dernier.depotsSansRuleset, t.delta.depotsSansRuleset, ''],
         ]) {
           if (val == null) continue
           const tuile = el('div', 'tuile')
@@ -3480,7 +3566,7 @@
       }
 
       function rendRenovate() {
-        const s = salleRenovate(D.depots)
+        const s = salleRenovate(depotsFiltres(D.depots, criteresContexte()))
         const tb = $('#corpsRenovate')
         const ul = $('#listeIntrouvables')
         if (!tb) return
@@ -3513,7 +3599,7 @@
       }
 
       function rendSecu() {
-        const a = alertesCrossParc(D.depots)
+        const a = alertesCrossParc(depotsFiltres(D.depots, criteresContexte()))
         const tb = $('#corpsSecu')
         if (!tb) return
         tb.textContent = ''
@@ -3524,15 +3610,22 @@
           const link = el('a', 'depotLien mono', l.depot)
           link.href = '#depot-' + l.depot
           c1.append(link)
-          tr.append(c1, el('td', null, T('secu.kind.' + l.kind)), el('td', 'num', String(l.n)), el('td', 'num', String(l.graves)))
+          const ids = (l.ids || []).length ? ' · ' + l.ids.join(T('liste')) : ''
+          tr.append(c1, el('td', null, T('secu.kind.' + l.kind) + ids), el('td', 'num', String(l.n)), el('td', 'num', String(l.graves)))
           tb.append(tr)
         }
         $('#secuVide').hidden = a.lignes.length > 0
       }
 
       $('#copierPromptSecu')?.addEventListener('click', async () => {
-        const a = alertesCrossParc(D.depots)
-        const texte = ['Remedier aux alertes de securite du parc mister-guiiug :', ...a.lignes.map((l) => '- ' + l.depot + ' (' + l.kind + ') : ' + l.n + ' dont ' + l.graves + ' graves')].join('\n')
+        const a = alertesCrossParc(depotsFiltres(D.depots, criteresContexte()))
+        const texte = [
+          'Remedier aux alertes de securite du parc mister-guiiug :',
+          ...a.lignes.map((l) => {
+            const ids = (l.ids || []).length ? ' [' + l.ids.join(', ') + ']' : ''
+            return '- ' + l.depot + ' (' + l.kind + ') : ' + l.n + ' dont ' + l.graves + ' graves' + ids
+          }),
+        ].join('\n')
         try {
           await navigator.clipboard.writeText(texte)
           $('#annonce').textContent = T('secu.copier')
@@ -3591,10 +3684,11 @@
       }
 
       etatUrl(
-        'preset',
-        () => $('#presetEcran')?.value || null,
+        'ctx.fam',
+        () => ([...famillesActives].join(',') || null),
         (v) => {
-          if ($('#presetEcran')) $('#presetEcran').value = v
+          famillesActives.clear()
+          for (const f of v.split(',').filter(Boolean)) famillesActives.add(f)
         },
       )
       etatUrl(
@@ -3607,9 +3701,20 @@
         () => ($('#contexteEchec')?.getAttribute('aria-pressed') === 'true' ? '1' : null),
         (v) => $('#contexteEchec')?.setAttribute('aria-pressed', String(v === '1')),
       )
+      // Après ctx.* : le preset réapplique familles / retard / échec / hash
+      // quand on ouvre un lien `?preset=prod-drift` (aligné sur les autres params).
+      etatUrl(
+        'preset',
+        () => $('#presetEcran')?.value || null,
+        (v) => {
+          if ($('#presetEcran')) $('#presetEcran').value = v
+          if (v && PRESETS[v]) appliquePreset(v)
+        },
+      )
 
       function rendTout() {
         rendEntete()
+        rendBandeauPat()
         rendFiltresContexte()
         rendAFaire()
         rendChangements()

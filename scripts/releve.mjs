@@ -37,8 +37,8 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
-import { paginerJson, protectMainSolide } from './reseau.mjs'
+import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -541,6 +541,7 @@ await enLot(depots, 5, async (d) => {
       // alerte de chaîne de développement compromet ce qu'on publie. Les deux
       // comptent, pas de la même façon.
       production: liste.filter((a) => a.dependency?.scope === 'runtime').length,
+      ids: idsDependabot(liste),
     }
     alertesLisibles = true
   } catch {
@@ -591,6 +592,16 @@ if (!scanningLisible) {
 // APRÈS LE CHANTIER PHASE 3 : le relevé doit dire quelles apps PWA n'ont
 // toujours pas de manifeste, plutôt que de le découvrir à la main. Lecture
 // raw du fichier versionné — pas `pwa-env audit` (session gh + secrets).
+// Le catalogue de noms attendus vient du starter kit : un manifeste valide
+// mais amputé des entrées du socle se dit `incomplet`, pas `ok`.
+let catalogueEnv = null
+{
+  const sk = depots.find((d) => d.nom === 'pwa-starter-kit')
+  if (sk) {
+    const texteSk = await fichier(sk.nwo, sk.brancheDefaut, 'config/env.manifest.json')
+    catalogueEnv = nomsEnvManifest(texteSk)
+  }
+}
 await enLot(depots, 8, async (d) => {
   const concerne = d.famille === 'pwa' || d.nom === 'pwa-starter-kit'
   if (!concerne) {
@@ -598,7 +609,9 @@ await enLot(depots, 8, async (d) => {
     return
   }
   const texte = await fichier(d.nwo, d.brancheDefaut, 'config/env.manifest.json')
-  d.envManifest = resumeEnvManifest(texte)
+  // Le starter définit le catalogue : on ne le juge pas contre lui-même.
+  const attendus = d.nom === 'pwa-starter-kit' ? null : catalogueEnv
+  d.envManifest = resumeEnvManifest(texte, attendus)
 })
 
 /* --------------------------------------- rulesets (Protect main) */
@@ -611,24 +624,11 @@ await enLot(depots, 5, async (d) => {
   d.ruleset = null
   try {
     const headers = { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' }
-    appels++
-    const res = await fetch(`${API}/repos/${d.nwo}/rulesets`, { headers })
-    if (!res.ok) {
-      d.ruleset = resumeRuleset(null, res.status)
-      if (d.ruleset.etat === 'illisible') rulesetsRefuse++
-      return
-    }
-    const liste = await res.json()
-    // Un ruleset « active » sans PR + checks n'est pas Protect main — on
-    // lit les règles effectives de la branche par défaut (un appel de plus).
-    let protect = null
-    if (Array.isArray(liste) && liste.some((r) => r && r.enforcement === 'active') && d.brancheDefaut) {
-      appels++
-      const br = await fetch(`${API}/repos/${d.nwo}/rules/branches/${encodeURIComponent(d.brancheDefaut)}`, { headers })
-      if (br.ok) protect = protectMainSolide(await br.json())
-    }
-    d.ruleset = resumeRuleset(liste, res.status, protect)
-    if (d.ruleset.etat !== 'illisible') rulesetsLisibles = true
+    const lu = await lireRulesetsDepot(d.nwo, d.brancheDefaut, fetch, { api: API, headers })
+    appels += lu.appels
+    d.ruleset = resumeRuleset(lu.liste, lu.status, lu.protect)
+    if (d.ruleset.etat === 'illisible') rulesetsRefuse++
+    else rulesetsLisibles = true
   } catch {
     d.ruleset = { etat: 'illisible' }
     rulesetsRefuse++
@@ -1176,7 +1176,7 @@ const kpi = {
   depotsSansScanning: depots.filter((d) => d.scanning?.etat === 'desactivees').length,
   depotsScanningIllisibles: depots.filter((d) => d.scanning?.etat === 'illisible').length,
   envManifestLisibles: depots.some((d) => d.envManifest && d.envManifest.etat !== 'hors-scope'),
-  sansEnvManifest: depots.filter((d) => d.envManifest?.etat === 'absent' || d.envManifest?.etat === 'invalide').length,
+  sansEnvManifest: depots.filter((d) => d.envManifest?.etat === 'absent' || d.envManifest?.etat === 'invalide' || d.envManifest?.etat === 'incomplet').length,
   rulesetsLisibles,
   depotsSansRuleset: rulesetsLisibles
     ? depots.filter((d) => d.ruleset?.etat === 'absent' || d.ruleset?.etat === 'disabled' || d.ruleset?.etat === 'faible').length

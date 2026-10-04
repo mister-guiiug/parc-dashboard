@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { lienSuivant, paginerJson, protectMainSolide } from '../scripts/reseau.mjs'
+import { lienSuivant, lireRulesetsDepot, paginerJson, protectMainSolide } from '../scripts/reseau.mjs'
 
 test('lienSuivant lit rel=next dans l’en-tête Link', () => {
   assert.equal(lienSuivant(null), null)
@@ -43,11 +43,50 @@ test('paginerJson agrège les pages et s’arrête sur erreur', async () => {
   assert.equal(refus.corpsTexte, 'forbidden')
 })
 
-test('protectMainSolide exige pull_request et required_status_checks', () => {
+test('protectMainSolide exige PR, checks et au moins un contexte', () => {
   assert.equal(protectMainSolide(null), null)
   assert.equal(protectMainSolide([{ type: 'pull_request' }]), false)
   assert.equal(
     protectMainSolide([{ type: 'pull_request' }, { type: 'required_status_checks' }]),
+    false,
+    'sans contexte nommé, ce n’est pas Protect main',
+  )
+  assert.equal(
+    protectMainSolide([
+      { type: 'pull_request' },
+      { type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'ci' }] } },
+    ]),
     true,
   )
+  assert.equal(
+    protectMainSolide([{ type: 'pull_request' }, { type: 'required_status_checks' }], { minContexts: 0 }),
+    true,
+  )
+})
+
+test('lireRulesetsDepot agrège liste + protect', async () => {
+  const calls = []
+  const fetchFn = async (url) => {
+    calls.push(url)
+    if (url.endsWith('/rulesets')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{ id: 1, enforcement: 'active' }],
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [
+        { type: 'pull_request' },
+        { type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'ci' }] } },
+      ],
+    }
+  }
+  const r = await lireRulesetsDepot('o/r', 'main', fetchFn, { api: 'https://api.example' })
+  assert.equal(r.status, 200)
+  assert.equal(r.protect, true)
+  assert.equal(r.appels, 2)
+  assert.equal(calls.length, 2)
 })

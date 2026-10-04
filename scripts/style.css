@@ -348,6 +348,29 @@ h3 {
   padding: 0;
   border: 0;
 }
+.bandeauPat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 10px 16px;
+  border: 1px solid var(--serious);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--serious) 12%, var(--surface));
+  color: var(--ink);
+  font-size: 13.5px;
+}
+.bandeauPat[hidden] {
+  display: none;
+}
+.bandeauPat a {
+  font-weight: 600;
+}
+.label.importTraites,
+.bouton.importTraites {
+  cursor: pointer;
+}
 .outils {
   display: flex;
   gap: 8px;
@@ -1848,7 +1871,7 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
   }
   .dockMobile {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     position: fixed;
     left: 0;
     right: 0;

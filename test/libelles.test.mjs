@@ -238,7 +238,7 @@ const FAMILLES_DYNAMIQUES = [
   // `cockpitProd()` — clés de rubrique rendues dans le gabarit.
   { prefixe: 'cockpit.', membres: ['encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
   // `tendances()` — tuiles du gabarit.
-  { prefixe: 'tendances.', membres: ['taux', 'rouges', 'alertes', 'dormantes', 'socle'], partielle: true },
+  { prefixe: 'tendances.', membres: ['taux', 'rouges', 'alertes', 'dormantes', 'socle', 'envManifest', 'rulesets'], partielle: true },
   // `alertesCrossParc()` — kind dependabot | codeql.
   { prefixe: 'secu.kind.', membres: ['dependabot', 'codeql'] },
 ]
