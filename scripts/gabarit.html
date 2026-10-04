@@ -813,7 +813,27 @@
                 sens: -1,
               }
             : { etiq: T('tuile.scanning'), val: T('temps.rien'), app: T('tuile.scanning.illisibles', { n: k.depotsScanningIllisibles }) },
-        ]
+          k.envManifestLisibles
+            ? {
+                etiq: T('tuile.envManifest'),
+                val: k.sansEnvManifest,
+                app: k.sansEnvManifest ? T('tuile.envManifest.manque', { n: k.sansEnvManifest }) : T('tuile.envManifest.ok'),
+                serie: 'sansEnvManifest',
+                sens: -1,
+                alerte: k.sansEnvManifest > 0,
+              }
+            : null,
+          k.rulesetsLisibles
+            ? {
+                etiq: T('tuile.rulesets'),
+                val: k.depotsSansRuleset,
+                app: k.depotsSansRuleset ? T('tuile.rulesets.manque', { n: k.depotsSansRuleset }) : T('tuile.rulesets.ok'),
+                serie: 'depotsSansRuleset',
+                sens: -1,
+                alerte: k.depotsSansRuleset > 0,
+              }
+            : { etiq: T('tuile.rulesets'), val: T('temps.rien'), app: T('tuile.rulesets.illisibles') },
+        ].filter(Boolean)
         // La tuile des workflows au vert porte la courbe : c'est le chiffre du hero.
         tuiles.splice(3, 0, {
           etiq: T('tuile.vert'),
@@ -898,26 +918,7 @@
 
       /* ---------------- à faire ---------------- */
 
-      // Le NIVEAU d'une entrée, du cassé à l'entretien : il donne la couleur et
-      // le glyphe. Le glyphe est décoratif — la phrase dit toujours de quoi il
-      // s'agit, en toutes lettres.
-      const NIVEAU_A_FAIRE = {
-        rouges: 'critique',
-        sites: 'critique',
-        mortes: 'critique',
-        prod: 'attention',
-        fugaces: 'attention',
-        alertes: 'attention',
-        scanning: 'attention',
-        introuvables: 'attention',
-        prs: 'decision',
-        publier: 'decision',
-        majeures: 'decision',
-        correctifs: 'entretien',
-        socle: 'entretien',
-        renovate: 'entretien',
-      }
-      const GLYPHES_A_FAIRE = { critique: '✕', attention: '!', decision: '◆', entretien: '↑' }
+      // NIVEAU_A_FAIRE / GLYPHES_A_FAIRE : définis dans pilotage.mjs (inliné).
       // au-delà, une rubrique se replie derrière « + N autres »
       const DETAILS_VISIBLES = 5
 
@@ -1044,7 +1045,7 @@
       function detailAFaire(cle, x) {
         const carte = '#depot-' + x.depot
         if (cle === 'rouges' || cle === 'alertes' || cle === 'scanning') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
-        if (cle === 'sites' || cle === 'scanningOff') return puceLien(x.depot, carte)
+        if (cle === 'sites' || cle === 'scanningOff' || cle === 'dossiersIncertains') return puceLien(x.depot, carte)
         if (cle === 'envManifest') {
           const etat =
             x.etat === 'absent' ? T('afaire.etat.absent') : x.etat === 'invalide' ? T('afaire.etat.invalide') : x.etat
@@ -1052,7 +1053,13 @@
         }
         if (cle === 'rulesets') {
           const etat =
-            x.etat === 'absent' ? T('afaire.etat.absent') : x.etat === 'disabled' ? T('afaire.etat.disabled') : x.etat
+            x.etat === 'absent'
+              ? T('afaire.etat.absent')
+              : x.etat === 'disabled'
+                ? T('afaire.etat.disabled')
+                : x.etat === 'faible'
+                  ? T('afaire.etat.faible')
+                  : x.etat
           return puceLien(T('afaire.detail.ruleset', { depot: x.depot, etat }), carte)
         }
         if (cle === 'prod') return puceLien(T('afaire.detail.prod', { depot: x.depot, n: x.retard }), carte)
@@ -1080,8 +1087,14 @@
         return a
       }
 
+      function criteresContexte() {
+        const drapeaux = new Set()
+        if ($('#contexteEchec')?.getAttribute('aria-pressed') === 'true') drapeaux.add('echec')
+        return { familles: famillesActives, drapeaux }
+      }
+
       function rendAFaire() {
-        const items = aFaire(D)
+        const items = filtreAFaire(aFaire(D), D.depots, criteresContexte())
         const ul = $('#listeAFaire')
         ul.textContent = ''
         $('#compteurAFaire').textContent = items.length ? T('afaire.compteur', { n: items.length }) : ''
@@ -1201,20 +1214,24 @@
 
       /* ---------------- échecs ---------------- */
       function rendEchecs() {
+        const echecs = filtreEchecs(D.echecs, D.depots, criteresContexte())
         $('#compteurEchecs').textContent = T('echecs.compteur', {
-          rouges: T('echecs.compteur.rouges', { n: D.echecs.length }),
+          rouges: T('echecs.compteur.rouges', { n: echecs.length }),
           actifs: T('echecs.compteur.actifs', { n: k.workflows }),
         })
         const motifs = $('#motifs')
         motifs.textContent = ''
+        const depotsVisibles = new Set(echecs.map((e) => e.depot))
         for (const m of D.motifsPartages) {
+          const depots = m.depots.filter((nom) => depotsVisibles.has(nom))
+          if (!depots.length) continue
           const n = el('div', 'motif')
-          n.append(el('span', null, '⚠'), el('span', null, T('echecs.motif', { n: m.depots.length, etape: m.etape, depots: m.depots.join(T('liste')) })))
+          n.append(el('span', null, '⚠'), el('span', null, T('echecs.motif', { n: depots.length, etape: m.etape, depots: depots.join(T('liste')) })))
           motifs.append(n)
         }
         const corpsE = $('#corpsEchecs')
         corpsE.textContent = ''
-        for (const e of D.echecs) {
+        for (const e of echecs) {
           const tr = el('tr')
           const d = D.depots.find((x) => x.nom === e.depot)
           const c1 = el('td')
@@ -1236,7 +1253,15 @@
           if (!e.demarrage && e.jobs.length) c4.append(el('div', 'quand', T('echecs.job', { jobs: e.jobs.map((j) => j.name).join(' · ') })))
           const c5 = el('td', 'num', depuis(e.jours))
           c5.title = fmtDate(e.date)
-          const cRb = el('td', null, T('echecs.runbook.' + runbookEchec(e)))
+          const piste = T('echecs.runbook.' + runbookEchec(e))
+          const cRb = el('td')
+          if (e.url) {
+            const rb = el('a', null, T('echecs.runbook.ouvrir', { piste }))
+            rb.href = e.url
+            rb.target = '_blank'
+            rb.rel = 'noopener'
+            cRb.append(rb)
+          } else cRb.textContent = piste
           const c6 = el('td')
           const lien = el('a', null, T('echecs.run'))
           lien.href = e.url
@@ -1309,6 +1334,26 @@
         if (d.scanning?.etat === 'lu' && d.scanning.total) {
           const b = el('span', 'badge alerte' + (d.scanning.graves || d.scanning.erreurs ? ' grave' : ''), T('carte.scanning.badge', { n: d.scanning.total }))
           b.title = T('carte.scanning.titre', { n: d.scanning.total })
+          tete.append(b)
+        }
+        if (d.scanning?.etat === 'desactivees') {
+          const b = el('span', 'badge alerte', T('carte.scanningOff.badge'))
+          b.title = T('carte.scanningOff.titre')
+          tete.append(b)
+        }
+        if (d.envManifest && d.envManifest.etat !== 'ok' && d.envManifest.etat !== 'hors-scope') {
+          const b = el('span', 'badge alerte', T('carte.envManifest.badge'))
+          b.title = T('carte.envManifest.titre', { etat: d.envManifest.etat })
+          tete.append(b)
+        }
+        if (d.ruleset && (d.ruleset.etat === 'absent' || d.ruleset.etat === 'disabled' || d.ruleset.etat === 'faible')) {
+          const b = el('span', 'badge alerte', T('carte.ruleset.badge'))
+          b.title = T('carte.ruleset.titre', { etat: d.ruleset.etat })
+          tete.append(b)
+        }
+        if (d.dossiersIncertains) {
+          const b = el('span', 'badge alerte', T('carte.dossiersIncertains.badge'))
+          b.title = T('carte.dossiersIncertains.titre')
           tete.append(b)
         }
         if (d.lectureIncomplete) {
@@ -2738,15 +2783,19 @@
         }
       }
 
-      /** Les chapitres dans la barre fixe, précédés du bloc « À faire ». */
+      /** Les chapitres dans la barre fixe, précédés du contexte, « À faire » et cockpit. */
       function rendLiensSections() {
         const barre = $('#liensSections')
         barre.textContent = ''
         liensBarre.clear()
-        const aFaireLien = el('a', null, T('afaire.h2'))
-        aFaireLien.href = '#afaire'
-        barre.append(aFaireLien)
+        for (const { id, cle } of LIENS_RAIL_OPS) {
+          const a = el('a', null, T(cle))
+          a.href = '#' + id
+          a.dataset.t = cle
+          barre.append(a)
+        }
         for (const s of chapitres) {
+          if (s.id === 'cockpit') continue
           const a = el('a', null, s.querySelector('h2').textContent.trim())
           a.href = '#' + s.id
           liensBarre.set(s.id, a)
@@ -3295,6 +3344,7 @@
         rendLibs()
         rendMatrice()
         rendAFaire()
+        rendEchecs()
         ecritUrl()
       }
 
@@ -3342,18 +3392,26 @@
         rendAFaire()
       })
       $('#copierLotAFaire')?.addEventListener('click', async () => {
-        const items = aFaire(D)
-        const details = []
+        const items = filtreAFaire(aFaire(D), D.depots, criteresContexte())
+        const lignes = []
         for (const it of items) {
-          if (it.cle !== 'majeures' && it.cle !== 'correctifs' && it.cle !== 'socle') continue
           for (const d of it.details) {
             if (masquerTraitesOn && traites.has(cleActionAFaire(it.cle, d))) continue
-            details.push(d)
+            if (it.cle === 'majeures' || it.cle === 'correctifs' || it.cle === 'socle') {
+              lignes.push(texteDemandes([d]))
+              continue
+            }
+            // Les autres rubriques : une ligne « rubrique — détail », sans
+            // mentir sur « lot visible » en n'exportant que les montées.
+            const lib = T('afaire.' + it.cle, { n: 1 })
+            const depot = d.depot || d.paquet || ''
+            const suite = d.etat ? `${depot} (${d.etat})` : d.url || d.titre || depot
+            lignes.push(`${lib}: ${suite}`)
           }
         }
-        if (!details.length) return
+        if (!lignes.length) return
         try {
-          await navigator.clipboard.writeText(texteDemandes(details))
+          await navigator.clipboard.writeText(lignes.join('\n'))
           $('#annonce').textContent = T('afaire.copierLot')
         } catch {}
       })

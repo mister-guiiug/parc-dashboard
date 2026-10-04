@@ -1,0 +1,27 @@
+# Sonde les scopes de PARC_TOKEN sans relever tout le parc.
+# Échec explicite si Dependabot, Code scanning ou rulesets répondent 403.
+name: Scopes PAT
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonder:
+    name: Sonder PARC_TOKEN
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Sonder les endpoints sensibles
+        env:
+          PARC_TOKEN: ${{ secrets.PARC_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/scopes-pat.mjs

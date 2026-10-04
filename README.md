@@ -33,9 +33,33 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
 | Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
 | Où sont les alertes CodeQL (Security and quality) ? | tuile « Sécurité et qualité », badge et bandeau sur la carte, rubrique « À faire » |
+| Quelles apps PWA n'ont pas d'`env.manifest` ? | tuile « env.manifest », badge carte, rubrique « À faire » |
+| Quels dépôts n'ont pas de Protect main solide ? | tuile « Rulesets », badge carte, rubrique « À faire » |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
 | Où suis-je dans la page, et comment revenir en haut ? | barre fixe en haut, chapitre courant souligné ; sommaire flottant en bas à droite sur petit écran |
 | Et en anglais ? | liste déroulante en haut à droite — voir « Les deux langues » |
+
+## Ops Console (pilotage C1–C12)
+
+Depuis le chantier pilotage, la page n'est plus seulement un relevé : c'est une
+console d'exploitation.
+
+| Surface | Rôle |
+|---|---|
+| **Contexte du parc** | Un filtre (familles, retard, échec) pour toutes les sections ; presets d'écran (`matin-ci`, `entretien-majeurs`, `prod-drift`) dans l'URL |
+| **À faire** | File d'actions ordonnée, cases « traité » en `localStorage`, copier le lot visible |
+| **Score santé** | Badge 0–100 sur chaque carte (CI, prod, deps, sécu / conformité) |
+| **Ce qui est rouge** | Table des échecs + colonne piste (runbook) menant au run GitHub |
+| **Production & sites** | Cockpit : déploiements, retard prod, sites down, URL mortes, fugaces |
+| **Tendances** | Deltas sur l'historique (taux, rouges, alertes, dormantes, socle) |
+| **Salle Renovate** | Backlog agrégé + paquets irrésolubles |
+| **Alertes cross-parc** | Dependabot + CodeQL, avec prompt de remédiation |
+| **Décisions dormance** | Garder / remplacer / ignorer 90 j, mémorisé localement |
+
+Le secret `PARC_TOKEN` porte plusieurs scopes (Dependabot, Code scanning,
+Administration pour les rulesets). Le workflow
+[`scopes-pat.yml`](.github/workflows/scopes-pat.yml) les sonde à la demande
+(`workflow_dispatch`) sans relever tout le parc.
 
 ## Ce que la page demande de faire
 

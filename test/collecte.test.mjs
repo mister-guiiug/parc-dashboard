@@ -453,10 +453,15 @@ test('resumeEnvManifest : absent, invalide, ou ok avec son compte', () => {
   assert.deepEqual(resumeEnvManifest(null), { etat: 'absent' })
   assert.deepEqual(resumeEnvManifest('{'), { etat: 'invalide' })
   assert.deepEqual(resumeEnvManifest('{"app":"x"}'), { etat: 'invalide' })
-  assert.deepEqual(resumeEnvManifest('{"app":"x","entries":[{},{}]}'), { etat: 'ok', n: 2 })
+  assert.deepEqual(resumeEnvManifest('{"app":"x","entries":[{},{}]}'), { etat: 'invalide' })
+  const ok = JSON.stringify({
+    app: 'x',
+    entries: [{ name: 'VITE_A', store: 'vars', phase: 'build' }],
+  })
+  assert.deepEqual(resumeEnvManifest(ok), { etat: 'ok', n: 1 })
 })
 
-test('resumeRuleset : absent, disabled, actif, ou illisible', () => {
+test('resumeRuleset : absent, disabled, actif, faible, ou illisible', () => {
   assert.deepEqual(resumeRuleset(null, 403), { etat: 'illisible' })
   assert.deepEqual(resumeRuleset([]), { etat: 'absent' })
   assert.deepEqual(resumeRuleset([{ enforcement: 'disabled' }]), { etat: 'disabled' })
@@ -464,4 +469,6 @@ test('resumeRuleset : absent, disabled, actif, ou illisible', () => {
     etat: 'actif',
     n: 1,
   })
+  assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, false), { etat: 'faible', n: 1 })
+  assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, true), { etat: 'actif', n: 1 })
 })

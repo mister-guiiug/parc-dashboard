@@ -165,6 +165,60 @@ export function correspondDepot(d, c = {}) {
   return !q || foinDepot(d).includes(q)
 }
 
+/**
+ * Les échecs visibles sous le contexte global (familles / échec).
+ * @param {object[]} echecs
+ * @param {object[]} depots
+ * @param {{ familles?: Set<string>, drapeaux?: Set<string> }} c
+ */
+export function filtreEchecs(echecs, depots, c = {}) {
+  const parNom = new Map((depots || []).map((d) => [d.nom, d]))
+  return (echecs || []).filter((e) => {
+    const d = parNom.get(e.depot)
+    return d ? correspondDepot(d, c) : true
+  })
+}
+
+/**
+ * La file « À faire » restreinte au même contexte que les cartes.
+ * Les entrées sans dépôt (socle à publier, paquet introuvable) restent.
+ *
+ * @param {{ cle: string, n: number, details: object[] }[]} items
+ * @param {object[]} depots
+ * @param {{ familles?: Set<string>, drapeaux?: Set<string> }} c
+ */
+export function filtreAFaire(items, depots, c = {}) {
+  const familles = c.familles ?? new Set()
+  const drapeaux = c.drapeaux ?? new Set()
+  if (!familles.size && !drapeaux.size) return items || []
+  const parNom = new Map((depots || []).map((d) => [d.nom, d]))
+  const okDepot = (nom) => {
+    const d = parNom.get(nom)
+    return d ? correspondDepot(d, c) : true
+  }
+  const out = []
+  for (const it of items || []) {
+    let details = it.details || []
+    if (details.some((x) => x && x.depot && !Array.isArray(x.depots))) {
+      details = details.filter((x) => !x.depot || okDepot(x.depot))
+    } else if (details.some((x) => x && Array.isArray(x.depots))) {
+      details = details
+        .map((x) => {
+          if (!Array.isArray(x.depots)) return x
+          const depotsF = x.depots.filter((d) => okDepot(typeof d === 'string' ? d : d.depot))
+          return depotsF.length ? { ...x, depots: depotsF } : null
+        })
+        .filter(Boolean)
+    }
+    if (!details.length) continue
+    let n = details.length
+    if (it.cle === 'renovate') n = details.reduce((s, x) => s + (x.n || 0), 0)
+    else if (it.cle === 'socle' || it.cle === 'publier') n = it.n
+    out.push({ ...it, details, n })
+  }
+  return out
+}
+
 /** Les quatre ordres de la liste des dépôts. */
 export const TRIS_DEPOT = {
   echecs: (a, b) => b.compte.rouge - a.compte.rouge || a.commit.jours - b.commit.jours || a.nom.localeCompare(b.nom),
@@ -591,6 +645,7 @@ export const ORDRE_A_FAIRE = [
   'scanningOff',
   'envManifest',
   'rulesets',
+  'dossiersIncertains',
   'prs',
   'publier',
   'majeures',
@@ -659,11 +714,18 @@ export function aFaire(D) {
       .filter((d) => d.envManifest && d.envManifest.etat !== 'ok' && d.envManifest.etat !== 'hors-scope')
       .map((d) => ({ depot: d.nom, etat: d.envManifest.etat })),
   )
+  // Sans lecture réussie des rulesets, « absent » et « illisible » se
+  // confondraient — même garde que pour les alertes et le scanning.
+  if (D?.kpi?.rulesetsLisibles)
+    pousse(
+      'rulesets',
+      depots
+        .filter((d) => d.ruleset && (d.ruleset.etat === 'absent' || d.ruleset.etat === 'disabled' || d.ruleset.etat === 'faible'))
+        .map((d) => ({ depot: d.nom, etat: d.ruleset.etat })),
+    )
   pousse(
-    'rulesets',
-    depots
-      .filter((d) => d.ruleset && (d.ruleset.etat === 'absent' || d.ruleset.etat === 'disabled'))
-      .map((d) => ({ depot: d.nom, etat: d.ruleset.etat })),
+    'dossiersIncertains',
+    depots.filter((d) => d.dossiersIncertains).map((d) => ({ depot: d.nom })),
   )
   pousse(
     'prs',
@@ -758,6 +820,8 @@ export function phraseChangement(c, T) {
   if (c.type === 'reveillee') return [c.paquet, T('changements.reveillee')]
   if (c.type === 'alertes') return [T('changements.alertes'), T('changements.alertes.suite', { de: c.de, a: c.a })]
   if (c.type === 'scanning') return [T('changements.scanning'), T('changements.scanning.suite', { de: c.de, a: c.a })]
+  if (c.type === 'envManifest') return [T('changements.envManifest'), T('changements.envManifest.suite', { de: c.de, a: c.a })]
+  if (c.type === 'rulesets') return [T('changements.rulesets'), T('changements.rulesets.suite', { de: c.de, a: c.a })]
   if (c.type === 'site-tombe' || c.type === 'site-revenu') return [c.depot, T('changements.' + c.type)]
   if (c.type === 'prod-retard') return [c.depot, T('changements.prod-retard', { n: c.retard })]
   if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
