@@ -450,15 +450,25 @@ export function idsDependabot(liste) {
 
 /**
  * Noms d’entrées d’un env.manifest (catalogue attendu du socle / starter).
+ *
+ * Par défaut on ne garde que les entrées `required: "required"` : le starter
+ * marque le reste en `optional`, et comparer tout le catalogue produisait
+ * une avalanche de faux « incomplet » sur des apps saines.
+ *
  * @param {string | null | undefined} texte
+ * @param {{ requisSeulement?: boolean }} [opts]
  * @returns {string[] | null}
  */
-export function nomsEnvManifest(texte) {
+export function nomsEnvManifest(texte, opts = {}) {
+  const requisSeulement = opts.requisSeulement !== false
   if (texte == null || texte === '') return null
   try {
     const j = JSON.parse(texte)
     if (!j || !Array.isArray(j.entries)) return null
-    return j.entries.map((e) => e?.name).filter((n) => typeof n === 'string' && n)
+    return j.entries
+      .filter((e) => e && typeof e.name === 'string' && e.name)
+      .filter((e) => !requisSeulement || e.required === 'required')
+      .map((e) => e.name)
   } catch {
     return null
   }

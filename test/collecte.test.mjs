@@ -474,6 +474,19 @@ test('resumeEnvManifest : absent, invalide, ok, ou incomplet vs catalogue', () =
   assert.deepEqual(resumeEnvManifest(ok, ['VITE_A']), { etat: 'ok', n: 1 })
 })
 
+test('nomsEnvManifest ne garde que les entrées required par défaut', async () => {
+  const { nomsEnvManifest } = await import('../scripts/collecte.mjs')
+  const texte = JSON.stringify({
+    app: 'x',
+    entries: [
+      { name: 'VITE_A', store: 'vars', phase: 'build', required: 'optional' },
+      { name: 'VITE_B', store: 'vars', phase: 'build', required: 'required' },
+    ],
+  })
+  assert.deepEqual(nomsEnvManifest(texte), ['VITE_B'])
+  assert.deepEqual(nomsEnvManifest(texte, { requisSeulement: false }), ['VITE_A', 'VITE_B'])
+})
+
 test('resumeRuleset : absent, disabled, actif, faible, ou illisible', () => {
   assert.deepEqual(resumeRuleset(null, 403), { etat: 'illisible' })
   assert.deepEqual(resumeRuleset([]), { etat: 'absent' })

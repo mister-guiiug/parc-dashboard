@@ -10,6 +10,7 @@ export const NIVEAU_A_FAIRE = {
   rouges: 'critique',
   sites: 'critique',
   mortes: 'critique',
+  introuvables: 'critique',
   prod: 'attention',
   fugaces: 'attention',
   alertes: 'attention',
@@ -18,7 +19,6 @@ export const NIVEAU_A_FAIRE = {
   envManifest: 'attention',
   rulesets: 'attention',
   dossiersIncertains: 'attention',
-  introuvables: 'attention',
   prs: 'decision',
   publier: 'decision',
   majeures: 'decision',
@@ -56,7 +56,35 @@ export const PRESETS = {
     retard: true,
     echec: false,
   },
+  conformite: {
+    hash: 'afaire',
+    familles: ['pwa'],
+    retard: false,
+    echec: false,
+    rubriques: ['scanningOff', 'envManifest', 'rulesets'],
+  },
+  'secu-grave': {
+    hash: 'secu',
+    familles: [],
+    retard: false,
+    echec: false,
+    secuGrave: true,
+  },
 }
+
+/** Docs / pistes runbook (C3) — lien stable hors du run GitHub. */
+export const RUNBOOK_LIENS = {
+  pages: 'https://github.com/mister-guiiug/dev-pwa-config/blob/main/docs/CONFIG.md',
+  lockfile: 'https://github.com/mister-guiiug/dev-pwa-config/blob/main/docs/MIGRATIONS.md',
+  socle: 'https://github.com/mister-guiiug/dev-pwa-config/blob/main/README.md',
+  tests: 'https://github.com/mister-guiiug/dev-pwa-config/blob/main/docs/BINS.md',
+  qualite: 'https://github.com/mister-guiiug/dev-pwa-config/blob/main/docs/CONFIGS.md',
+  generique: 'https://github.com/mister-guiiug/parc-dashboard/blob/main/README.md',
+}
+
+/** Workflow Renovate auto-hébergé (jeton Packages). */
+export const LIEN_RENOVATE_SOCLE =
+  'https://github.com/mister-guiiug/dev-pwa-config/actions/workflows/renovate.yml'
 
 /**
  * Score de santé 0–100 (C4).
@@ -238,6 +266,34 @@ export function importeTraites(texte) {
 }
 
 /**
+ * Export / import des décisions de dormance (C7).
+ * @param {Record<string, { decision: string, jusqua?: string }>} decisions
+ */
+export function exporteDormance(decisions) {
+  return JSON.stringify({ version: 1, dormance: decisions || {} }, null, 2)
+}
+
+/**
+ * @param {string} texte
+ * @returns {Record<string, { decision: string, jusqua?: string }> | null}
+ */
+export function importeDormance(texte) {
+  try {
+    const j = JSON.parse(texte)
+    const obj = j?.dormance ?? (j && !Array.isArray(j) && !j.traites ? j : null)
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null
+    const out = {}
+    for (const [paquet, v] of Object.entries(obj)) {
+      if (!v || typeof v !== 'object' || typeof v.decision !== 'string') continue
+      out[paquet] = { decision: v.decision, ...(v.jusqua ? { jusqua: v.jusqua } : {}) }
+    }
+    return out
+  } catch {
+    return null
+  }
+}
+
+/**
  * Scopes PAT incomplets d’après les KPI du relevé.
  * @param {object} kpi
  */
@@ -258,6 +314,11 @@ export function runbookEchec(e) {
   if (/test|vitest|playwright|e2e/.test(texte)) return 'tests'
   if (/lint|eslint|typecheck|tsc/.test(texte)) return 'qualite'
   return 'generique'
+}
+
+/** @param {string} cle */
+export function runbookDocUrl(cle) {
+  return RUNBOOK_LIENS[cle] || RUNBOOK_LIENS.generique
 }
 
 /** Clé stable d’une action À faire (C2). */

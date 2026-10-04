@@ -153,6 +153,8 @@
                 <option value="matin-ci" data-t="contexte.preset.matin-ci">Matin CI</option>
                 <option value="entretien-majeurs" data-t="contexte.preset.entretien-majeurs">Entretien majeurs</option>
                 <option value="prod-drift" data-t="contexte.preset.prod-drift">Prod drift</option>
+                <option value="conformite" data-t="contexte.preset.conformite">Conformité</option>
+                <option value="secu-grave" data-t="contexte.preset.secu-grave">Sécu grave</option>
               </select>
             </label>
             <button class="bouton raz" type="button" id="razContexte" data-t="contexte.raz">Réinitialiser</button>
@@ -353,6 +355,13 @@
             simplement abandonnée. Ce tableau montre donc <strong>deux dates</strong> — la dernière version parue au registre, et le dernier commit reçu par le dépôt amont. Quand les deux se sont
             tues, la question d'un remplacement se pose ; quand seul le registre se tait, c'est une version qui manque, pas un projet mort.
           </p>
+          <div class="filtres">
+            <button class="bouton" type="button" id="exportDormance" data-t="dormance.export">Exporter les décisions</button>
+            <label class="bouton importTraites">
+              <span data-t="dormance.import">Importer les décisions</span>
+              <input type="file" id="importDormance" accept="application/json,.json" hidden />
+            </label>
+          </div>
           <div class="carte tableEnveloppe">
             <table>
               <caption class="sr" data-t="dormance.caption">Librairies sans publication depuis plus d’un an : paquet, dépôts, dernière version, âge, dépôt amont, dernier commit, lecture.</caption>
@@ -740,6 +749,9 @@
        * et sans ça un second passage aurait doublé la légende et les tuiles.
        */
       function rendEntete() {
+        const ctx = criteresContexte()
+        const filtreOn = ctx.familles.size || ctx.drapeaux.size
+        const k = filtreOn ? kpiDepuisDepots(depotsFiltres(D.depots, ctx), D.kpi) : D.kpi
         const detailDepots = T(D.publicsSeulement ? 'entete.sousTitre.depotsPublics' : 'entete.sousTitre.depots', { n: k.depots })
         $('#sousTitre').textContent = T('entete.sousTitre', {
           quand: fmtHeure(D.genere),
@@ -1093,7 +1105,13 @@
         }
         if (cle === 'renovate')
           return puceLien(T('afaire.detail.renovate', { depot: x.depot, n: x.n }) + (x.majeures ? T('afaire.detail.renovate.majeures', { n: x.majeures }) : ''), x.url, true)
-        if (cle === 'introuvables') return el('span', 'chipDepot', T('afaire.detail.introuvable', { paquet: x.paquet, n: x.depots.length }))
+        if (cle === 'introuvables') {
+          const texte = T('afaire.detail.introuvable', { paquet: x.paquet, n: x.depots.length })
+          if (String(x.paquet || '').includes('@mister-guiiug/')) {
+            return puceLien(texte, LIEN_RENOVATE_SOCLE, true)
+          }
+          return el('span', 'chipDepot', texte)
+        }
         // la publication se lance depuis la page du workflow : on y mène
         if (cle === 'publier') return puceLien(T('afaire.detail.publier', { version: x.version, publiee: x.publiee }), `https://github.com/${x.nwo}/actions/workflows/publish.yml`, true)
         // majeures, correctifs, socle : une demande de montée, qui mène à sa ligne
@@ -1108,13 +1126,17 @@
         return a
       }
 
+      let rubriquesPreset = new Set()
+
       function criteresContexte() {
         const drapeaux = new Set()
         if ($('#contexteEchec')?.getAttribute('aria-pressed') === 'true') drapeaux.add('echec')
         if ($('#contexteRetard')?.getAttribute('aria-pressed') === 'true') drapeaux.add('retard')
+        if ($('#presetEcran')?.value === 'secu-grave') drapeaux.add('secuGrave')
         return {
           familles: famillesActives,
           drapeaux,
+          rubriques: rubriquesPreset,
           nomsEnRetard: nomsDepotsEnRetardLib(D.libs),
         }
       }
@@ -1198,7 +1220,16 @@
             details.append(plus)
           }
           corps.append(tete, details)
-          if (it.cle === 'introuvables') corps.append(el('p', 'aFaireAide', T('afaire.introuvables.aide')))
+          if (it.cle === 'introuvables') {
+            const aide = el('p', 'aFaireAide')
+            aide.append(document.createTextNode(T('afaire.introuvables.aide') + ' '))
+            const a = el('a', null, T('afaire.introuvables.lien'))
+            a.href = LIEN_RENOVATE_SOCLE
+            a.target = '_blank'
+            a.rel = 'noopener'
+            aide.append(a)
+            corps.append(aide)
+          }
           if (it.cle === 'publier') corps.append(el('p', 'aFaireAide', T('afaire.publier.aide')))
           li.append(g, corps)
           ul.append(li)
@@ -1213,20 +1244,33 @@
       // que le relevé soit seul à détenir, c'est-à-dire l'ordre d'affichage.
       const ORDRE_FAMILLES = D.familles
       const titreFamille = (f) => T('famille.' + f + '.titre')
-      const maxWfFamille = Math.max(...ORDRE_FAMILLES.map((f) => D.parFamille[f].verts + D.parFamille[f].rouges), 1)
 
       function rendFamilles() {
         const hote = $('#grilleFamilles')
         hote.textContent = ''
+        const ctx = criteresContexte()
+        const filtreOn = ctx.familles.size || ctx.drapeaux.size
+        const visibles = filtreOn ? depotsFiltres(D.depots, ctx) : D.depots
+        const parF = {}
+        for (const f of ORDRE_FAMILLES) parF[f] = { depots: 0, verts: 0, rouges: 0 }
+        for (const d of visibles) {
+          const f = d.famille
+          if (!parF[f]) continue
+          parF[f].depots++
+          parF[f].verts += d.compte?.vert || 0
+          parF[f].rouges += d.compte?.rouge || 0
+        }
+        const maxWf = Math.max(...ORDRE_FAMILLES.map((f) => parF[f].verts + parF[f].rouges), 1)
         for (const f of ORDRE_FAMILLES) {
-          const pf = D.parFamille[f]
+          const pf = parF[f]
           if (!pf.depots) continue
+          const wf = pf.verts + pf.rouges
+          const taux = wf ? Math.round((pf.verts / wf) * 100) : null
           const ligne = el('div', 'ligneFamille')
           const g = el('div')
           g.append(el('div', 'nomF', titreFamille(f)), el('div', 'sousF', T('famille.' + f + '.sous')))
           const barre = el('div', 'barreF')
-          // largeur proportionnelle au parc entier : les familles se comparent
-          barre.style.width = Math.max(6, ((pf.verts + pf.rouges) / maxWfFamille) * 100) + '%'
+          barre.style.width = Math.max(6, (wf / maxWf) * 100) + '%'
           for (const [n, c, etat] of [
             [pf.verts, 'var(--good)', 'vert'],
             [pf.rouges, 'var(--critical)', 'rouge'],
@@ -1242,11 +1286,9 @@
           porte.append(barre)
           const ch = el('div', 'chiffresF')
           const e1 = el('span')
-          // LE CHIFFRE EST EN GRAS, LE MOT À CÔTÉ : `famille.depots` ne porte
-          // donc que le mot, accordé — et pas le nombre, qui vit dans le `<b>`.
           e1.append(el('b', null, String(pf.depots)), document.createTextNode(T('famille.depots', { n: pf.depots })))
           const e2 = el('span')
-          e2.append(el('b', null, pf.taux == null ? T('temps.rien') : pf.taux + ' %'), document.createTextNode(T('famille.auVert')))
+          e2.append(el('b', null, taux == null ? T('temps.rien') : taux + ' %'), document.createTextNode(T('famille.auVert')))
           const e3 = el('span')
           e3.append(document.createTextNode(GLYPHES.rouge + ' '), el('b', null, String(pf.rouges)), document.createTextNode(T('famille.rouges', { n: pf.rouges })))
           ch.append(e1, e2, e3)
@@ -1298,7 +1340,8 @@
           if (!e.demarrage && e.jobs.length) c4.append(el('div', 'quand', T('echecs.job', { jobs: e.jobs.map((j) => j.name).join(' · ') })))
           const c5 = el('td', 'num', depuis(e.jours))
           c5.title = fmtDate(e.date)
-          const piste = T('echecs.runbook.' + runbookEchec(e))
+          const cleRb = runbookEchec(e)
+          const piste = T('echecs.runbook.' + cleRb)
           const cRb = el('td')
           if (e.url) {
             const rb = el('a', null, T('echecs.runbook.ouvrir', { piste }))
@@ -1307,6 +1350,11 @@
             rb.rel = 'noopener'
             cRb.append(rb)
           } else cRb.textContent = piste
+          const doc = el('a', 'runbookDoc', T('echecs.runbook.doc'))
+          doc.href = runbookDocUrl(cleRb)
+          doc.target = '_blank'
+          doc.rel = 'noopener'
+          cRb.append(document.createTextNode(' · '), doc)
           const c6 = el('td')
           const lien = el('a', null, T('echecs.run'))
           lien.href = e.url
@@ -2247,7 +2295,22 @@
 
       function rendDormance() {
         const age = (iso) => (iso ? Math.floor((Date.parse(D.genere) - Date.parse(iso)) / 86400000) : null)
-        const dormantes = D.libs.filter((l) => l.dormance).sort((a, b) => (a.publieLe || '').localeCompare(b.publieLe || ''))
+        const ctx = criteresContexte()
+        const filtreOn = ctx.familles.size || ctx.drapeaux.size
+        const nomsDepots = filtreOn ? new Set(depotsFiltres(D.depots, ctx).map((d) => d.nom)) : null
+        const toucheContexte = (l) => {
+          if (!nomsDepots) return true
+          for (const v of l.versions || []) {
+            for (const x of v.depots || []) {
+              const nom = typeof x === 'string' ? x : x?.depot
+              if (nom && nomsDepots.has(nom)) return true
+            }
+          }
+          return false
+        }
+        const dormantes = D.libs
+          .filter((l) => l.dormance && toucheContexte(l))
+          .sort((a, b) => (a.publieLe || '').localeCompare(b.publieLe || ''))
         const arretees = dormantes.filter((l) => l.dormance === 'arretee' || l.dormance === 'archivee').length
         const ans = Math.round(D.seuilDormanceJours / 365)
         const seuilMot = ans <= 1 ? T('dormance.seuil.an') : T('dormance.seuil.ans', { n: ans })
@@ -3394,6 +3457,7 @@
         if (fr) fr.setAttribute('aria-pressed', String(retard))
         if (retard) $('#matriceLignes')?.setAttribute('aria-pressed', 'true')
         rendFiltresContexte()
+        rendEntete()
         rendDepots()
         rendLibs()
         rendMatrice()
@@ -3402,6 +3466,9 @@
         rendCockpit()
         rendRenovate()
         rendSecu()
+        rendDormance()
+        rendTendances()
+        rendFamilles()
         ecritUrl()
       }
 
@@ -3410,8 +3477,10 @@
         if (!p) return
         famillesActives.clear()
         for (const f of p.familles || []) famillesActives.add(f)
+        rubriquesPreset = new Set(p.rubriques || [])
         $('#contexteRetard')?.setAttribute('aria-pressed', String(!!p.retard))
         $('#contexteEchec')?.setAttribute('aria-pressed', String(!!p.echec))
+        if ($('#presetEcran')) $('#presetEcran').value = id
         syncContexteVersSections()
         if (p.hash) {
           const cible = '#' + p.hash
@@ -3432,6 +3501,7 @@
       })
       $('#razContexte')?.addEventListener('click', () => {
         famillesActives.clear()
+        rubriquesPreset = new Set()
         $('#contexteRetard')?.setAttribute('aria-pressed', 'false')
         $('#contexteEchec')?.setAttribute('aria-pressed', 'false')
         if ($('#presetEcran')) $('#presetEcran').value = ''
@@ -3498,6 +3568,33 @@
           $('#annonce').textContent = T('afaire.importTraites.err')
         }
         if ($('#importTraites')) $('#importTraites').value = ''
+      })
+      $('#exportDormance')?.addEventListener('click', () => {
+        const blob = new Blob([exporteDormance(decisionsDormance)], { type: 'application/json' })
+        const a = el('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = 'parc-dashboard-dormance.json'
+        a.click()
+        URL.revokeObjectURL(a.href)
+        $('#annonce').textContent = T('dormance.export.ok')
+      })
+      $('#importDormance')?.addEventListener('change', async () => {
+        const f = $('#importDormance')?.files?.[0]
+        if (!f) return
+        try {
+          const obj = importeDormance(await f.text())
+          if (!obj) {
+            $('#annonce').textContent = T('dormance.import.err')
+            return
+          }
+          Object.assign(decisionsDormance, obj)
+          sauveDormance()
+          rendDormance()
+          $('#annonce').textContent = T('dormance.import.ok', { n: Object.keys(obj).length })
+        } catch {
+          $('#annonce').textContent = T('dormance.import.err')
+        }
+        if ($('#importDormance')) $('#importDormance').value = ''
       })
 
       function rendCockpit() {

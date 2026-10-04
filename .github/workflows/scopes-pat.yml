@@ -1,9 +1,12 @@
 # Sonde les scopes de PARC_TOKEN sans relever tout le parc.
-# Échec explicite si Dependabot, Code scanning ou rulesets répondent 403.
+# Échec explicite si Dependabot, Code scanning, rulesets ou Packages répondent 403.
+# Hebdomadaire : non bloquant pour le parc (continue-on-error) — alerte en Actions.
 name: Scopes PAT
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '15 7 * * 1'
 
 permissions:
   contents: read
@@ -21,6 +24,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Sonder les endpoints sensibles
+        continue-on-error: ${{ github.event_name == 'schedule' }}
         env:
           PARC_TOKEN: ${{ secrets.PARC_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
