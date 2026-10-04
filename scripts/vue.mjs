@@ -580,7 +580,25 @@ export function correctifsDe(l) {
  * L'ordre du bloc, du plus urgent au plus routinier : ce qui est cassé, ce qui
  * est en ligne sans être juste, ce qui attend une main, puis l'entretien.
  */
-export const ORDRE_A_FAIRE = ['rouges', 'sites', 'mortes', 'prod', 'fugaces', 'alertes', 'scanning', 'prs', 'publier', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables']
+export const ORDRE_A_FAIRE = [
+  'rouges',
+  'sites',
+  'mortes',
+  'prod',
+  'fugaces',
+  'alertes',
+  'scanning',
+  'scanningOff',
+  'envManifest',
+  'rulesets',
+  'prs',
+  'publier',
+  'majeures',
+  'correctifs',
+  'socle',
+  'renovate',
+  'introuvables',
+]
 
 /**
  * CE QUE LA PAGE DEMANDE DE FAIRE, et non plus seulement ce qu'elle constate.
@@ -629,6 +647,24 @@ export function aFaire(D) {
       'scanning',
       depots.filter((d) => d.scanning?.etat === 'lu' && d.scanning.total).map((d) => ({ depot: d.nom, n: d.scanning.total, graves: d.scanning.graves || 0 })),
     )
+  // Code scanning désactivé : mesuré depuis longtemps (`depotsSansScanning`),
+  // jamais actionnable — le trou d'activation disparaissait derrière « 0 alerte ».
+  pousse(
+    'scanningOff',
+    depots.filter((d) => d.scanning?.etat === 'desactivees').map((d) => ({ depot: d.nom })),
+  )
+  pousse(
+    'envManifest',
+    depots
+      .filter((d) => d.envManifest && d.envManifest.etat !== 'ok' && d.envManifest.etat !== 'hors-scope')
+      .map((d) => ({ depot: d.nom, etat: d.envManifest.etat })),
+  )
+  pousse(
+    'rulesets',
+    depots
+      .filter((d) => d.ruleset && (d.ruleset.etat === 'absent' || d.ruleset.etat === 'disabled'))
+      .map((d) => ({ depot: d.nom, etat: d.ruleset.etat })),
+  )
   pousse(
     'prs',
     depots.flatMap((d) => (d.prs || []).filter((p) => !p.brouillon).map((p) => ({ depot: d.nom, ...p }))),
