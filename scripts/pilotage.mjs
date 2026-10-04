@@ -5,6 +5,37 @@
  * Aucune dépendance DOM : tout ce qui est ici est éprouvé par `node --test`.
  */
 
+/** Niveau d’une rubrique « À faire » — couleur et glyphe du gabarit. */
+export const NIVEAU_A_FAIRE = {
+  rouges: 'critique',
+  sites: 'critique',
+  mortes: 'critique',
+  prod: 'attention',
+  fugaces: 'attention',
+  alertes: 'attention',
+  scanning: 'attention',
+  scanningOff: 'attention',
+  envManifest: 'attention',
+  rulesets: 'attention',
+  dossiersIncertains: 'attention',
+  introuvables: 'attention',
+  prs: 'decision',
+  publier: 'decision',
+  majeures: 'decision',
+  correctifs: 'entretien',
+  socle: 'entretien',
+  renovate: 'entretien',
+}
+
+export const GLYPHES_A_FAIRE = { critique: '✕', attention: '!', decision: '◆', entretien: '↑' }
+
+/** Entrées du rail hors chapitres `main` (contexte, file, cockpit). */
+export const LIENS_RAIL_OPS = [
+  { id: 'contexte', cle: 'nav.contexte' },
+  { id: 'afaire', cle: 'afaire.h2' },
+  { id: 'cockpit', cle: 'nav.cockpit' },
+]
+
 /** Presets d’écran (C12) — clés stables dans l’URL `?preset=…`. */
 export const PRESETS = {
   'matin-ci': {
@@ -51,6 +82,11 @@ export function scoreSante(d) {
   const graves = d.alertes?.etat === 'lu' ? d.alertes.graves || 0 : 0
   const scan = d.scanning?.etat === 'lu' ? d.scanning.total || 0 : 0
   secu = Math.max(0, 20 - graves * 6 - (alertes - graves) * 2 - scan * 2)
+  // Conformité : CodeQL off, env.manifest manquant, ruleset faible / absent.
+  if (d.scanning?.etat === 'desactivees') secu = Math.max(0, secu - 4)
+  if (d.envManifest && d.envManifest.etat !== 'ok' && d.envManifest.etat !== 'hors-scope') secu = Math.max(0, secu - 3)
+  if (d.ruleset && (d.ruleset.etat === 'absent' || d.ruleset.etat === 'disabled')) secu = Math.max(0, secu - 4)
+  else if (d.ruleset?.etat === 'faible') secu = Math.max(0, secu - 2)
   const score = Math.max(0, Math.min(100, ci + prod + deps + secu))
   return { score, axes: { ci, prod, deps, secu } }
 }

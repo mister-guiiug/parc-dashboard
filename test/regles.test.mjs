@@ -184,6 +184,20 @@ test('changementsDepuis ne compare le scanning que si les DEUX relevés ont su l
   assert.deepEqual(changementsDepuis(lu, avec([], [], { scanningLisible: true, scanning: 0 })), [{ type: 'scanning', de: 3, a: 0 }])
 })
 
+test('changementsDepuis compare env.manifest et rulesets seulement si lisibles des deux côtés', () => {
+  const av = avec([], [], { envManifestLisibles: true, sansEnvManifest: 3, rulesetsLisibles: true, depotsSansRuleset: 2 })
+  const ap = avec([], [], { envManifestLisibles: true, sansEnvManifest: 1, rulesetsLisibles: true, depotsSansRuleset: 0 })
+  const c = changementsDepuis(av, ap)
+  assert.deepEqual(
+    c.filter((x) => x.type === 'envManifest' || x.type === 'rulesets'),
+    [
+      { type: 'envManifest', de: 3, a: 1 },
+      { type: 'rulesets', de: 2, a: 0 },
+    ],
+  )
+  assert.deepEqual(changementsDepuis(av, avec([], [], { envManifestLisibles: false, sansEnvManifest: 0 })), [])
+})
+
 /* ------------------------------------------------------ fusionnePoint */
 
 test('fusionnePoint : une mesure absente n’efface pas une mesure réelle', () => {

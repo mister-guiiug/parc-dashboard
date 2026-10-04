@@ -35,6 +35,8 @@ import {
   FRAICHE_H,
   ORDRE_A_FAIRE,
   aFaire,
+  filtreAFaire,
+  filtreEchecs,
   chercheCibles,
   demandeMontee,
   graviteRetard,
@@ -656,7 +658,7 @@ test('aFaire est vide pour un parc sain, sans lever sur un modèle incomplet', (
 
 test('aFaire liste CodeQL off, env.manifest manquant et ruleset absent', () => {
   const r = aFaire({
-    kpi: {},
+    kpi: { rulesetsLisibles: true },
     depots: [
       depotAFaire('a', { scanning: { etat: 'desactivees' }, envManifest: { etat: 'absent' }, ruleset: { etat: 'disabled' } }),
       depotAFaire('b', { scanning: { etat: 'lu', total: 0 }, envManifest: { etat: 'ok', n: 3 }, ruleset: { etat: 'actif', n: 1 } }),
@@ -674,6 +676,40 @@ test('aFaire liste CodeQL off, env.manifest manquant et ruleset absent', () => {
     r.find((x) => x.cle === 'rulesets').details.map((d) => d.depot).sort(),
     ['a', 'c'],
   )
+})
+
+test('aFaire tait les rulesets quand ils sont illisibles', () => {
+  const r = aFaire({
+    kpi: { rulesetsLisibles: false },
+    depots: [depotAFaire('a', { ruleset: { etat: 'absent' } })],
+    libs: [],
+  })
+  assert.ok(!r.some((x) => x.cle === 'rulesets'))
+})
+
+test('filtreEchecs et filtreAFaire suivent le contexte familles / échec', () => {
+  const depots = [
+    { nom: 'pwa-a', famille: 'pwa', compte: { rouge: 1 } },
+    { nom: 'tool-b', famille: 'autre', compte: { rouge: 2 } },
+  ]
+  assert.deepEqual(
+    filtreEchecs(
+      [
+        { depot: 'pwa-a', workflow: 'CI' },
+        { depot: 'tool-b', workflow: 'CI' },
+      ],
+      depots,
+      { familles: new Set(['pwa']) },
+    ).map((e) => e.depot),
+    ['pwa-a'],
+  )
+  const filtré = filtreAFaire(
+    [{ cle: 'rouges', n: 2, details: [{ depot: 'pwa-a', n: 1 }, { depot: 'tool-b', n: 1 }] }],
+    depots,
+    { familles: new Set(['pwa']) },
+  )
+  assert.deepEqual(filtré[0].details.map((d) => d.depot), ['pwa-a'])
+  assert.equal(filtré[0].n, 1)
 })
 
 /* ── La recherche de la barre ───────────────────────────────────────────── */

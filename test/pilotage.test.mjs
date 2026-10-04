@@ -37,6 +37,28 @@ test('scoreSante : rouge + site down + majeures tire vers le bas', () => {
   assert.ok(s.score < 40)
 })
 
+test('scoreSante pénalise CodeQL off, env.manifest et ruleset faible', () => {
+  const base = {
+    compte: { vert: 5, rouge: 0 },
+    pages: { url: 'https://x', ok: true },
+    prod: { etat: 'aJour' },
+    renovate: { enAttente: 0, majeures: 0 },
+    alertes: { etat: 'lu', total: 0, graves: 0 },
+    scanning: { etat: 'lu', total: 0 },
+    envManifest: { etat: 'ok', n: 1 },
+    ruleset: { etat: 'actif', n: 1 },
+  }
+  const sain = scoreSante(base)
+  const penalise = scoreSante({
+    ...base,
+    scanning: { etat: 'desactivees' },
+    envManifest: { etat: 'absent' },
+    ruleset: { etat: 'faible', n: 1 },
+  })
+  assert.ok(penalise.axes.secu < sain.axes.secu)
+  assert.ok(penalise.score < sain.score)
+})
+
 test('cockpitProd range les signaux', () => {
   const c = cockpitProd([
     { nom: 'a', prod: { etat: 'deploiement' } },

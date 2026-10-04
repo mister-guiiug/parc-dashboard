@@ -198,7 +198,22 @@ const FAMILLES_DYNAMIQUES = [
   // `changementsDepuis()` de regles.mjs — les onze types de son barème `rang`.
   {
     prefixe: 'changements.',
-    membres: ['ci-rouge', 'ci-vert', 'alertes', 'scanning', 'dormante', 'reveillee', 'amont', 'depot-entre', 'depot-sorti', 'site-tombe', 'site-revenu', 'prod-retard'],
+    membres: [
+      'ci-rouge',
+      'ci-vert',
+      'alertes',
+      'scanning',
+      'envManifest',
+      'rulesets',
+      'dormante',
+      'reveillee',
+      'amont',
+      'depot-entre',
+      'depot-sorti',
+      'site-tombe',
+      'site-revenu',
+      'prod-retard',
+    ],
     partielle: true,
   },
   // `aFaire()` de vue.mjs : une entrée par clé de `ORDRE_A_FAIRE`, importé —
@@ -219,7 +234,7 @@ const FAMILLES_DYNAMIQUES = [
   // `surN()` de la matrice : deux formes par axe.
   { prefixe: 'matrice.compteur.', membres: ['paquets', 'paquetsSur', 'depots', 'depotsSur', 'ecarts'], partielle: true },
   // `runbookEchec()` de pilotage.mjs.
-  { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique'] },
+  { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique', 'ouvrir'] },
   // `cockpitProd()` — clés de rubrique rendues dans le gabarit.
   { prefixe: 'cockpit.', membres: ['encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
   // `tendances()` — tuiles du gabarit.
@@ -292,7 +307,7 @@ test('toute clé du dictionnaire est DEMANDÉE quelque part', () => {
   // l'exécution.
   // `releve.mjs` en est depuis le flux Atom : il demande `flux.titre`, que la
   // page ne dit jamais.
-  const sources = GABARIT + lis('vue.mjs') + lis('modele.mjs') + lis('regles.mjs') + lis('releve.mjs')
+  const sources = GABARIT + lis('vue.mjs') + lis('modele.mjs') + lis('regles.mjs') + lis('releve.mjs') + lis('pilotage.mjs')
   for (const m of sources.matchAll(/'([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9-]+)+)'/g)) vues.add(m[1])
   for (const { prefixe, membres } of FAMILLES_DYNAMIQUES) for (const x of membres) vues.add(prefixe + x)
   const orphelines = Object.keys(LIBELLES[DEFAUT]).filter((c) => !vues.has(c))

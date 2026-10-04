@@ -461,11 +461,10 @@ export function scanningDepuisReponse(status, corps) {
  * Présence et forme minimale d'un config/env.manifest.json versionné.
  *
  * Le relevé ne lance pas pwa-env audit (session gh + secrets) : il dit
- * seulement si le fichier est là et lisible. Les orphelins GitHub restent
- * hors de portée de cette lecture.
+ * si le fichier est là, lisible, et si chaque entrée porte name / store /
+ * phase. Les orphelins GitHub restent hors de portée de cette lecture.
  *
- * @param {string | null | undefined} texte corps brut, ou 
-ull si 404
+ * @param {string | null | undefined} texte corps brut, ou null si 404
  */
 export function resumeEnvManifest(texte) {
   if (texte == null || texte === '') return { etat: 'absent' }
@@ -473,6 +472,13 @@ export function resumeEnvManifest(texte) {
     const j = JSON.parse(texte)
     if (!j || typeof j !== 'object' || !Array.isArray(j.entries)) {
       return { etat: 'invalide' }
+    }
+    // Forme minimale alignée sur pwa-env : name + store + phase.
+    for (const e of j.entries) {
+      if (!e || typeof e !== 'object') return { etat: 'invalide' }
+      if (typeof e.name !== 'string' || !e.name) return { etat: 'invalide' }
+      if (typeof e.store !== 'string' || !e.store) return { etat: 'invalide' }
+      if (typeof e.phase !== 'string' || !e.phase) return { etat: 'invalide' }
     }
     return { etat: 'ok', n: j.entries.length }
   } catch {
@@ -483,17 +489,22 @@ export function resumeEnvManifest(texte) {
 /**
  * État des rulesets GitHub d'un dépôt.
  *
- * @param {unknown} liste réponse JSON de /repos/.../rulesets, ou 
-ull si refus
+ * `protectSolide` vient des règles effectives de la branche par défaut
+ * (pull_request + required_status_checks). Absent → on ne peut que dire
+ * « actif » sans juger le contenu.
+ *
+ * @param {unknown} liste réponse JSON de /repos/.../rulesets, ou null si refus
  * @param {number} [status] code HTTP quand la liste n'est pas un tableau
+ * @param {boolean | null} [protectSolide] true / false / null (illisible)
  */
-export function resumeRuleset(liste, status) {
+export function resumeRuleset(liste, status, protectSolide = null) {
   if (status === 403 || status === 404) return { etat: 'illisible' }
   if (liste == null) return { etat: 'illisible' }
   if (!Array.isArray(liste)) return { etat: 'illisible' }
   if (liste.length === 0) return { etat: 'absent' }
   const actifs = liste.filter((r) => r && r.enforcement === 'active')
   if (actifs.length === 0) return { etat: 'disabled' }
+  if (protectSolide === false) return { etat: 'faible', n: actifs.length }
   return { etat: 'actif', n: actifs.length }
 }
 

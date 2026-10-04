@@ -38,6 +38,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
 import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, journalMisAJour, lisTableauRenovate, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { paginerJson, protectMainSolide } from './reseau.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -364,14 +365,23 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   // passent par raw.githubusercontent, hors quota.
   const connu = avantPublie?.depots?.find((x) => x.nom === g.name)
   let dossiers = null
-  if (commit && connu?.commit?.sha === commit.sha.slice(0, 7) && Array.isArray(connu.dossiers)) dossiers = connu.dossiers
-  else if (commit) {
+  let dossiersIncertains = false
+  if (commit && connu?.commit?.sha === commit.sha.slice(0, 7) && Array.isArray(connu.dossiers)) {
+    dossiers = connu.dossiers
+    dossiersIncertains = Boolean(connu.dossiersIncertains)
+  } else if (commit) {
     const arbre = await apiFacultatif(`/repos/${nwo}/git/trees/${commit.sha}?recursive=1`)
     if (Array.isArray(arbre?.tree) && !arbre.truncated)
       dossiers = unitesDeLArbre(
         arbre.tree.filter((e) => e.type === 'blob').map((e) => e.path),
         espacesDeTravail(pkg),
       )
+    else if (arbre?.truncated) {
+      // Arbre tronqué : on reprend le cache, et on le dit — sinon des
+      // lockfiles secondaires disparaîtraient en silence.
+      dossiersIncertains = true
+      dossiers = Array.isArray(connu?.dossiers) ? connu.dossiers : []
+    }
   }
   // Arbre illisible : on garde ce qu'on savait plutôt que d'effacer des dossiers.
   if (!dossiers) dossiers = Array.isArray(connu?.dossiers) ? connu.dossiers : []
@@ -449,6 +459,7 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
     // et ce qui reste : la liste des dossiers, reprise au passage suivant
     // tant que la tête ne bouge pas
     dossiers,
+    dossiersIncertains,
     paquet: pkg ? { nom: pkg.name, version: pkg.version, prive: !!pkg.private } : null,
     nbDeps: Object.keys(declarees).length,
     nbVerrouilles: Object.keys(verrouillees).length || null,
@@ -504,24 +515,23 @@ let alertesRefusees = 0
 await enLot(depots, 5, async (d) => {
   d.alertes = null
   try {
+    const headers = { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' }
     appels++
-    const res = await fetch(`${API}/repos/${d.nwo}/dependabot/alerts?state=open&per_page=100`, {
-      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' },
-    })
-    if (res.status === 403 || res.status === 404) {
-      const msg = await res.text()
+    const page = await paginerJson(`${API}/repos/${d.nwo}/dependabot/alerts?state=open&per_page=100`, fetch, { headers })
+    if (!page.ok && (page.status === 403 || page.status === 404)) {
+      const msg = page.corpsTexte || ''
       // « Dependabot alerts are disabled for this repository » est une réponse
       // exacte, pas un refus : le dépôt ne les a tout simplement pas activées.
       d.alertes = /disabled for this repository/i.test(msg) ? { etat: 'desactivees' } : { etat: 'illisible' }
       if (d.alertes.etat === 'illisible') alertesRefusees++
       return
     }
-    if (!res.ok) {
+    if (!page.ok) {
       d.alertes = { etat: 'illisible' }
       alertesRefusees++
       return
     }
-    const liste = await res.json()
+    const liste = page.items
     const grave = (a) => ['high', 'critical'].includes(a.security_advisory?.severity)
     d.alertes = {
       etat: 'lu',
@@ -557,12 +567,12 @@ let scanningRefuse = 0
 await enLot(depots, 5, async (d) => {
   d.scanning = null
   try {
+    const headers = { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' }
     appels++
-    const res = await fetch(`${API}/repos/${d.nwo}/code-scanning/alerts?state=open&per_page=100`, {
-      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' },
-    })
-    const corps = res.ok ? await res.json() : await res.text()
-    d.scanning = scanningDepuisReponse(res.status, corps)
+    const page = await paginerJson(`${API}/repos/${d.nwo}/code-scanning/alerts?state=open&per_page=100`, fetch, { headers })
+    d.scanning = page.ok
+      ? scanningDepuisReponse(page.status, page.items)
+      : scanningDepuisReponse(page.status, page.corpsTexte || '')
     if (d.scanning.etat === 'lu') scanningLisible = true
     else if (d.scanning.etat === 'illisible') scanningRefuse++
   } catch {
@@ -600,17 +610,24 @@ let rulesetsRefuse = 0
 await enLot(depots, 5, async (d) => {
   d.ruleset = null
   try {
+    const headers = { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' }
     appels++
-    const res = await fetch(`${API}/repos/${d.nwo}/rulesets`, {
-      headers: { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' },
-    })
+    const res = await fetch(`${API}/repos/${d.nwo}/rulesets`, { headers })
     if (!res.ok) {
       d.ruleset = resumeRuleset(null, res.status)
       if (d.ruleset.etat === 'illisible') rulesetsRefuse++
       return
     }
     const liste = await res.json()
-    d.ruleset = resumeRuleset(liste, res.status)
+    // Un ruleset « active » sans PR + checks n'est pas Protect main — on
+    // lit les règles effectives de la branche par défaut (un appel de plus).
+    let protect = null
+    if (Array.isArray(liste) && liste.some((r) => r && r.enforcement === 'active') && d.brancheDefaut) {
+      appels++
+      const br = await fetch(`${API}/repos/${d.nwo}/rules/branches/${encodeURIComponent(d.brancheDefaut)}`, { headers })
+      if (br.ok) protect = protectMainSolide(await br.json())
+    }
+    d.ruleset = resumeRuleset(liste, res.status, protect)
     if (d.ruleset.etat !== 'illisible') rulesetsLisibles = true
   } catch {
     d.ruleset = { etat: 'illisible' }
@@ -1162,7 +1179,7 @@ const kpi = {
   sansEnvManifest: depots.filter((d) => d.envManifest?.etat === 'absent' || d.envManifest?.etat === 'invalide').length,
   rulesetsLisibles,
   depotsSansRuleset: rulesetsLisibles
-    ? depots.filter((d) => d.ruleset?.etat === 'absent' || d.ruleset?.etat === 'disabled').length
+    ? depots.filter((d) => d.ruleset?.etat === 'absent' || d.ruleset?.etat === 'disabled' || d.ruleset?.etat === 'faible').length
     : null,
   lecturesIncompletes: depots.filter((d) => d.lectureIncomplete).length,
   librairiesDatees: libs.filter((l) => l.publieLe).length,
@@ -1326,6 +1343,8 @@ if (!inchange) {
     alertesGraves: kpi.alertesGraves,
     scanning: kpi.scanning,
     scanningGraves: kpi.scanningGraves,
+    sansEnvManifest: kpi.sansEnvManifest,
+    depotsSansRuleset: kpi.depotsSansRuleset,
     socleEnRetard: kpi.socleEnRetard,
   }
   const i = histo.findIndex((p) => p.jour === jour)
