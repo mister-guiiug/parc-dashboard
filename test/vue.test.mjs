@@ -654,6 +654,28 @@ test('aFaire est vide pour un parc sain, sans lever sur un modèle incomplet', (
   assert.deepEqual(aFaire(null), [])
 })
 
+test('aFaire liste CodeQL off, env.manifest manquant et ruleset absent', () => {
+  const r = aFaire({
+    kpi: {},
+    depots: [
+      depotAFaire('a', { scanning: { etat: 'desactivees' }, envManifest: { etat: 'absent' }, ruleset: { etat: 'disabled' } }),
+      depotAFaire('b', { scanning: { etat: 'lu', total: 0 }, envManifest: { etat: 'ok', n: 3 }, ruleset: { etat: 'actif', n: 1 } }),
+      depotAFaire('c', { envManifest: { etat: 'hors-scope' }, ruleset: { etat: 'absent' } }),
+    ],
+    libs: [],
+  })
+  assert.deepEqual(
+    r.map((x) => x.cle),
+    ['scanningOff', 'envManifest', 'rulesets'],
+  )
+  assert.deepEqual(r.find((x) => x.cle === 'scanningOff').details.map((d) => d.depot), ['a'])
+  assert.deepEqual(r.find((x) => x.cle === 'envManifest').details, [{ depot: 'a', etat: 'absent' }])
+  assert.deepEqual(
+    r.find((x) => x.cle === 'rulesets').details.map((d) => d.depot).sort(),
+    ['a', 'c'],
+  )
+})
+
 /* ── La recherche de la barre ───────────────────────────────────────────── */
 
 test('chercheCibles : début de nom, puis début de mot, puis le reste', () => {
