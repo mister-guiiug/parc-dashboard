@@ -234,7 +234,7 @@ const FAMILLES_DYNAMIQUES = [
   // `surN()` de la matrice : deux formes par axe.
   { prefixe: 'matrice.compteur.', membres: ['paquets', 'paquetsSur', 'depots', 'depotsSur', 'ecarts'], partielle: true },
   // `runbookEchec()` de pilotage.mjs.
-  { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique', 'ouvrir'] },
+  { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique', 'ouvrir', 'doc'] },
   // `cockpitProd()` — clés de rubrique rendues dans le gabarit.
   { prefixe: 'cockpit.', membres: ['encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
   // `tendances()` — tuiles du gabarit.

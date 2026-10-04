@@ -13,7 +13,10 @@ import {
   ecritStockage,
   exporteTraites,
   importeTraites,
+  exporteDormance,
+  importeDormance,
   scopesIncomplets,
+  runbookDocUrl,
 } from '../scripts/pilotage.mjs'
 
 test('scoreSante : dépôt sain proche de 100', () => {
@@ -158,7 +161,9 @@ test('PRESETS portent hash et drapeaux', () => {
   assert.deepEqual(PRESETS['prod-drift'].familles, ['pwa'])
   assert.equal(PRESETS['prod-drift'].retard, true)
   assert.equal(PRESETS['prod-drift'].hash, 'cockpit')
-  assert.ok(Object.keys(PRESETS).length >= 3)
+  assert.deepEqual(PRESETS.conformite.rubriques, ['scanningOff', 'envManifest', 'rulesets'])
+  assert.equal(PRESETS['secu-grave'].secuGrave, true)
+  assert.ok(Object.keys(PRESETS).length >= 5)
 })
 
 test('exporteTraites / importeTraites rond-trip', () => {
@@ -166,6 +171,17 @@ test('exporteTraites / importeTraites rond-trip', () => {
   assert.deepEqual(importeTraites(json), ['prod:b', 'rouges:a'])
   assert.equal(importeTraites('{'), null)
   assert.deepEqual(importeTraites('["x"]'), ['x'])
+})
+
+test('exporteDormance / importeDormance rond-trip', () => {
+  const json = exporteDormance({ lodash: { decision: 'garder' } })
+  assert.deepEqual(importeDormance(json), { lodash: { decision: 'garder' } })
+  assert.equal(importeDormance('{'), null)
+})
+
+test('runbookDocUrl pointe hors du run', () => {
+  assert.match(runbookDocUrl('pages'), /github\.com/)
+  assert.match(runbookDocUrl('inconnu'), /parc-dashboard/)
 })
 
 test('scopesIncomplets lit les KPI', () => {

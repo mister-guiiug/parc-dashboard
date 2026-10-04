@@ -211,6 +211,11 @@ export function correspondDepot(d, c = {}) {
   if (drapeaux.has('prive') && !d.prive) return false
   if (drapeaux.has('site') && !d.pages?.ok) return false
   if (drapeaux.has('retard') && !depotEnRetard(d, c.nomsEnRetard ?? null)) return false
+  if (drapeaux.has('secuGrave')) {
+    const alertesGraves = d.alertes?.etat === 'lu' && (d.alertes.graves || 0) > 0
+    const scanGraves = d.scanning?.etat === 'lu' && (d.scanning.graves || 0) > 0
+    if (!alertesGraves && !scanGraves) return false
+  }
   const q = (c.q ?? '').trim().toLowerCase()
   return !q || foinDepot(d).includes(q)
 }
@@ -218,6 +223,66 @@ export function correspondDepot(d, c = {}) {
 /** @param {object[]} depots @param {object} c */
 export function depotsFiltres(depots, c = {}) {
   return (depots || []).filter((d) => correspondDepot(d, c))
+}
+
+/**
+ * KPI recalculés sur un sous-ensemble de dépôts (filtre contexte).
+ * Les champs non dérivables (socle amont, dormance libs) restent ceux de `base`.
+ *
+ * @param {object[]} depots
+ * @param {object} [base]
+ */
+export function kpiDepuisDepots(depots, base = {}) {
+  const liste = depots || []
+  const propres = liste.flatMap((d) => (d.workflows || []).filter((w) => !w.reutilisable))
+  const verts = propres.filter((w) => w.etat === 'vert').length
+  const rouges = propres.filter((w) => w.etat === 'rouge').length
+  const alertesLisibles = liste.some((d) => d.alertes?.etat === 'lu' || d.alertes?.etat === 'desactivees')
+  const scanningLisible = liste.some((d) => d.scanning?.etat === 'lu' || d.scanning?.etat === 'desactivees')
+  const rulesetsLisibles = liste.some((d) => d.ruleset && d.ruleset.etat !== 'illisible')
+  const out = {
+    ...base,
+    depots: liste.length,
+    publics: liste.filter((d) => !d.prive).length,
+    prives: liste.filter((d) => d.prive).length,
+    workflows: propres.length,
+    workflowsTous: liste.reduce((n, d) => n + (d.workflows?.length || 0), 0),
+    reutilisables: liste.reduce((n, d) => n + (d.workflows || []).filter((w) => w.reutilisable).length, 0),
+    verts,
+    rouges,
+    neutres: propres.filter((w) => w.etat === 'neutre').length,
+    jamais: propres.filter((w) => w.etat === 'jamais').length,
+    depotsRouges: liste.filter((d) => d.compte?.rouge > 0).length,
+    depotsModifies: liste.filter((d) => d.local?.modifies).length,
+    horsBrancheDefaut: liste.filter((d) => d.local && d.local.branche !== d.brancheDefaut).length,
+    prOuvertes: liste.reduce((n, d) => n + (d.prs?.length || 0), 0),
+    sites: liste.filter((d) => d.pages?.url).length,
+    sitesEnLigne: liste.filter((d) => d.pages?.ok).length,
+    appsPwa: liste.filter((d) => d.famille === 'pwa').length,
+    alertesLisibles,
+    alertes: alertesLisibles ? liste.reduce((n, d) => n + (d.alertes?.total || 0), 0) : null,
+    alertesGraves: alertesLisibles ? liste.reduce((n, d) => n + (d.alertes?.graves || 0), 0) : null,
+    alertesProduction: alertesLisibles ? liste.reduce((n, d) => n + (d.alertes?.production || 0), 0) : null,
+    depotsSansAlertes: liste.filter((d) => d.alertes?.etat === 'desactivees').length,
+    depotsAlertesIllisibles: liste.filter((d) => d.alertes?.etat === 'illisible').length,
+    scanningLisible,
+    scanning: scanningLisible ? liste.reduce((n, d) => n + (d.scanning?.total || 0), 0) : null,
+    scanningGraves: scanningLisible ? liste.reduce((n, d) => n + (d.scanning?.graves || 0), 0) : null,
+    scanningErreurs: scanningLisible ? liste.reduce((n, d) => n + (d.scanning?.erreurs || 0), 0) : null,
+    depotsSansScanning: liste.filter((d) => d.scanning?.etat === 'desactivees').length,
+    depotsScanningIllisibles: liste.filter((d) => d.scanning?.etat === 'illisible').length,
+    envManifestLisibles: liste.some((d) => d.envManifest && d.envManifest.etat !== 'hors-scope'),
+    sansEnvManifest: liste.filter(
+      (d) => d.envManifest?.etat === 'absent' || d.envManifest?.etat === 'invalide' || d.envManifest?.etat === 'incomplet',
+    ).length,
+    rulesetsLisibles,
+    depotsSansRuleset: rulesetsLisibles
+      ? liste.filter((d) => d.ruleset?.etat === 'absent' || d.ruleset?.etat === 'disabled' || d.ruleset?.etat === 'faible').length
+      : null,
+    lecturesIncompletes: liste.filter((d) => d.lectureIncomplete).length,
+  }
+  out.taux = out.verts + out.rouges ? Math.round((out.verts / (out.verts + out.rouges)) * 100) : null
+  return out
 }
 
 /**
@@ -246,7 +311,8 @@ export function filtreEchecs(echecs, depots, c = {}) {
 export function filtreAFaire(items, depots, c = {}) {
   const familles = c.familles ?? new Set()
   const drapeaux = c.drapeaux ?? new Set()
-  if (!familles.size && !drapeaux.size) return items || []
+  const rubriques = c.rubriques ?? new Set()
+  if (!familles.size && !drapeaux.size && !rubriques.size) return items || []
   const parNom = new Map((depots || []).map((d) => [d.nom, d]))
   const okDepot = (nom) => {
     const d = parNom.get(nom)
@@ -254,6 +320,7 @@ export function filtreAFaire(items, depots, c = {}) {
   }
   const out = []
   for (const it of items || []) {
+    if (rubriques.size && !rubriques.has(it.cle)) continue
     if (drapeaux.has('retard') && !RUBRIQUES_RETARD.has(it.cle)) continue
     let details = it.details || []
     if (details.some((x) => x && x.depot && !Array.isArray(x.depots))) {
@@ -712,6 +779,7 @@ export const ORDRE_A_FAIRE = [
   'rouges',
   'sites',
   'mortes',
+  'introuvables',
   'prod',
   'fugaces',
   'alertes',
@@ -726,7 +794,6 @@ export const ORDRE_A_FAIRE = [
   'correctifs',
   'socle',
   'renovate',
-  'introuvables',
 ]
 
 /**

@@ -26,6 +26,7 @@ import {
   correspondLib,
   depotEnRetard,
   depotsFiltres,
+  kpiDepuisDepots,
   elementsHorsNpm,
   etiquettes,
   foinDepot,
@@ -620,7 +621,7 @@ test('aFaire range du cassé à l’entretien, et tait ce qui est vide', () => {
   const r = aFaire(D)
   assert.deepEqual(
     r.map((x) => x.cle),
-    ['rouges', 'sites', 'prod', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate', 'introuvables'],
+    ['rouges', 'sites', 'introuvables', 'prod', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate'],
   )
   // un brouillon n'est pas « à relire »
   assert.equal(r.find((x) => x.cle === 'prs').n, 1)
@@ -689,6 +690,52 @@ test('aFaire tait les rulesets quand ils sont illisibles', () => {
     libs: [],
   })
   assert.ok(!r.some((x) => x.cle === 'rulesets'))
+})
+
+test('kpiDepuisDepots recalcule sur le sous-ensemble filtré', () => {
+  const depots = [
+    {
+      nom: 'a',
+      famille: 'pwa',
+      prive: false,
+      compte: { rouge: 1 },
+      workflows: [
+        { etat: 'rouge', reutilisable: false },
+        { etat: 'vert', reutilisable: true },
+      ],
+      prs: [{ num: 1 }],
+      pages: { url: 'https://a/', ok: true },
+      alertes: { etat: 'lu', total: 2, graves: 1, production: 0 },
+      scanning: { etat: 'desactivees' },
+      envManifest: { etat: 'ok' },
+      ruleset: { etat: 'ok' },
+    },
+    {
+      nom: 'b',
+      famille: 'autre',
+      prive: true,
+      compte: { rouge: 0 },
+      workflows: [{ etat: 'vert', reutilisable: false }],
+      prs: [],
+      pages: null,
+      alertes: { etat: 'lu', total: 0, graves: 0, production: 0 },
+      scanning: { etat: 'lu', total: 0, graves: 0, erreurs: 0 },
+      envManifest: { etat: 'hors-scope' },
+      ruleset: { etat: 'absent' },
+    },
+  ]
+  const k = kpiDepuisDepots(depotsFiltres(depots, { familles: new Set(['pwa']) }), {
+    socleAmont: '6.0.0',
+    socleEnRetard: 3,
+  })
+  assert.equal(k.depots, 1)
+  assert.equal(k.appsPwa, 1)
+  assert.equal(k.rouges, 1)
+  assert.equal(k.verts, 0)
+  assert.equal(k.prOuvertes, 1)
+  assert.equal(k.depotsSansScanning, 1)
+  assert.equal(k.socleAmont, '6.0.0')
+  assert.equal(k.socleEnRetard, 3)
 })
 
 test('filtreEchecs et filtreAFaire suivent le contexte familles / échec', () => {

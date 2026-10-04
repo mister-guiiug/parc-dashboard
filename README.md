@@ -46,20 +46,32 @@ console d'exploitation.
 
 | Surface | Rôle |
 |---|---|
-| **Contexte du parc** | Un filtre (familles, retard, échec) pour À faire, échecs, cartes, cockpit, Renovate et sécu ; presets (`matin-ci`, `entretien-majeurs`, `prod-drift`) dans l'URL — `prod-drift` = PWA + retard → `#cockpit` |
-| **À faire** | File d'actions, cases « traité », export/import JSON, deep links conformité (env.manifest, rulesets, CodeQL) |
+| **Contexte du parc** | Un filtre (familles, retard, échec, sécu grave) pour À faire, échecs, cartes, familles, dormance, cockpit, Renovate et sécu ; presets (`matin-ci`, `entretien-majeurs`, `prod-drift`, `conformite`, `secu-grave`) |
+| **À faire** | File d'actions (Renovate introuvables en critique), cases « traité », export/import JSON, deep links conformité + Packages |
 | **Score santé** | Badge 0–100 sur chaque carte (CI, prod, deps, sécu / conformité) |
 | **Ce qui est rouge** | Table des échecs + colonne piste (runbook) menant au run GitHub |
 | **Production & sites** | Cockpit : déploiements, retard prod, sites down, URL mortes, fugaces |
 | **Tendances** | Deltas sur l'historique (taux, rouges, alertes, dormantes, socle, env.manifest, rulesets) |
 | **Salle Renovate** | Backlog agrégé + paquets irrésolubles |
 | **Alertes cross-parc** | Dependabot + CodeQL (échantillon d'ids CVE/GHSA), avec prompt de remédiation |
-| **Décisions dormance** | Garder / remplacer / ignorer 90 j, mémorisé localement |
+| **Décisions dormance** | Garder / remplacer / ignorer 90 j, mémorisé localement ; export/import JSON |
 
 Le secret `PARC_TOKEN` porte plusieurs scopes (Dependabot, Code scanning,
 Administration pour les rulesets). Si l'un manque, un bandeau en tête de page
 pointe vers le workflow [`scopes-pat.yml`](.github/workflows/scopes-pat.yml)
-(`workflow_dispatch`) — la sonde reste manuelle, le cron du relevé ne bloque pas.
+(`workflow_dispatch` + cron hebdo non bloquant). La sonde vérifie aussi
+`read:packages` (GitHub Packages) : sans ça Renovate ne résout pas le socle.
+
+**Campagne CodeQL.** Preset `conformite` + « Copier le lot visible » : chaque
+dépôt `scanningOff` devient une ligne d’action (lien Security → Code scanning).
+Le lot se traite dépôt par dépôt ; l’agrégat « À faire » en suit le décompte.
+
+**Protect main.** `deletion` + `non_fast_forward` sont actifs. `pull_request` +
+contexte `Règles du relevé` restent en attente : le push d’instantané nocturne
+ne peut pas contourner via l’app Actions sur un dépôt de compte personnel
+(GitHub 422). Préparé dans `dev-pwa-config/scripts/apply-rulesets.mjs`
+(`CHECKS['parc-dashboard']`) pour le jour où le dépôt sera sous organisation
+ou où l’instantané ne poussera plus sur `main`.
 
 ## Ce que la page demande de faire
 

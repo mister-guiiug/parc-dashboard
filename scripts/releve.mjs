@@ -592,14 +592,15 @@ if (!scanningLisible) {
 // APRÈS LE CHANTIER PHASE 3 : le relevé doit dire quelles apps PWA n'ont
 // toujours pas de manifeste, plutôt que de le découvrir à la main. Lecture
 // raw du fichier versionné — pas `pwa-env audit` (session gh + secrets).
-// Le catalogue de noms attendus vient du starter kit : un manifeste valide
-// mais amputé des entrées du socle se dit `incomplet`, pas `ok`.
+// Catalogue = entrées `required` du starter seulement. Tout le manifeste
+// optionnel du kit produisait 16 faux « incomplet » (relevé 04/10/2026).
 let catalogueEnv = null
 {
   const sk = depots.find((d) => d.nom === 'pwa-starter-kit')
   if (sk) {
     const texteSk = await fichier(sk.nwo, sk.brancheDefaut, 'config/env.manifest.json')
-    catalogueEnv = nomsEnvManifest(texteSk)
+    const noms = nomsEnvManifest(texteSk, { requisSeulement: true })
+    catalogueEnv = noms?.length ? noms : null
   }
 }
 await enLot(depots, 8, async (d) => {
