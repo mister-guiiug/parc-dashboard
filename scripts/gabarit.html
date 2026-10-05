@@ -602,8 +602,9 @@
       // Elles vivent dans `scripts/vue.mjs` et `scripts/regles.mjs`, insérées
       // ici par `releve.mjs` à la place du marqueur — et y sont éprouvées par
       // `node --test`, ce qu'aucun test ne pouvait atteindre tant qu'elles
-      // étaient écrites dans ce fichier. La page reste un seul fichier, sans
-      // ressource externe.
+      // étaient écrites dans ce fichier. La page reste un HTML autonome pour
+      // le rendu ; la recherche Ctrl+K charge `command.js` + `parc-command.js`
+      // (copiés à côté à chaque relevé).
       //
       // EN TÊTE, et pas au milieu : ce sont des `const`, donc en zone morte
       // temporelle tant qu'elles ne sont pas évaluées. Placées plus bas, le
@@ -3912,91 +3913,29 @@
        * UNE RECHERCHE QUI MÈNE, et non qui masque : les filtres de section
        * cachent ce qui ne correspond pas ; celle-ci conduit au dépôt ou à la
        * librairie choisie, l'ouvre, et lève au besoin ce qui la cachait.
-       * Motif ARIA « combobox » : les flèches parcourent, Entrée choisit,
-       * Échap referme. Le classement vit dans `chercheCibles` de `vue.mjs`.
+       * Motif ARIA « combobox » : flèches / Entrée / Échap / Ctrl+K / « / »
+       * vivent dans `command.js` (socle), branchés par `parc-command.js`.
+       * Le classement reste dans `chercheCibles` (`vue.mjs`).
        */
-      const champGlobal = $('#rechercheGlobale')
-      const listeGlobale = $('#resultatsGlobaux')
-      let resultatsGlobaux = []
-      let actifGlobal = -1
-      function fermeResultats() {
-        resultatsGlobaux = []
-        actifGlobal = -1
-        listeGlobale.textContent = ''
-        listeGlobale.hidden = true
-        champGlobal.setAttribute('aria-expanded', 'false')
-        champGlobal.removeAttribute('aria-activedescendant')
-      }
-      function rendResultats() {
-        resultatsGlobaux = chercheCibles(champGlobal.value, D)
-        listeGlobale.textContent = ''
-        listeGlobale.hidden = !resultatsGlobaux.length
-        champGlobal.setAttribute('aria-expanded', String(resultatsGlobaux.length > 0))
-        resultatsGlobaux.forEach((c, i) => {
+      window.__parcCommand = {
+        getItems: (q) => chercheCibles(q, D),
+        onSelect: (c) => {
+          const champ = $('#rechercheGlobale')
+          if (champ) champ.blur()
+          // par l'ancre : le lien est partageable, et `hashchange` fait le reste
+          const cible = (c.type === 'depot' ? '#depot-' : '#lib-') + c.nom
+          if (location.hash === cible) ouvreDepuisAncre()
+          else location.hash = cible
+        },
+        renderItem: (c, i, selected) => {
           const li = el('li', 'resultat')
           li.id = 'resultat-' + i
           li.setAttribute('role', 'option')
-          li.setAttribute('aria-selected', String(i === actifGlobal))
+          li.setAttribute('aria-selected', String(selected))
           li.append(el('span', 'badge', T(c.type === 'depot' ? 'nav.type.depot' : 'nav.type.lib')), document.createTextNode(' '), el('span', 'mono', c.nom))
-          // `mousedown` et non `click` : le clic arriverait après le `blur` du
-          // champ, qui a déjà refermé la liste.
-          li.addEventListener('mousedown', (e) => {
-            e.preventDefault()
-            allerA(c)
-          })
-          listeGlobale.append(li)
-        })
-        if (resultatsGlobaux[actifGlobal]) champGlobal.setAttribute('aria-activedescendant', 'resultat-' + actifGlobal)
-        else champGlobal.removeAttribute('aria-activedescendant')
+          return li
+        },
       }
-      function allerA(c) {
-        fermeResultats()
-        champGlobal.value = ''
-        champGlobal.blur()
-        // par l'ancre : le lien est partageable, et `hashchange` fait le reste
-        const cible = (c.type === 'depot' ? '#depot-' : '#lib-') + c.nom
-        if (location.hash === cible) ouvreDepuisAncre()
-        else location.hash = cible
-      }
-      champGlobal.addEventListener('input', () => {
-        actifGlobal = -1
-        rendResultats()
-      })
-      champGlobal.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown' && resultatsGlobaux.length) {
-          e.preventDefault()
-          actifGlobal = Math.min(resultatsGlobaux.length - 1, actifGlobal + 1)
-          rendResultats()
-        } else if (e.key === 'ArrowUp' && resultatsGlobaux.length) {
-          e.preventDefault()
-          actifGlobal = Math.max(0, actifGlobal - 1)
-          rendResultats()
-        } else if (e.key === 'Enter') {
-          const c = resultatsGlobaux[Math.max(0, actifGlobal)]
-          if (c) {
-            e.preventDefault()
-            allerA(c)
-          }
-        } else if (e.key === 'Escape') {
-          fermeResultats()
-        }
-      })
-      champGlobal.addEventListener('blur', () => setTimeout(fermeResultats, 120))
-      // « / » amène le curseur dans la recherche — sauf quand on écrit ailleurs.
-      document.addEventListener('keydown', (e) => {
-        const mod = e.ctrlKey || e.metaKey
-        if (mod && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-          e.preventDefault()
-          champGlobal.focus()
-          champGlobal.select()
-          return
-        }
-        if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
-        if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return
-        e.preventDefault()
-        champGlobal.focus()
-        champGlobal.select()
-      })
 
       litUrl()
 
@@ -4015,5 +3954,6 @@
         if (document.visibilityState === 'visible') litEtat()
       })
 </script>
+    <script type="module" src="./parc-command.js"></script>
   </body>
 </html>

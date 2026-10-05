@@ -461,6 +461,7 @@ test('l’empreinte du relevé compte libelles.mjs', () => {
   assert.ok(empreinte, 'calcul d’empreinte introuvable')
   assert.match(empreinte[1], /\.update\(libelles\)/)
   assert.match(empreinte[1], /\.update\(pilotage\)/)
+  assert.match(empreinte[1], /parc-command\.js/)
 })
 
 test('le sélecteur de langue offre chaque langue livrée, nommée dans sa langue', () => {

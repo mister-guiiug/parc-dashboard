@@ -24,7 +24,7 @@
 // ce que l'API ne peut pas savoir (branche courante, fichiers non commités).
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 // Les règles pures vivent à part : ce fichier-ci s'exécute à l'import, elles
@@ -1243,10 +1243,9 @@ if (!gabarit.includes('__STYLE__')) throw new Error('placeholder __STYLE__ absen
 // propre tri pendant des semaines. Elles sont désormais dans `regles.mjs` et
 // `vue.mjs`, éprouvées, et recopiées ici au rendu.
 //
-// La page reste UN SEUL FICHIER sans ressource externe — elle est poussée telle
-// quelle sur Pages, et un second fichier à charger changerait ça. Le transport
-// se paie en octets : les deux modules pèsent quelques kilo-octets bruts,
-// quelques centaines une fois gzippés, contre 59 ko pour la page entière.
+// Le cœur de la page reste un HTML autonome (règles/vue/libellés inline). La
+// recherche Ctrl+K charge en plus `command.js` + `parc-command.js`, copiés à
+// côté de `index.html` (socle local sibling, sinon raw GitHub).
 //
 // `export` et `import` retirés : le script de la page n'est pas un module. Le
 // motif est volontairement littéral — un `import` multiligne casserait le
@@ -1256,6 +1255,33 @@ const sansModule = (src, nom) => {
   if (/^\s*(?:export|import)\b/m.test(net))
     throw new Error(`${nom} : un export ou un import a survécu au retrait — forme multiligne ?`)
   return net
+}
+
+/** Copie `command.js` (socle) + `parc-command.js` à côté de la page servie. */
+async function copierModulesCommande(dossier) {
+  mkdirSync(dossier, { recursive: true })
+  const local = join(ICI, '..', '..', 'dev-pwa-config', 'command.js')
+  const destCmd = join(dossier, 'command.js')
+  if (existsSync(local)) {
+    copyFileSync(local, destCmd)
+  } else {
+    let texte = null
+    for (const ref of ['main']) {
+      const url = `https://raw.githubusercontent.com/${COMPTE}/dev-pwa-config/${ref}/command.js`
+      const r = await fetch(url, {
+        headers: JETON ? { Authorization: `Bearer ${JETON}`, 'User-Agent': 'parc-dashboard' } : { 'User-Agent': 'parc-dashboard' },
+      })
+      if (r.ok) {
+        texte = await r.text()
+        break
+      }
+    }
+    if (texte == null) {
+      throw new Error(`command.js introuvable : ni ${local}, ni raw GitHub (main)`)
+    }
+    writeFileSync(destCmd, texte, 'utf8')
+  }
+  copyFileSync(join(ICI, 'parc-command.js'), join(dossier, 'parc-command.js'))
 }
 
 const regles = readFileSync(join(ICI, 'regles.mjs'), 'utf8')
@@ -1292,6 +1318,7 @@ modele.gabarit = createHash('sha256')
   .update(pilotage)
   .update(libelles)
   .update(style)
+  .update(readFileSync(join(ICI, 'parc-command.js'), 'utf8'))
   .digest('hex')
   .slice(0, 12)
 
@@ -1394,6 +1421,7 @@ let instantane = false
 if (DOSSIER_PUBLIE) {
   mkdirSync(DOSSIER_PUBLIE, { recursive: true })
   writeFileSync(join(DOSSIER_PUBLIE, 'index.html'), pageServie)
+  await copierModulesCommande(DOSSIER_PUBLIE)
   writeFileSync(join(DOSSIER_PUBLIE, 'historique.json'), JSON.stringify(histo) + '\n')
   writeFileSync(join(DOSSIER_PUBLIE, 'etat.json'), JSON.stringify(etatPublie(inchange ? avantPublie : modele, MAINTENANT)) + '\n')
 
@@ -1437,6 +1465,7 @@ if (DOSSIER_PUBLIE) {
   instantane = INSTANTANE && joursAbsents(histoDepot, histo).length > 0
   if (instantane) {
     writeFileSync(SORTIE, pageServie)
+    await copierModulesCommande(dirname(SORTIE))
     writeFileSync(CHEMIN_HISTORIQUE, JSON.stringify(histo) + '\n')
     console.error(`Instantané du jour : ${SORTIE} et historique.json réécrits pour le commit.`)
   }
@@ -1444,6 +1473,7 @@ if (DOSSIER_PUBLIE) {
   console.error(`Rien n'a bougé depuis le relevé précédent (${appels} appels d'API). Fichier laissé tel quel.`)
 } else {
   writeFileSync(SORTIE, page)
+  await copierModulesCommande(dirname(SORTIE))
   console.error(`${SORTIE} réécrit : ${(page.length / 1024).toFixed(1)} Kio, ${appels} appels d'API.`)
 }
 console.error(
