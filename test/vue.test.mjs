@@ -52,7 +52,12 @@ import {
   nomDemande,
   nbDepotsDe,
   moteurDe,
+  matriceUsageSocle,
+  manquesUsage,
+  indirectsDe,
+  CATEGORIES_USAGE,
 } from '../scripts/vue.mjs'
+import { CATEGORIES } from '../scripts/socle-usage.mjs'
 import { cmpVersion, etatPublie } from '../scripts/regles.mjs'
 
 test('rangEcart nomme le RANG, pas la distance', () => {
@@ -830,4 +835,144 @@ test('phraseChangement : le nom propre d’abord, et un nouveau majeur se dit', 
   assert.ok(amont.includes('[changements.amont.majeur]'))
   assert.deepEqual(phraseChangement({ type: 'site-tombe', depot: 'b' }, T), ['b', '[changements.site-tombe]'])
   assert.deepEqual(phraseChangement({ type: 'prod-retard', depot: 'c', retard: 2 }, T), ['c', '[changements.prod-retard {"n":2}]'])
+})
+
+/* ── usage du socle ── */
+
+const usage = (modules, outils = [], workflows = [], extra = {}) => ({ modules, outils, workflows, inconnus: [], fichiers: 10, ...extra })
+const PARC_USAGE = {
+  socleOffre: {
+    modules: ['react/card', 'react/button', 'csv', 'eslint-react', 'react/use-online', 'vcard'],
+    categories: { 'react/card': 'composant', 'react/button': 'composant', csv: 'bibliotheque', 'eslint-react': 'outillage', 'react/use-online': 'crochet', vcard: 'bibliotheque' },
+    outils: ['pwa-doctor', 'pwa-icons'],
+    workflows: ['pwa-ci.yml'],
+  },
+  depots: [
+    { nom: 'a', famille: 'pwa', usageSocle: usage(['react/card', 'react/button', 'eslint-react', 'csv'], ['pwa-doctor'], ['pwa-ci.yml']) },
+    { nom: 'b', famille: 'pwa', usageSocle: usage(['react/card', 'eslint-react'], [], ['pwa-ci.yml']) },
+    { nom: 'c', famille: 'pwa', usageSocle: usage(['react/card', 'react/button', 'eslint-react'], [], ['pwa-ci.yml'], { incomplet: true, inconnus: ['ancien'] }) },
+    { nom: 'sans-socle', famille: 'autre' },
+  ],
+}
+
+test('la matrice d’usage : une colonne par consommateur, du plus gros preneur au plus petit', () => {
+  const { colonnes, lignes, total } = matriceUsageSocle(PARC_USAGE)
+  assert.deepEqual(
+    colonnes.map((c) => [c.nom, c.total]),
+    [
+      ['a', 6],
+      ['c', 4],
+      ['b', 3],
+    ],
+  )
+  assert.equal(colonnes.find((c) => c.nom === 'c').incomplet, true)
+  assert.deepEqual(colonnes.find((c) => c.nom === 'c').inconnus, ['ancien'])
+  assert.equal(total, 9, '6 modules, 2 outils, 1 workflow')
+  // Tri par défaut : le plus pris d'abord, puis le canal, puis le nom.
+  assert.deepEqual(
+    lignes.slice(0, 4).map((l) => [l.cle, l.n]),
+    [
+      ['eslint-react', 3],
+      ['react/card', 3],
+      ['pwa-ci.yml', 3],
+      ['react/button', 2],
+    ],
+  )
+  assert.deepEqual(lignes.find((l) => l.cle === 'vcard').par, [])
+})
+
+test('la matrice se filtre par canal, par famille, et sur les rares', () => {
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { canaux: ['outil'] }).lignes.map((l) => l.cle),
+    ['pwa-doctor', 'pwa-icons'],
+  )
+  // Une famille choisie ne garde QUE des modules : outils et workflows n'en ont pas.
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { categories: ['bibliotheque'] }).lignes.map((l) => l.cle),
+    ['csv', 'vcard'],
+  )
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { rares: true, tri: 'nom' }).lignes.map((l) => [l.cle, l.n]),
+    [
+      ['csv', 1],
+      ['pwa-doctor', 1],
+      ['pwa-icons', 0],
+      ['react/use-online', 0],
+      ['vcard', 0],
+    ],
+  )
+  // Par famille : canal, puis famille dans l'ordre des boutons, puis usage.
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { tri: 'categorie' }).lignes.map((l) => l.cle),
+    ['eslint-react', 'react/card', 'react/button', 'react/use-online', 'csv', 'vcard', 'pwa-doctor', 'pwa-icons', 'pwa-ci.yml'],
+  )
+})
+
+test('sans offre relevée, la matrice garde ses colonnes et n’a aucune ligne', () => {
+  const { colonnes, lignes } = matriceUsageSocle({ depots: PARC_USAGE.depots })
+  assert.equal(colonnes.length, 3)
+  assert.deepEqual(lignes, [])
+  assert.deepEqual(matriceUsageSocle(undefined), { colonnes: [], lignes: [], total: 0 })
+})
+
+test('les manques d’une app : ce que la moitié des AUTRES prend et pas elle', () => {
+  // Pour b, les autres sont a et c : seuil = 1. b ne prend ni react/button (2) ni csv (1).
+  assert.deepEqual(manquesUsage(PARC_USAGE, 'b'), {
+    seuil: 1,
+    autres: 2,
+    manquants: [
+      { cle: 'react/button', categorie: 'composant', n: 2 },
+      { cle: 'csv', categorie: 'bibliotheque', n: 1 },
+    ],
+  })
+  // À la part 1, seul ce que TOUS les autres prennent compte.
+  assert.deepEqual(manquesUsage(PARC_USAGE, 'b', 1).manquants.map((m) => m.cle), ['react/button'])
+  // Un outil manquant n'est pas un manque : b n'a pas pwa-doctor et ne le voit pas.
+  assert.ok(!manquesUsage(PARC_USAGE, 'b').manquants.some((m) => m.cle === 'pwa-doctor'))
+})
+
+test('les familles de la vue sont celles que le relevé calcule', () => {
+  // La page n'embarque pas socle-usage.mjs : les deux listes vivent chacune
+  // de leur côté, et ce test les tient ensemble.
+  assert.deepEqual([...CATEGORIES_USAGE].sort(), [...CATEGORIES].sort())
+})
+
+test('l’usage INDIRECT : reçu par un autre module, ou lancé par la CI partagée', () => {
+  const D = {
+    socleOffre: {
+      modules: ['react/i18n', 'react/labels-fr', 'react/app-footer', 'vcard'],
+      categories: { 'react/i18n': 'composant', 'react/labels-fr': 'libelles', 'react/app-footer': 'composant', vcard: 'bibliotheque' },
+      outils: ['pwa-doctor'],
+      workflows: [],
+      // le graphe du relevé, déjà transitif
+      graphe: { modules: { 'react/i18n': ['react/labels-fr'], 'react/app-footer': ['react/labels-fr'] } },
+    },
+    depots: [
+      { nom: 'a', usageSocle: usage(['react/i18n'], [], [], { outilsCi: ['pwa-doctor'] }) },
+      { nom: 'b', usageSocle: usage(['react/i18n', 'react/labels-fr'], ['pwa-doctor']) },
+      { nom: 'c', usageSocle: usage(['react/app-footer']) },
+    ],
+  }
+  const { lignes, colonnes } = matriceUsageSocle(D)
+  const ligne = (cle) => lignes.find((l) => l.cle === cle)
+  // b importe les libellés directement : il n'est compté qu'une fois, en direct.
+  assert.deepEqual([ligne('react/labels-fr').par, ligne('react/labels-fr').parIndirect], [['b'], ['a', 'c']])
+  assert.deepEqual([ligne('pwa-doctor').n, ligne('pwa-doctor').ni], [1, 1])
+  assert.deepEqual(colonnes.find((c) => c.nom === 'a'), {
+    nom: 'a', famille: undefined, modules: 1, outils: 0, workflows: 0, total: 1, indirects: 1, outilsCi: 1, incomplet: false, inconnus: [],
+  })
+  // Reçus par tout le parc, les libellés ne sont pas « rares » ; app-footer
+  // (un seul preneur) et vcard (aucun) le sont.
+  assert.deepEqual(matriceUsageSocle(D, { rares: true }).lignes.map((l) => l.cle), ['react/app-footer', 'vcard'])
+  // Ce qu'une app reçoit déjà n'est pas un manque : c n'a « rien à adopter »
+  // côté libellés, seulement react/i18n, que les deux autres importent.
+  assert.deepEqual(manquesUsage(D, 'c').manquants.map((m) => m.cle), ['react/i18n'])
+})
+
+test('indirectsDe : ce qu’emportent les modules importés, moins eux-mêmes', () => {
+  const graphe = { 'react/i18n': ['react/labels', 'react/labels-fr'], 'react/labels': ['react/labels-fr'] }
+  assert.deepEqual(indirectsDe(['react/i18n'], graphe), ['react/labels', 'react/labels-fr'])
+  assert.deepEqual(indirectsDe(['react/i18n', 'react/labels'], graphe), ['react/labels-fr'])
+  assert.deepEqual(indirectsDe(['vcard'], graphe), [])
+  assert.deepEqual(indirectsDe(['react/i18n'], undefined), [])
 })

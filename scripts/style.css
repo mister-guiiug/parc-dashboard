@@ -1331,6 +1331,112 @@ footer {
   font-variant-numeric: tabular-nums;
   color: var(--ink2);
 }
+
+/* ───────────────────── Usage du socle ─────────────────────
+   La même grille que la matrice des écarts — en-tête et première colonne
+   collants, noms de dépôts tournés —, mais une cellule ne porte qu'un
+   OUI : un point plein, sur un aplat discret pour que les lignes se
+   lisent de loin. La barre de « Pris par » donne la part du parc sans
+   avoir à compter les points. */
+/* `position: relative` ANCRE le texte `.sr` de la case dans la case. Sans
+   elle, ce texte absolu prenait la page pour repère, sortait de la zone à
+   défilement, et élargissait TOUTE la page de 227 px (mesuré : 1 267 px de
+   large pour une fenêtre de 1 040). */
+.usage .usageCase {
+  position: relative;
+  text-align: center;
+  padding: 3px 4px;
+  min-width: 18px;
+}
+.usage .usageCase[data-pris='direct'] {
+  color: var(--series1);
+  background: color-mix(in srgb, var(--series1) 14%, transparent);
+}
+/* Reçu par un autre module, ou lancé par la CI partagée : un rond, sans
+   aplat. L'encre reste `--series1` — le glyphe porte la différence, pas une
+   couleur qu'on ne lirait plus. */
+.usage .usageCase[data-pris='indirect'] {
+  color: var(--series1);
+}
+.usage .usageN {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink2);
+}
+.usageBarre {
+  display: inline-block;
+  vertical-align: middle;
+  width: 48px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 3px;
+  /* Direct en plein, indirect en demi-teinte à sa suite, le reste en grille. */
+  background: linear-gradient(
+    to right,
+    var(--series1) calc(var(--part, 0) * 100%),
+    color-mix(in srgb, var(--series1) 40%, transparent) 0 calc(var(--partInd, 0) * 100%),
+    var(--grid) 0
+  );
+}
+.usageIndirect {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--ink2);
+}
+.usageLigne {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.usageLigne:hover .mono {
+  text-decoration: underline;
+}
+.usageLigne:focus-visible,
+.usage .triCol:focus-visible {
+  outline: 2px solid var(--series1);
+  outline-offset: 1px;
+}
+.usageFamille {
+  font-size: 11px;
+  color: var(--ink2);
+}
+.usageTotal {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink2);
+}
+.usageSigne {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--serious);
+}
+/* Ce qu'aucun ou un seul dépôt prend : la ligne est teintée, pour que le
+   tri par nom ou par famille laisse voir les candidats au retrait. */
+.usage tr[data-rare='0'] th {
+  box-shadow: inset 3px 0 0 var(--critical);
+}
+.usage tr[data-rare='1'] th {
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+.usageListe {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+  columns: 2 220px;
+  font-size: 12.5px;
+}
+#panneauUsageCorps h4 {
+  margin: 10px 0 2px;
+  font-size: 13px;
+}
 /* ── Table des éléments ─────────────────────────────────────────────
    UNE SEULE TEINTE PAR GROUPE, mélangée au fond de la page plutôt que
    posée en dur. `color-mix` avec `--surface` et `--border` fait suivre

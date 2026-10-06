@@ -39,6 +39,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // page. Voir `scripts/collecte.mjs`.
 import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
+import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, brutsDepuisFichiers, estReutilisable, fichiersAScanner, fichiersDuSocle, grapheDuSocle, importesDe, offreDuSocle, outilsDuReutilisable, rattache, usageReprenable } from './socle-usage.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -364,13 +365,20 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   // page en ligne en savait, comme pour la production. Leurs fichiers, eux,
   // passent par raw.githubusercontent, hors quota.
   const connu = avantPublie?.depots?.find((x) => x.nom === g.name)
+  const memeTete = Boolean(commit && connu?.commit?.sha === commit.sha.slice(0, 7))
+  // L'arbre est lu UNE fois par passage, et seulement si quelqu'un en a besoin.
+  let arbreLu
+  const lisArbre = async () => {
+    if (arbreLu === undefined) arbreLu = commit ? await apiFacultatif(`/repos/${nwo}/git/trees/${commit.sha}?recursive=1`) : null
+    return arbreLu
+  }
   let dossiers = null
   let dossiersIncertains = false
-  if (commit && connu?.commit?.sha === commit.sha.slice(0, 7) && Array.isArray(connu.dossiers)) {
+  if (memeTete && Array.isArray(connu.dossiers)) {
     dossiers = connu.dossiers
     dossiersIncertains = Boolean(connu.dossiersIncertains)
   } else if (commit) {
-    const arbre = await apiFacultatif(`/repos/${nwo}/git/trees/${commit.sha}?recursive=1`)
+    const arbre = await lisArbre()
     if (Array.isArray(arbre?.tree) && !arbre.truncated)
       dossiers = unitesDeLArbre(
         arbre.tree.filter((e) => e.type === 'blob').map((e) => e.path),
@@ -385,6 +393,39 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   }
   // Arbre illisible : on garde ce qu'on savait plutôt que d'effacer des dossiers.
   if (!dossiers) dossiers = Array.isArray(connu?.dossiers) ? connu.dossiers : []
+
+  // CE QUE LE DÉPÔT UTILISE DU SOCLE, lu dans son code (voir `socle-usage.mjs`).
+  // Même règle que les dossiers : on ne relit les fichiers que si la tête a
+  // bougé, sinon on reprend ce que la page en ligne savait. Seuls les
+  // sous-chemins BRUTS sont gardés : leur rattachement aux exports se refait à
+  // chaque passage, pour suivre une nouvelle version du socle sans relire.
+  let usageSocle = null
+  if (SOCLE_PAQUET in declarees) {
+    if (usageReprenable(connu, memeTete)) {
+      const { workflows, appels, fichiers, incomplet } = connu.usageSocle
+      usageSocle = { v: VERSION_MESURE, importes: importesDe(connu.usageSocle), workflows, appels: appels || [], fichiers, incomplet: Boolean(incomplet) }
+    } else {
+      const arbre = await lisArbre()
+      if (Array.isArray(arbre?.tree)) {
+        const tous = fichiersAScanner(arbre.tree.filter((e) => e.type === 'blob').map((e) => e.path))
+        const lus = tous.slice(0, PLAFOND_FICHIERS)
+        const textes = await enLot(lus, 8, async (chemin) => {
+          // Un fichier illisible ne fait pas tomber le relevé : il rend la
+          // ligne « incomplète », ce que la page dit.
+          const texte = await fichier(nwo, def, chemin.split('/').map(encodeURIComponent).join('/')).catch(() => null)
+          return { chemin, texte }
+        })
+        usageSocle = {
+          v: VERSION_MESURE,
+          ...brutsDepuisFichiers(textes),
+          fichiers: lus.length,
+          // Un arbre tronqué, un plafond atteint ou un fichier illisible : la
+          // ligne existe, mais elle peut sous-compter, et la page le dit.
+          incomplet: Boolean(arbre.truncated) || tous.length > lus.length || textes.some((t) => t.texte == null),
+        }
+      }
+    }
+  }
   const unites = [{ dossier: '', pkg, declarees, verrouillees }]
   for (const u of dossiers) {
     const p = json(await fichier(nwo, def, `${u.dossier}/package.json`))
@@ -460,6 +501,10 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
     // tant que la tête ne bouge pas
     dossiers,
     dossiersIncertains,
+    // les sous-chemins bruts, rattachés aux exports du socle plus bas ; les
+    // scripts servent à reconnaître les outils, puis sont retirés
+    usageSocle,
+    scriptsPaquet: pkg?.scripts || null,
     paquet: pkg ? { nom: pkg.name, version: pkg.version, prive: !!pkg.private } : null,
     nbDeps: Object.keys(declarees).length,
     nbVerrouilles: Object.keys(verrouillees).length || null,
@@ -795,6 +840,60 @@ for (const it of tableaux?.items || []) {
 // `typescript-eslint` était figé dans 23 dépôts et la page en comptait 5.
 const pkgSocle = depotSocle ? json(await fichier(depotSocle.nwo, depotSocle.brancheDefaut, 'package.json')) : null
 const PAIRS = new Set(pairsDures(pkgSocle))
+
+/* --------------------------------------------------- l'usage du socle */
+
+// CE QUE LE SOCLE OFFRE, lu sur sa branche par défaut : ses exports, ses
+// outils, et ses workflows RÉUTILISABLES (ceux qui se déclenchent par
+// `workflow_call` — `ci.yml` ou `publish.yml` sont les siens, pas les nôtres).
+const listeWorkflowsSocle = depotSocle ? await apiFacultatif(`/repos/${depotSocle.nwo}/contents/.github/workflows?ref=${depotSocle.brancheDefaut}`) : null
+const reutilisables = []
+// CE QUE CHAQUE RÉUTILISABLE LANCE COMME OUTILS, et sous quelles options : un
+// `pwa-doctor` que la CI partagée lance pour l'app (`run-doctor: true`)
+// n'apparaît dans aucun de ses scripts, et passait pour inutilisé.
+const ci = {}
+for (const f of Array.isArray(listeWorkflowsSocle) ? listeWorkflowsSocle : []) {
+  if (!/.ya?ml$/.test(f.name)) continue
+  const texte = await fichier(depotSocle.nwo, depotSocle.brancheDefaut, f.path)
+  if (!estReutilisable(texte)) continue
+  reutilisables.push(f.name)
+  const analyse = outilsDuReutilisable(texte, Object.keys(pkgSocle?.bin || {}))
+  if (analyse.outils.length) ci[f.name] = analyse
+}
+const socleOffre = { ...offreDuSocle(pkgSocle, reutilisables), ci }
+
+// LE GRAPHE INTERNE DU SOCLE — ce que chaque module et chaque outil emportent
+// d'autres modules. Une lecture de ~250 fichiers, refaite seulement quand la
+// tête du socle bouge ; sinon on reprend celui de la page en ligne.
+const shaSocle = depotSocle?.commit?.sha && depotSocle.commit.sha !== '?' ? depotSocle.commit.sha : null
+const grapheConnu = avantPublie?.socleOffre?.graphe
+if (shaSocle && grapheConnu?.sha === shaSocle && grapheConnu?.v === VERSION_MESURE) {
+  socleOffre.graphe = grapheConnu
+} else if (depotSocle && pkgSocle) {
+  const arbre = await apiFacultatif(`/repos/${depotSocle.nwo}/git/trees/${encodeURIComponent(depotSocle.brancheDefaut)}?recursive=1`)
+  if (Array.isArray(arbre?.tree)) {
+    const chemins = fichiersDuSocle(arbre.tree.filter((e) => e.type === 'blob').map((e) => e.path))
+    const lus = await enLot(chemins, 8, async (chemin) => ({
+      chemin,
+      texte: await fichier(depotSocle.nwo, depotSocle.brancheDefaut, chemin.split('/').map(encodeURIComponent).join('/')).catch(() => null),
+    }))
+    socleOffre.graphe = { v: VERSION_MESURE, sha: shaSocle, ...grapheDuSocle(pkgSocle, lus) }
+  } else if (grapheConnu) {
+    // Arbre illisible : on garde l'ancien graphe plutôt que de tout déclarer mort.
+    socleOffre.graphe = grapheConnu
+  }
+}
+
+// Le rattachement aux exports se refait à chaque passage : un module retiré du
+// socle passe en « inconnu » chez qui l'importe encore, sans relire son code.
+for (const d of depots) {
+  if (d.usageSocle) {
+    Object.assign(d.usageSocle, rattache(d.usageSocle, socleOffre, d.scriptsPaquet || {}))
+    // reconstituables depuis `modules` et `inconnus` (voir `importesDe`)
+    delete d.usageSocle.importes
+  }
+  delete d.scriptsPaquet
+}
 
 const SUIVIES = new Set()
 // UN ALIAS PORTE UN NOM QUI N'EXISTE PAS AU REGISTRE. `"typescript-7":
@@ -1220,6 +1319,9 @@ const modele = {
   renovateLu,
   // les pairs dures du socle, suivies jusque dans les lockfiles
   pairsSocle: [...PAIRS],
+  // ce que le socle offre — les lignes de la matrice d'usage ; ce que chaque
+  // consommateur en prend est dans `depots[].usageSocle`
+  socleOffre,
 }
 
 /* ------------------------------------------- ce qui a bougé, et depuis quand */

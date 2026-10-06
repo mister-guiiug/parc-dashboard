@@ -968,3 +968,117 @@ export function phraseChangement(c, T) {
   if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
   return [c.depot, T('changements.depot-sorti')]
 }
+
+/* ── usage du socle ─────────────────────────────────────────────────────── */
+
+/** Les trois canaux par lesquels une app consomme le socle (voir `socle-usage.mjs`). */
+export const CANAUX_USAGE = ['module', 'outil', 'workflow']
+/** Les familles de modules, dans l'ordre des boutons — celles de `categorieModule`. */
+export const CATEGORIES_USAGE = ['outillage', 'vite', 'composant', 'crochet', 'libelles', 'bibliotheque']
+
+/**
+ * Les modules qu'une app REÇOIT sans les importer : ce qu'emportent ceux
+ * qu'elle importe, d'après le graphe interne du socle (déjà transitif), moins
+ * ce qu'elle importe elle-même.
+ */
+export function indirectsDe(modules = [], graphe = {}) {
+  const directs = new Set(modules)
+  const out = new Set()
+  for (const m of directs) for (const d of graphe?.[m] || []) if (!directs.has(d)) out.add(d)
+  return [...out].sort()
+}
+
+/**
+ * LA MATRICE D'USAGE DU SOCLE : une ligne par chose que le socle offre, une
+ * colonne par dépôt qui le consomme, mesurée dans son code par le relevé.
+ *
+ * DEUX FAÇONS DE PRENDRE. DIRECTEMENT : l'app importe le module, ou appelle
+ * l'outil dans un script. INDIRECTEMENT : elle reçoit un module par un autre
+ * qu'elle importe (les libellés par `react/i18n`), ou la CI partagée lance
+ * l'outil pour elle (`pwa-doctor` sous `run-doctor: true`). Sans cette
+ * distinction, la matrice déclarait morts des modules que tout le parc reçoit.
+ *
+ * Les COLONNES vont du plus gros preneur direct au plus petit : l'œil lit
+ * d'abord qui s'appuie sur le socle, et finit sur qui le contourne. Les LIGNES
+ * se filtrent par canal et par famille ; une famille choisie ne garde que des
+ * modules, les outils et les workflows n'en ayant pas. `rares` ne garde que ce
+ * qu'aucun ou un seul consommateur prend, directement ou non : les candidats
+ * au retrait, ou à la promotion manquée.
+ *
+ * @param {{ socleOffre?: object, depots?: object[] }} D
+ * @param {{ canaux?: string[], categories?: string[], rares?: boolean, tri?: 'usage' | 'nom' | 'categorie' }} options
+ */
+export function matriceUsageSocle(D, { canaux = [], categories = [], rares = false, tri = 'usage' } = {}) {
+  const consommateurs = (D?.depots || []).filter((d) => d.usageSocle)
+  const graphe = D?.socleOffre?.graphe?.modules
+  const ensembles = (u) => ({
+    direct: { module: new Set(u.modules || []), outil: new Set(u.outils || []), workflow: new Set(u.workflows || []) },
+    indirect: { module: new Set(indirectsDe(u.modules, graphe)), outil: new Set(u.outilsCi || []), workflow: new Set() },
+  })
+  const prises = new Map(consommateurs.map((d) => [d.nom, ensembles(d.usageSocle)]))
+  const colonnes = consommateurs
+    .map((d) => {
+      const { direct, indirect } = prises.get(d.nom)
+      return {
+        nom: d.nom,
+        famille: d.famille,
+        modules: direct.module.size,
+        outils: direct.outil.size,
+        workflows: direct.workflow.size,
+        total: direct.module.size + direct.outil.size + direct.workflow.size,
+        indirects: indirect.module.size,
+        outilsCi: indirect.outil.size,
+        incomplet: Boolean(d.usageSocle.incomplet),
+        inconnus: d.usageSocle.inconnus || [],
+      }
+    })
+    .sort((a, b) => b.total - a.total || a.nom.localeCompare(b.nom))
+  const offre = D?.socleOffre
+  if (!offre) return { colonnes, lignes: [], total: 0 }
+
+  const toutes = [
+    ...(offre.modules || []).map((cle) => ({ cle, canal: 'module', categorie: offre.categories?.[cle] || 'bibliotheque' })),
+    ...(offre.outils || []).map((cle) => ({ cle, canal: 'outil', categorie: null })),
+    ...(offre.workflows || []).map((cle) => ({ cle, canal: 'workflow', categorie: null })),
+  ].map((l) => {
+    const par = colonnes.filter((c) => prises.get(c.nom).direct[l.canal].has(l.cle)).map((c) => c.nom)
+    const parIndirect = colonnes.filter((c) => !par.includes(c.nom) && prises.get(c.nom).indirect[l.canal].has(l.cle)).map((c) => c.nom)
+    return { ...l, par, parIndirect, n: par.length, ni: parIndirect.length }
+  })
+  const lignes = toutes
+    .filter((l) => !canaux.length || canaux.includes(l.canal))
+    .filter((l) => !categories.length || (l.canal === 'module' && categories.includes(l.categorie)))
+    .filter((l) => !rares || l.n + l.ni <= 1)
+  const rangCanal = (l) => CANAUX_USAGE.indexOf(l.canal)
+  const rangCategorie = (l) => (l.categorie ? CATEGORIES_USAGE.indexOf(l.categorie) : CATEGORIES_USAGE.length)
+  const parUsage = (a, b) => b.n - a.n || b.ni - a.ni
+  lignes.sort((a, b) =>
+    tri === 'nom'
+      ? a.cle.localeCompare(b.cle)
+      : tri === 'categorie'
+        ? rangCanal(a) - rangCanal(b) || rangCategorie(a) - rangCategorie(b) || parUsage(a, b) || a.cle.localeCompare(b.cle)
+        : parUsage(a, b) || rangCanal(a) - rangCanal(b) || a.cle.localeCompare(b.cle),
+  )
+  return { colonnes, lignes, total: toutes.length }
+}
+
+/**
+ * CE QU'UNE APP NE PREND PAS ALORS QUE LA PLUPART LE PRENNENT — la mesure de
+ * l'effort pour qu'elle s'appuie davantage sur le socle.
+ *
+ * « La plupart » = au moins `part` des AUTRES consommateurs (la moitié par
+ * défaut), en comptant leurs imports DIRECTS : compter l'app elle-même ferait
+ * baisser le seuil de celles qui n'utilisent rien. Seuls les modules comptent —
+ * un outil ou un workflow manquant est un choix de CI, pas une copie de code —
+ * et un module que l'app reçoit déjà indirectement n'est pas un manque.
+ */
+export function manquesUsage(D, nom, part = 0.5) {
+  const { colonnes, lignes } = matriceUsageSocle(D, { canaux: ['module'] })
+  const autres = colonnes.filter((c) => c.nom !== nom).length
+  const seuil = Math.max(1, Math.ceil(autres * part))
+  const manquants = lignes
+    .filter((l) => !l.par.includes(nom) && !l.parIndirect.includes(nom))
+    .filter((l) => l.n >= seuil)
+    .map(({ cle, categorie, n }) => ({ cle, categorie, n }))
+  return { seuil, autres, manquants }
+}
