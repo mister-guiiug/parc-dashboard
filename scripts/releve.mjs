@@ -401,9 +401,12 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   // chaque passage, pour suivre une nouvelle version du socle sans relire.
   let usageSocle = null
   if (SOCLE_PAQUET in declarees) {
+    const reprise = (incomplet) => {
+      const { workflows, appels, fichiers } = connu.usageSocle
+      return { v: VERSION_MESURE, importes: importesDe(connu.usageSocle), workflows, appels: appels || [], fichiers, incomplet }
+    }
     if (usageReprenable(connu, memeTete)) {
-      const { workflows, appels, fichiers, incomplet } = connu.usageSocle
-      usageSocle = { v: VERSION_MESURE, importes: importesDe(connu.usageSocle), workflows, appels: appels || [], fichiers, incomplet: Boolean(incomplet) }
+      usageSocle = reprise(Boolean(connu.usageSocle.incomplet))
     } else {
       const arbre = await lisArbre()
       if (Array.isArray(arbre?.tree)) {
@@ -423,6 +426,11 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
           // ligne existe, mais elle peut sous-compter, et la page le dit.
           incomplet: Boolean(arbre.truncated) || tous.length > lus.length || textes.some((t) => t.texte == null),
         }
+      } else if (usageReprenable(connu, true)) {
+        // Arbre illisible : on garde la mesure d'avant, dite incomplète, comme
+        // pour les dossiers — sinon le dépôt sortait de la matrice jusqu'au
+        // prochain passage réussi.
+        usageSocle = reprise(true)
       }
     }
   }
@@ -867,7 +875,10 @@ const socleOffre = { ...offreDuSocle(pkgSocle, reutilisables), ci }
 // tête du socle bouge ; sinon on reprend celui de la page en ligne.
 const shaSocle = depotSocle?.commit?.sha && depotSocle.commit.sha !== '?' ? depotSocle.commit.sha : null
 const grapheConnu = avantPublie?.socleOffre?.graphe
-if (shaSocle && grapheConnu?.sha === shaSocle && grapheConnu?.v === VERSION_MESURE) {
+// Un graphe incomplet (un fichier illisible) n'est pas repris : il se relit au
+// passage suivant, plutôt que de faire paraître des modules morts jusqu'au
+// prochain commit du socle.
+if (shaSocle && grapheConnu?.sha === shaSocle && grapheConnu?.v === VERSION_MESURE && !grapheConnu.incomplet) {
   socleOffre.graphe = grapheConnu
 } else if (depotSocle && pkgSocle) {
   const arbre = await apiFacultatif(`/repos/${depotSocle.nwo}/git/trees/${encodeURIComponent(depotSocle.brancheDefaut)}?recursive=1`)
@@ -878,6 +889,8 @@ if (shaSocle && grapheConnu?.sha === shaSocle && grapheConnu?.v === VERSION_MESU
       texte: await fichier(depotSocle.nwo, depotSocle.brancheDefaut, chemin.split('/').map(encodeURIComponent).join('/')).catch(() => null),
     }))
     socleOffre.graphe = { v: VERSION_MESURE, sha: shaSocle, ...grapheDuSocle(pkgSocle, lus) }
+    if (arbre.truncated) socleOffre.graphe.incomplet = true
+    if (socleOffre.graphe.incomplet) console.warn(`graphe du socle incomplet : ${lus.filter((f) => f.texte == null).length} fichier(s) illisible(s)${arbre.truncated ? ', arbre tronqué' : ''}`)
   } else if (grapheConnu) {
     // Arbre illisible : on garde l'ancien graphe plutôt que de tout déclarer mort.
     socleOffre.graphe = grapheConnu

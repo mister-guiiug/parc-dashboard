@@ -127,8 +127,17 @@ jobs:
     uses: 'mister-guiiug/dev-pwa-config/.github/workflows/pwa-lighthouse.yml@v6'
   autre:
     uses: actions/checkout@v7
+  ancien:
+    # uses: mister-guiiug/dev-pwa-config/.github/workflows/pwa-deploy.yml@v6
+    run: echo "uses: mister-guiiug/dev-pwa-config/.github/workflows/pwa-vice.yml@v6"
 `
+  // Un appel commenté, ou cité dans une commande, n'appelle rien : même
+  // lecture que `appelsDuSocle`, pour que les deux canaux ne se contredisent pas.
   assert.deepEqual(workflowsDuSocle(ci), ['pwa-ci.yml', 'pwa-lighthouse.yml'])
+  assert.deepEqual(
+    appelsDuSocle(ci).map((a) => a.workflow),
+    ['pwa-ci.yml', 'pwa-lighthouse.yml'],
+  )
   assert.equal(estReutilisable('on:\n  workflow_call:\n    inputs: {}'), true)
   assert.equal(estReutilisable('on: [push, workflow_call]'), true)
   assert.equal(estReutilisable('on:\n  push:\n    branches: [main]'), false)
@@ -183,6 +192,7 @@ test('l’usage d’un dépôt : direct, par la CI, indirect, et les imports orp
   assert.deepEqual(rattache(bruts, offre, { build: 'vite build && pwa-icons' }), {
     modules: ['components/*.css', 'react/card'],
     inconnus: ['ancien-module'],
+    viaMotif: ['components/sheet.css'],
     outils: ['pwa-icons'],
     outilsCi: ['pwa-doctor'],
   })
@@ -259,6 +269,33 @@ test('ce qu’un réutilisable lance, et sous quelles options', () => {
   assert.deepEqual(outilsParLaCi([{ workflow: 'autre.yml', avec: { 'run-doctor': 'true' } }], ci), [])
 })
 
+test('un outil n’est lancé que sous la condition de son étape, quel que soit l’ordre des clés', () => {
+  const texte = [
+    'on:',
+    '  workflow_call:',
+    '    inputs:',
+    '      run-doctor:',
+    '        description: Lance pwa-doctor après le build',
+    '        default: false',
+    'jobs:',
+    '  ci:',
+    '    steps:',
+    '      - name: Lance pwa-doctor',
+    '        if: ${{ inputs.run-doctor }}',
+    '        run: npx pwa-doctor # pwa-icons est cité en commentaire',
+    '      - uses: actions/upload-artifact@v7',
+    '        with:',
+    '          name: pwa-icons',
+    '          path: dist',
+  ].join('\n')
+  const analyse = outilsDuReutilisable(texte, ['pwa-doctor', 'pwa-icons'])
+  // Le `name:` venait avant le `if:` : l'outil était noté sans condition, donc
+  // lancé pour tous les appelants. Ni la description de l'option, ni le nom
+  // d'un artefact, ni un commentaire ne lancent quoi que ce soit.
+  assert.deepEqual(analyse.outils, [{ outil: 'pwa-doctor', si: [{ input: 'run-doctor', vrai: true }] }])
+  assert.deepEqual(outilsParLaCi([{ workflow: 'pwa-ci.yml', avec: {} }], { 'pwa-ci.yml': analyse }), [])
+})
+
 test('le graphe interne du socle : fermeture transitive, motifs, auto-références', () => {
   const pkg = {
     exports: {
@@ -298,6 +335,15 @@ test('le graphe interne du socle : fermeture transitive, motifs, auto-référenc
       'tsconfig-app-react': ['tsconfig-app'],
     },
   })
+  // Un fichier illisible retire ses arêtes : le graphe le dit, pour ne pas
+  // être gardé en cache jusqu'au prochain commit du socle.
+  const ampute = grapheDuSocle(
+    pkg,
+    fichiers.map((f) => (f.chemin === 'eslint-react.js' ? { ...f, texte: null } : f)),
+  )
+  assert.equal(ampute.incomplet, true)
+  assert.equal(ampute.modules['eslint-react'], undefined)
+  assert.equal('incomplet' in grapheDuSocle(pkg, fichiers), false)
 })
 
 test('les fichiers lus pour le graphe du socle, et la cible d’un export', () => {
@@ -345,4 +391,16 @@ test('les imports bruts se reconstituent depuis une mesure publiée', () => {
   const offre = { modules: ['react/card', 'components/*.css'], outils: [] }
   assert.deepEqual(rattache({ importes: importesDe({ modules: ['react/card', 'components/*.css'], inconnus: ['ancien'] }) }, offre).modules, ['components/*.css', 'react/card'])
   assert.equal(usageReprenable({ usageSocle: { v: VERSION_MESURE, modules: [] } }, true), true, 'une mesure publiée, sans importes, se reprend')
+})
+
+test('un import servi par un motif se reconstitue tel quel, pas comme le motif', () => {
+  const bruts = { importes: ['components/sheet.css', 'react/card'] }
+  const publie = rattache(bruts, { modules: ['react/card', 'components/*.css'], outils: [] })
+  assert.deepEqual(publie.viaMotif, ['components/sheet.css'])
+  assert.deepEqual(importesDe(publie), ['components/sheet.css', 'react/card'])
+  // Le socle remplace le motif par des exports exacts : l'import suit, au lieu
+  // de passer pour inconnu — « un import qui casserait » — sans relire le dépôt.
+  const apres = rattache({ importes: importesDe(publie) }, { modules: ['react/card', 'components/sheet.css'], outils: [] })
+  assert.deepEqual(apres.modules, ['components/sheet.css', 'react/card'])
+  assert.deepEqual(apres.inconnus, [])
 })

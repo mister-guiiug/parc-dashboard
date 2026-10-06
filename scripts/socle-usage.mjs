@@ -30,8 +30,11 @@ export const PLAFOND_FICHIERS = 600
  * sur les dépôts qui reçoivent un commit. Vécu au premier prototype : les
  * lockfiles comptés à tort comme imports sont restés dans quinze dépôts sur
  * vingt-deux après la correction. Monter ce numéro force une relecture.
+ *
+ * 4 : les sous-chemins servis par un motif (`viaMotif`) sont gardés ; une
+ * mesure 3 ne les a plus, elle ne peut que se relire.
  */
-export const VERSION_MESURE = 3
+export const VERSION_MESURE = 4
 
 /** La mesure connue d'un dépôt est-elle reprenable telle quelle ? */
 export function usageReprenable(connu, memeTete) {
@@ -92,11 +95,13 @@ export function outilsDuSocle(scripts = {}, outils = []) {
   return outils.filter((o) => new RegExp(`(?:^|[\\s"'&|;(])${echappe(o)}(?=[\\s"'&|;)]|$)`, 'm').test(texte))
 }
 
-const RE_USES = new RegExp(`uses:\\s*['"]?${echappe(SOCLE_DEPOT)}/\\.github/workflows/([\\w.-]+\\.ya?ml)@`, 'g')
-
-/** Les workflows réutilisables du socle appelés par un fichier de workflow. */
+/**
+ * Les workflows réutilisables du socle appelés par un fichier de workflow.
+ * Même lecture que `appelsDuSocle` : un `uses:` commenté n'appelle rien, et
+ * les deux canaux ne doivent pas se contredire sur le même fichier.
+ */
 export function workflowsDuSocle(texte = '') {
-  return [...new Set([...String(texte).matchAll(RE_USES)].map((m) => m[1]))]
+  return [...new Set(appelsDuSocle(texte).map((a) => a.workflow))]
 }
 
 /** Un workflow du socle est réutilisable s'il se déclenche par `workflow_call`. */
@@ -223,11 +228,28 @@ export function outilsDuReutilisable(texte = '', outils = []) {
   let ifJob = ''
   let ifEtape = ''
   let retraitEtape = -1
+  // LA CONDITION D'UNE ÉTAPE N'EST CONNUE QU'À SA FIN : `name:` vient souvent
+  // avant `if:`. Les outils lus dans l'étape attendent donc qu'elle se ferme —
+  // les noter au fil de la lecture les comptait sans condition, donc lancés
+  // pour tous les appelants.
+  let enAttente = []
+  const ferme = () => {
+    const si = [...conditions(ifJob), ...conditions(ifEtape)]
+    for (const outil of enAttente) {
+      const cle = outil + '|' + JSON.stringify(si)
+      if (!trouves.some((t) => t.cle === cle)) trouves.push({ cle, outil, si })
+    }
+    enAttente = []
+  }
   const reOutils = outils.length ? new RegExp(`(?:^|[\\s"'&|;(/])(${outils.map(echappe).join('|')})(?=[\\s"'&|;)]|$)`, 'g') : null
-  for (const l of lignes) {
+  // Seulement sous `jobs:` : au-dessus, la `description:` d'une option nomme
+  // l'outil qu'elle déclenche sans rien lancer.
+  const iJobs = lignes.findIndex((l) => /^jobs:\s*$/.test(l))
+  for (const l of iJobs === -1 ? [] : lignes.slice(iJobs + 1)) {
     if (!l.trim() || /^\s*#/.test(l)) continue
     // un job : deux espaces sous `jobs:` ; son `if:` à quatre
     if (/^ {2}[\w-]+:\s*$/.test(l)) {
+      ferme()
       ifJob = ''
       ifEtape = ''
       retraitEtape = -1
@@ -239,27 +261,28 @@ export function outilsDuReutilisable(texte = '', outils = []) {
       continue
     }
     // une étape commence par `- ` ; son `if:` peut être sur la même ligne
+    let contenu = l
     const etape = /^(\s*)-\s+(.*)$/.exec(l)
     if (etape && (retraitEtape === -1 || etape[1].length <= retraitEtape)) {
+      ferme()
       retraitEtape = etape[1].length
       const si = /^if:\s*(.+)$/.exec(etape[2])
       ifEtape = si ? si[1] : ''
       // `- run: npx pwa-screenshots` : l'outil est sur la ligne même de
       // l'étape, il faut la lire comme les suivantes.
       if (si) continue
+      contenu = etape[2]
     }
     const sie = /^\s*if:\s*(.+)$/.exec(l)
     if (sie && retraitEtape !== -1 && retraitDe(l) === retraitEtape + 2) {
       ifEtape = sie[1]
       continue
     }
-    if (!reOutils) continue
-    for (const m of l.matchAll(reOutils)) {
-      const si = [...conditions(ifJob), ...conditions(ifEtape)]
-      const cle = m[1] + '|' + JSON.stringify(si)
-      if (!trouves.some((t) => t.cle === cle)) trouves.push({ cle, outil: m[1], si })
-    }
+    // Un libellé ne lance rien : `name: Lance pwa-doctor`, ni le nom d'un artefact.
+    if (!reOutils || /^\s*name:/.test(contenu)) continue
+    for (const m of sansCommentaire(contenu).matchAll(reOutils)) enAttente.push(m[1])
   }
+  ferme()
   return { defauts, outils: trouves.map(({ outil, si }) => ({ outil, si })) }
 }
 
@@ -338,7 +361,10 @@ export function dependancesDuFichier(chemin, texte, existants, parExport = new M
  *
  * @param {object} pkg  le package.json du socle
  * @param {{ chemin: string, texte: string | null }[]} fichiers
- * @returns {{ modules: Record<string, string[]> }}
+ * Un fichier illisible retire ses arêtes : le graphe le dit (`incomplet`),
+ * pour que le relevé ne le garde pas en cache jusqu'au prochain commit du socle.
+ *
+ * @returns {{ modules: Record<string, string[]>, incomplet?: true }}
  */
 export function grapheDuSocle(pkg, fichiers = []) {
   const existants = new Set(fichiers.filter((f) => f.texte != null).map((f) => f.chemin))
@@ -380,7 +406,7 @@ export function grapheDuSocle(pkg, fichiers = []) {
     const liste = enCles(atteints, k)
     if (liste.length) modules[k] = liste
   }
-  return { modules }
+  return fichiers.some((f) => f.texte == null) ? { modules, incomplet: true } : { modules }
 }
 
 /** Les fichiers du socle à lire pour son graphe : le code et les feuilles, sans tests ni vitrine. */
@@ -404,10 +430,12 @@ export function rattache(bruts, offre, scripts = {}) {
   const cles = new Set(offre?.modules || [])
   const modules = new Set()
   const inconnus = new Set()
+  const viaMotif = new Set()
   for (const s of bruts?.importes || []) {
     const m = moduleDe(s, cles)
     if (m) modules.add(m)
     else inconnus.add(s)
+    if (m && m !== s) viaMotif.add(s)
   }
   const outils = outilsDuSocle(scripts, offre?.outils || [])
   const outilsCi = outilsParLaCi(bruts?.appels || [], offre?.ci || {}).filter((o) => !outils.includes(o))
@@ -415,18 +443,24 @@ export function rattache(bruts, offre, scripts = {}) {
   // Les modules reçus INDIRECTEMENT ne sont pas rangés ici : la page les
   // déduit de `modules` et du graphe du socle (`indirectsDe`, vue.mjs). Les
   // publier par dépôt pesait 23 Kio de plus, pour une donnée calculable.
-  return { modules: tri(modules), inconnus: tri(inconnus), outils: [...outils].sort(), outilsCi }
+  // `viaMotif` : les sous-chemins servis par un motif (`components/sheet.css`
+  // sous `components/*.css`). Le motif seul ne dit plus lequel : si le socle
+  // le remplaçait par des exports exacts, l'import passerait pour inconnu.
+  return { modules: tri(modules), inconnus: tri(inconnus), viaMotif: tri(viaMotif), outils: [...outils].sort(), outilsCi }
 }
 
 /**
  * Les sous-chemins bruts d'une mesure reprise du cache. Ils ne sont pas
  * publiés — ils doublaient `modules`, 17 Kio — mais se reconstituent sans
- * perte : un export se rattache à lui-même, et un `inconnu` le reste tant que
- * le socle ne le réexporte pas.
+ * perte : un export exact se rattache à lui-même, un motif est remplacé par
+ * les sous-chemins qu'il servait (`viaMotif`), et un `inconnu` le reste tant
+ * que le socle ne le réexporte pas.
  */
 export function importesDe(usage) {
   if (Array.isArray(usage?.importes)) return usage.importes
-  return [...(usage?.modules || []), ...(usage?.inconnus || [])].sort()
+  const modules = usage?.modules || []
+  const exacts = Array.isArray(usage?.viaMotif) ? modules.filter((m) => !m.includes('*')) : modules
+  return [...new Set([...exacts, ...(usage?.viaMotif || []), ...(usage?.inconnus || [])])].sort()
 }
 
 /**

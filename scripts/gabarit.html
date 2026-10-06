@@ -486,6 +486,9 @@
             </div>
             <div id="panneauUsageCorps"></div>
           </aside>
+          <p class="aide" id="usageGrapheIncomplet" hidden data-t="usage.grapheIncomplet">
+            Le graphe interne du socle est incomplet — un fichier illisible au relevé : des ronds ○ peuvent manquer. Il sera relu au prochain passage.
+          </p>
           <div class="carte matriceEnveloppe">
             <table class="matrice usage">
               <caption class="sr" data-t="usage.caption">Usage du socle : une ligne par module, outil ou workflow offert, une colonne par dépôt consommateur ; une case pleine dit qu'il le prend.</caption>
@@ -3856,6 +3859,7 @@
         const absent = !D.socleOffre || !colonnes.length
         $('#usageAbsent').hidden = !absent
         $('#usageAucuneLigne').hidden = absent || lignes.length > 0
+        $('#usageGrapheIncomplet').hidden = absent || !D.socleOffre?.graphe?.incomplet
         $('#raz-usage').hidden = !(choix.canaux.length || choix.categories.length || choix.rares)
         $('#compteurUsage').textContent = absent ? '' : T('usage.compteur', { n: lignes.length, total, depots: colonnes.length })
         if (absent || !lignes.length) return
