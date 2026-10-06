@@ -36,6 +36,7 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Quelles apps PWA n'ont pas d'`env.manifest` ? | tuile « env.manifest », badge carte, rubrique « À faire » |
 | Quels dépôts n'ont pas de Protect main solide ? | tuile « Rulesets », badge carte, rubrique « À faire » |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
+| Qui prend quoi au socle, et que reste-t-il à adopter ou à retirer ? | section « Usage du socle » — voir plus bas |
 | Où suis-je dans la page, et comment revenir en haut ? | barre fixe en haut, chapitre courant souligné ; sommaire flottant en bas à droite sur petit écran |
 | Et en anglais ? | liste déroulante en haut à droite — voir « Les deux langues » |
 
@@ -188,6 +189,42 @@ une couleur veut dire « écart », et rien d'autre.
 Les dépôts qui n'en portent pas sont ceux que `FAMILY_APPS` ne liste pas : les
 trois couches du socle, les applications desktop, l'outillage, `.github`, le
 profil et le site racine du compte. Ils étaient dix au relevé du 28/09/2026.
+
+## L'usage du socle
+
+Une ligne est ce que le socle offre — un **module** exporté, un **outil** (`bin`),
+un **workflow** réutilisable —, une colonne un dépôt qui dépend du socle, du plus
+gros preneur au plus petit. La mesure est faite **dans le code** des dépôts, pas
+dans le champ `configs` du catalogue, tenu à la main. Les règles sont dans
+`scripts/socle-usage.mjs`.
+
+| Cellule | Ce qu'elle dit |
+| --- | --- |
+| `●` | pris **directement** : importé (y compris `@import`, `extends`, `vi.mock`), ou outil appelé par un script de `package.json` |
+| `○` | pris **indirectement** : reçu par un autre module du socle qu'il importe, ou outil que la CI partagée lance pour lui |
+| vide | ni l'un ni l'autre |
+
+- **Un import se lit entre guillemets**, et seulement là : un commentaire, une
+  règle de découpage (`'/@mister-guiiug/…/themes.js'`) et un lockfile (son
+  `resolved` porte `…/dev-pwa-config/6.25.0/…`) citent le socle sans l'utiliser.
+- **L'indirect vient du graphe interne du socle** : chaque fichier y est lu, et
+  toute chaîne relative qui désigne un fichier existant fait une arête. Les
+  outils n'y sont pas — `pwa-doctor` cite presque tous les modules parce qu'il
+  les VÉRIFIE, il ne les livre pas.
+- **Les outils de la CI** se déduisent des réutilisables : chaque étape qui
+  lance un outil, sous le `if: inputs.<option>` de son job et de son étape ; un
+  dépôt les reçoit selon les options de son `with:`, ou leur défaut.
+- **Une ligne rare** (trait rouge : personne ; orange : un seul), directement
+  ou non, est un candidat au retrait.
+- **Un clic sur un dépôt** liste les modules que la moitié des autres importent
+  et que lui ne prend d'aucune façon : l'effort pour qu'il s'appuie davantage
+  sur le socle. Un clic sur une ligne dit qui la prend, et comment.
+
+**Le coût.** Le code d'un dépôt n'est relu que quand sa tête bouge, et le graphe
+du socle quand la sienne bouge ; le reste vient de la page en ligne. Un passage
+sans changement ne coûte rien de plus. La mesure porte un numéro de version
+(`VERSION_MESURE`) : le monter force une relecture complète — sans lui, une
+mesure corrigée ne se verrait que sur les dépôts qui reçoivent un commit.
 
 ## Les deux langues
 

@@ -1348,9 +1348,15 @@ footer {
   padding: 3px 4px;
   min-width: 18px;
 }
-.usage .usageCase[data-pris] {
+.usage .usageCase[data-pris='direct'] {
   color: var(--series1);
   background: color-mix(in srgb, var(--series1) 14%, transparent);
+}
+/* Reçu par un autre module, ou lancé par la CI partagée : un rond, sans
+   aplat. L'encre reste `--series1` — le glyphe porte la différence, pas une
+   couleur qu'on ne lirait plus. */
+.usage .usageCase[data-pris='indirect'] {
+  color: var(--series1);
 }
 .usage .usageN {
   white-space: nowrap;
@@ -1364,7 +1370,18 @@ footer {
   height: 6px;
   margin-right: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, var(--series1) calc(var(--part, 0) * 100%), var(--grid) 0);
+  /* Direct en plein, indirect en demi-teinte à sa suite, le reste en grille. */
+  background: linear-gradient(
+    to right,
+    var(--series1) calc(var(--part, 0) * 100%),
+    color-mix(in srgb, var(--series1) 40%, transparent) 0 calc(var(--partInd, 0) * 100%),
+    var(--grid) 0
+  );
+}
+.usageIndirect {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--ink2);
 }
 .usageLigne {
   display: flex;

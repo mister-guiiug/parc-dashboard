@@ -7,15 +7,23 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  appelsDuSocle,
+  brutsDepuisFichiers,
   categorieModule,
   CATEGORIES,
+  cibleExport,
   estReutilisable,
   fichiersAScanner,
+  fichiersDuSocle,
+  grapheDuSocle,
+  importesDe,
   importsDuSocle,
   moduleDe,
   offreDuSocle,
+  outilsDuReutilisable,
   outilsDuSocle,
-  usageDepuisFichiers,
+  outilsParLaCi,
+  rattache,
   usageReprenable,
   VERSION_MESURE,
   workflowsDuSocle,
@@ -145,28 +153,162 @@ test('les familles de modules', () => {
   for (const cat of Object.values(attendu)) assert.ok(CATEGORIES.includes(cat), cat)
 })
 
-test('l’usage d’un dépôt : modules, outils, workflows, et les imports orphelins', () => {
-  const offre = {
-    modules: ['react/card', 'csv', 'components.css', 'components/*.css'],
-    outils: ['pwa-doctor', 'pwa-icons'],
-  }
-  const u = usageDepuisFichiers(
-    [
-      { chemin: 'src/A.tsx', texte: "import { Card } from '@mister-guiiug/dev-pwa-config/react/card'" },
-      { chemin: 'src/index.css', texte: "@import '@mister-guiiug/dev-pwa-config/components/sheet.css';" },
-      { chemin: 'src/B.ts', texte: "import x from '@mister-guiiug/dev-pwa-config/ancien-module'" },
-      { chemin: 'src/illisible.ts', texte: null },
-      { chemin: 'package.json', texte: JSON.stringify({ scripts: { build: 'vite build && pwa-doctor --strict' } }) },
-      { chemin: '.github/workflows/ci.yml', texte: 'uses: mister-guiiug/dev-pwa-config/.github/workflows/pwa-ci.yml@v6' },
-    ],
-    offre,
-  )
-  assert.deepEqual(u, {
-    modules: ['components/*.css', 'react/card'],
-    outils: ['pwa-doctor'],
+test('l’usage d’un dépôt : direct, par la CI, indirect, et les imports orphelins', () => {
+  const ciYml = [
+    'jobs:',
+    '  ci:',
+    '    uses: mister-guiiug/dev-pwa-config/.github/workflows/pwa-ci.yml@v6',
+    '    with:',
+    '      run-doctor: true # la checklist',
+    '      server-dir: server',
+  ].join('\n')
+  const bruts = brutsDepuisFichiers([
+    { chemin: 'src/A.tsx', texte: "import { Card } from '@mister-guiiug/dev-pwa-config/react/card'" },
+    { chemin: 'src/index.css', texte: "@import '@mister-guiiug/dev-pwa-config/components/sheet.css';" },
+    { chemin: 'src/B.ts', texte: "import x from '@mister-guiiug/dev-pwa-config/ancien-module'" },
+    { chemin: 'src/illisible.ts', texte: null },
+    { chemin: '.github/workflows/ci.yml', texte: ciYml },
+  ])
+  assert.deepEqual(bruts, {
+    importes: ['ancien-module', 'components/sheet.css', 'react/card'],
     workflows: ['pwa-ci.yml'],
-    inconnus: ['ancien-module'],
+    appels: [{ workflow: 'pwa-ci.yml', avec: { 'run-doctor': 'true', 'server-dir': 'server' } }],
   })
+  const offre = {
+    modules: ['react/card', 'react/labels', 'csv', 'apps-catalog', 'components.css', 'components/*.css'],
+    outils: ['pwa-doctor', 'pwa-icons'],
+    ci: { 'pwa-ci.yml': { defauts: { 'run-doctor': 'false' }, outils: [{ outil: 'pwa-doctor', si: [{ input: 'run-doctor', vrai: true }] }] } },
+    graphe: { modules: { 'react/card': ['react/labels', 'react/card'] } },
+  }
+  assert.deepEqual(rattache(bruts, offre, { build: 'vite build && pwa-icons' }), {
+    modules: ['components/*.css', 'react/card'],
+    inconnus: ['ancien-module'],
+    outils: ['pwa-icons'],
+    outilsCi: ['pwa-doctor'],
+  })
+})
+
+test('les options d’un appel au réutilisable, ligne à ligne', () => {
+  const texte = [
+    'jobs:',
+    '  ci:',
+    '    uses: mister-guiiug/dev-pwa-config/.github/workflows/pwa-ci.yml@v6',
+    '    # un commentaire entre les clés',
+    '    with:',
+    "      run-doctor: 'true'",
+    '      e2e-grep: "@critical|@a11y"',
+    '        sous-niveau: ignore',
+    '    secrets:',
+    '      SENTRY: x',
+    '  deploy:',
+    '    uses: mister-guiiug/dev-pwa-config/.github/workflows/pwa-deploy.yml@v6',
+    '  autre:',
+    '    uses: actions/checkout@v7',
+  ].join('\n')
+  assert.deepEqual(appelsDuSocle(texte), [
+    { workflow: 'pwa-ci.yml', avec: { 'run-doctor': 'true', 'e2e-grep': '@critical|@a11y' } },
+    { workflow: 'pwa-deploy.yml', avec: {} },
+  ])
+})
+
+test('ce qu’un réutilisable lance, et sous quelles options', () => {
+  const texte = [
+    'on:',
+    '  workflow_call:',
+    '    inputs:',
+    '      run-doctor:',
+    '        type: boolean',
+    '        default: false',
+    '      run-icons:',
+    '        default: true',
+    'jobs:',
+    '  ci:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - uses: actions/checkout@v7',
+    '      - name: Docteur',
+    '        if: ${{ inputs.run-doctor }}',
+    '        run: |',
+    '          # pwa-env est cité dans un commentaire : il ne compte pas',
+    '          npx pwa-doctor --strict',
+    '      - if: ${{ !inputs.run-icons }}',
+    '        run: npx pwa-icons',
+    '  e2e:',
+    '    if: ${{ inputs.run-e2e }}',
+    '    steps:',
+    '      - run: npx pwa-screenshots',
+  ].join('\n')
+  const outils = ['pwa-doctor', 'pwa-icons', 'pwa-env', 'pwa-screenshots']
+  const analyse = outilsDuReutilisable(texte, outils)
+  assert.deepEqual(analyse, {
+    defauts: { 'run-doctor': 'false', 'run-icons': 'true' },
+    outils: [
+      { outil: 'pwa-doctor', si: [{ input: 'run-doctor', vrai: true }] },
+      { outil: 'pwa-icons', si: [{ input: 'run-icons', vrai: false }] },
+      { outil: 'pwa-screenshots', si: [{ input: 'run-e2e', vrai: true }] },
+    ],
+  })
+  const ci = { 'pwa-ci.yml': analyse }
+  // Le défaut décide quand l'app ne dit rien ; ce qu'elle passe l'emporte.
+  assert.deepEqual(outilsParLaCi([{ workflow: 'pwa-ci.yml', avec: {} }], ci), [])
+  assert.deepEqual(outilsParLaCi([{ workflow: 'pwa-ci.yml', avec: { 'run-doctor': 'true', 'run-icons': 'false', 'run-e2e': 'true' } }], ci), [
+    'pwa-doctor',
+    'pwa-icons',
+    'pwa-screenshots',
+  ])
+  assert.deepEqual(outilsParLaCi([{ workflow: 'autre.yml', avec: { 'run-doctor': 'true' } }], ci), [])
+})
+
+test('le graphe interne du socle : fermeture transitive, motifs, auto-références', () => {
+  const pkg = {
+    exports: {
+      './react/i18n': { types: './react/i18n.d.ts', import: './react/i18n.js' },
+      './react/labels-fr': './react/labels-fr.js',
+      './eslint-react': './eslint-react.js',
+      './eslint-base': './eslint-base.js',
+      './components.css': './components.css',
+      './components/*.css': './components/*.css',
+      './csv': './csv.js',
+      './tsconfig-app-react': './tsconfig-app-react.json',
+      './tsconfig-app': './tsconfig-app.json',
+    },
+    bin: { 'pwa-doctor': './scripts/pwa-doctor.mjs' },
+  }
+  const fichiers = [
+    // i18n passe par un intermédiaire qui n'est pas un export
+    { chemin: 'react/i18n.js', texte: "import { charge } from './interne/charge.js'" },
+    { chemin: 'react/interne/charge.js', texte: "const fr = () => import('../labels-fr.js')" },
+    { chemin: 'react/labels-fr.js', texte: 'export default {}' },
+    { chemin: 'eslint-react.js', texte: "import base from './eslint-base.js'" },
+    { chemin: 'eslint-base.js', texte: '' },
+    { chemin: 'components.css', texte: "@import './components/sheet.css';\n@import './components/toast.css';" },
+    { chemin: 'components/sheet.css', texte: '' },
+    { chemin: 'components/toast.css', texte: '' },
+    { chemin: 'csv.js', texte: "// cite './inexistant.js' : rien\nimport x from '@mister-guiiug/dev-pwa-config/eslint-base'" },
+    { chemin: 'tsconfig-app-react.json', texte: '{ "extends": "./tsconfig-app.json" }' },
+    { chemin: 'tsconfig-app.json', texte: '{}' },
+    { chemin: 'scripts/pwa-doctor.mjs', texte: "import { lis } from '../csv.js'" },
+  ]
+  assert.deepEqual(grapheDuSocle(pkg, fichiers), {
+    modules: {
+      'react/i18n': ['react/labels-fr'],
+      'eslint-react': ['eslint-base'],
+      'components.css': ['components/*.css'],
+      csv: ['eslint-base'],
+      'tsconfig-app-react': ['tsconfig-app'],
+    },
+  })
+})
+
+test('les fichiers lus pour le graphe du socle, et la cible d’un export', () => {
+  assert.deepEqual(
+    fichiersDuSocle(['react/card.js', 'react/card.d.ts', 'components/x.css', 'test/a.test.mjs', 'showroom/app.js', 'package.json', 'package-lock.json', 'README.md']),
+    ['react/card.js', 'components/x.css', 'package.json'],
+  )
+  assert.equal(cibleExport('./csv.js'), 'csv.js')
+  assert.equal(cibleExport({ types: './x.d.ts', import: './x.js' }), 'x.js')
+  assert.equal(cibleExport({ node: { import: './n.js' } }), 'n.js')
+  assert.equal(cibleExport(null), null)
 })
 
 test('ce que le socle offre : ses exports sans « ./ », ses outils, ses workflows', () => {
@@ -193,4 +335,14 @@ test('le cache de la mesure : même tête ET même version de mesure, sinon on r
   assert.equal(usageReprenable({ usageSocle: { v: VERSION_MESURE - 1, importes: [] } }, true), false)
   assert.equal(usageReprenable({ usageSocle: { importes: [] } }, true), false, 'sans version')
   assert.equal(usageReprenable(undefined, true), false)
+})
+
+test('les imports bruts se reconstituent depuis une mesure publiée', () => {
+  // Publiés, ils doublaient `modules` : la page ne garde que modules et inconnus.
+  assert.deepEqual(importesDe({ modules: ['react/card', 'components/*.css'], inconnus: ['ancien'] }), ['ancien', 'components/*.css', 'react/card'])
+  assert.deepEqual(importesDe({ importes: ['x'] }), ['x'])
+  // Et le rattachement redonne la même chose : un export se rattache à lui-même.
+  const offre = { modules: ['react/card', 'components/*.css'], outils: [] }
+  assert.deepEqual(rattache({ importes: importesDe({ modules: ['react/card', 'components/*.css'], inconnus: ['ancien'] }) }, offre).modules, ['components/*.css', 'react/card'])
+  assert.equal(usageReprenable({ usageSocle: { v: VERSION_MESURE, modules: [] } }, true), true, 'une mesure publiée, sans importes, se reprend')
 })

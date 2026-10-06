@@ -39,7 +39,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // page. Voir `scripts/collecte.mjs`.
 import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
-import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, estReutilisable, fichiersAScanner, importsDuSocle, moduleDe, offreDuSocle, outilsDuSocle, usageReprenable, workflowsDuSocle } from './socle-usage.mjs'
+import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, brutsDepuisFichiers, estReutilisable, fichiersAScanner, fichiersDuSocle, grapheDuSocle, importesDe, offreDuSocle, outilsDuReutilisable, rattache, usageReprenable } from './socle-usage.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
 import { traducteur } from './libelles.mjs'
@@ -402,8 +402,8 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
   let usageSocle = null
   if (SOCLE_PAQUET in declarees) {
     if (usageReprenable(connu, memeTete)) {
-      const { importes, workflows, fichiers, incomplet } = connu.usageSocle
-      usageSocle = { v: VERSION_MESURE, importes, workflows, fichiers, incomplet: Boolean(incomplet) }
+      const { workflows, appels, fichiers, incomplet } = connu.usageSocle
+      usageSocle = { v: VERSION_MESURE, importes: importesDe(connu.usageSocle), workflows, appels: appels || [], fichiers, incomplet: Boolean(incomplet) }
     } else {
       const arbre = await lisArbre()
       if (Array.isArray(arbre?.tree)) {
@@ -415,17 +415,9 @@ const depots = await enLot(depotsGitHub, 5, async (g) => {
           const texte = await fichier(nwo, def, chemin.split('/').map(encodeURIComponent).join('/')).catch(() => null)
           return { chemin, texte }
         })
-        const importes = new Set()
-        const workflows = new Set()
-        for (const { chemin, texte } of textes) {
-          if (texte == null) continue
-          if (chemin.startsWith('.github/workflows/')) for (const w of workflowsDuSocle(texte)) workflows.add(w)
-          else for (const s of importsDuSocle(texte)) importes.add(s)
-        }
         usageSocle = {
           v: VERSION_MESURE,
-          importes: [...importes].sort(),
-          workflows: [...workflows].sort(),
+          ...brutsDepuisFichiers(textes),
           fichiers: lus.length,
           // Un arbre tronqué, un plafond atteint ou un fichier illisible : la
           // ligne existe, mais elle peut sous-compter, et la page le dit.
@@ -856,27 +848,49 @@ const PAIRS = new Set(pairsDures(pkgSocle))
 // `workflow_call` — `ci.yml` ou `publish.yml` sont les siens, pas les nôtres).
 const listeWorkflowsSocle = depotSocle ? await apiFacultatif(`/repos/${depotSocle.nwo}/contents/.github/workflows?ref=${depotSocle.brancheDefaut}`) : null
 const reutilisables = []
+// CE QUE CHAQUE RÉUTILISABLE LANCE COMME OUTILS, et sous quelles options : un
+// `pwa-doctor` que la CI partagée lance pour l'app (`run-doctor: true`)
+// n'apparaît dans aucun de ses scripts, et passait pour inutilisé.
+const ci = {}
 for (const f of Array.isArray(listeWorkflowsSocle) ? listeWorkflowsSocle : []) {
-  if (!/\.ya?ml$/.test(f.name)) continue
-  if (estReutilisable(await fichier(depotSocle.nwo, depotSocle.brancheDefaut, f.path))) reutilisables.push(f.name)
+  if (!/.ya?ml$/.test(f.name)) continue
+  const texte = await fichier(depotSocle.nwo, depotSocle.brancheDefaut, f.path)
+  if (!estReutilisable(texte)) continue
+  reutilisables.push(f.name)
+  const analyse = outilsDuReutilisable(texte, Object.keys(pkgSocle?.bin || {}))
+  if (analyse.outils.length) ci[f.name] = analyse
 }
-const socleOffre = offreDuSocle(pkgSocle, reutilisables)
+const socleOffre = { ...offreDuSocle(pkgSocle, reutilisables), ci }
+
+// LE GRAPHE INTERNE DU SOCLE — ce que chaque module et chaque outil emportent
+// d'autres modules. Une lecture de ~250 fichiers, refaite seulement quand la
+// tête du socle bouge ; sinon on reprend celui de la page en ligne.
+const shaSocle = depotSocle?.commit?.sha && depotSocle.commit.sha !== '?' ? depotSocle.commit.sha : null
+const grapheConnu = avantPublie?.socleOffre?.graphe
+if (shaSocle && grapheConnu?.sha === shaSocle && grapheConnu?.v === VERSION_MESURE) {
+  socleOffre.graphe = grapheConnu
+} else if (depotSocle && pkgSocle) {
+  const arbre = await apiFacultatif(`/repos/${depotSocle.nwo}/git/trees/${encodeURIComponent(depotSocle.brancheDefaut)}?recursive=1`)
+  if (Array.isArray(arbre?.tree)) {
+    const chemins = fichiersDuSocle(arbre.tree.filter((e) => e.type === 'blob').map((e) => e.path))
+    const lus = await enLot(chemins, 8, async (chemin) => ({
+      chemin,
+      texte: await fichier(depotSocle.nwo, depotSocle.brancheDefaut, chemin.split('/').map(encodeURIComponent).join('/')).catch(() => null),
+    }))
+    socleOffre.graphe = { v: VERSION_MESURE, sha: shaSocle, ...grapheDuSocle(pkgSocle, lus) }
+  } else if (grapheConnu) {
+    // Arbre illisible : on garde l'ancien graphe plutôt que de tout déclarer mort.
+    socleOffre.graphe = grapheConnu
+  }
+}
 
 // Le rattachement aux exports se refait à chaque passage : un module retiré du
 // socle passe en « inconnu » chez qui l'importe encore, sans relire son code.
 for (const d of depots) {
   if (d.usageSocle) {
-    const cles = new Set(socleOffre.modules)
-    const modules = new Set()
-    const inconnus = new Set()
-    for (const s of d.usageSocle.importes) {
-      const m = moduleDe(s, cles)
-      if (m) modules.add(m)
-      else inconnus.add(s)
-    }
-    d.usageSocle.modules = [...modules].sort()
-    d.usageSocle.inconnus = [...inconnus].sort()
-    d.usageSocle.outils = outilsDuSocle(d.scriptsPaquet, socleOffre.outils)
+    Object.assign(d.usageSocle, rattache(d.usageSocle, socleOffre, d.scriptsPaquet || {}))
+    // reconstituables depuis `modules` et `inconnus` (voir `importesDe`)
+    delete d.usageSocle.importes
   }
   delete d.scriptsPaquet
 }

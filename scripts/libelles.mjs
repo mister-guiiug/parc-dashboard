@@ -435,7 +435,7 @@ const LIBELLES_FR = {
   /* ── usage du socle ── */
   'usage.h2': 'Usage du socle',
   'usage.chapo':
-    "Ce que chaque consommateur prend <strong>réellement</strong> au socle, lu dans son code à chaque relevé — pas le champ <code>configs</code> du catalogue, tenu à la main. Une ligne est ce que le socle offre (un module importé, un outil appelé par un script, un workflow réutilisable), une colonne un dépôt qui en dépend, du plus gros preneur au plus petit. Une ligne qu'aucune colonne ne prend est un candidat au retrait ; <strong>un clic sur un dépôt</strong> liste les modules que la plupart des autres prennent et pas lui — l'effort pour qu'il s'appuie davantage sur le socle.",
+    "Ce que chaque consommateur prend <strong>réellement</strong> au socle, lu dans son code à chaque relevé — pas le champ <code>configs</code> du catalogue, tenu à la main. Une ligne est ce que le socle offre (un module importé, un outil appelé par un script, un workflow réutilisable), une colonne un dépôt qui en dépend, du plus gros preneur au plus petit. Un point plein <strong>●</strong> : il le prend directement ; un rond <strong>○</strong> : il le reçoit par un autre module du socle, ou la CI partagée le lance pour lui. Une ligne qu'aucune colonne ne prend, ni directement ni autrement, est un candidat au retrait ; <strong>un clic sur un dépôt</strong> liste les modules que la plupart des autres prennent et pas lui — l'effort pour qu'il s'appuie davantage sur le socle.",
   'usage.caption': "Usage du socle : une ligne par module, outil ou workflow offert, une colonne par dépôt consommateur ; une case pleine dit qu'il le prend.",
   'usage.filtreCanal.al': 'Filtrer par canal',
   'usage.filtreCanal.etiq': 'Canal',
@@ -462,6 +462,16 @@ const LIBELLES_FR = {
   'usage.th.n': 'Pris par',
   'usage.col.al': '{depot} — {n} pris au socle ; ouvrir le détail',
   'usage.case.oui': 'pris',
+  'usage.case.indirect': 'reçu indirectement',
+  'usage.n.indirect': { one: '+{n} indirect', other: '+{n} indirects' },
+  'usage.depot.recoit': 'Reçus par d’autres modules du socle : {modules} · outils lancés par la CI partagée : {outils}.',
+  'usage.ligne.parIndirect': {
+    one: 'Et reçu par {n} autre, par un module du socle qu’il importe.',
+    other: 'Et reçu par {n} autres, par un module du socle qu’ils importent.',
+  },
+  'usage.ligne.parCi': { one: 'Et lancé par la CI partagée pour {n} autre.', other: 'Et lancé par la CI partagée pour {n} autres.' },
+  'usage.ligne.recoivent': 'Le reçoivent par un autre module',
+  'usage.ligne.recoiventCi': 'La CI partagée le lance pour eux',
   'usage.depot.prend': 'Modules : {modules} · outils : {outils} · workflows : {workflows}.',
   'usage.depot.incomplet': 'Mesure incomplète : un fichier illisible, ou plus de fichiers que le relevé n’en lit. Le dépôt peut prendre davantage.',
   'usage.depot.inconnus': {
@@ -1171,7 +1181,7 @@ const LIBELLES_EN = {
   /* ── usage du socle ── */
   'usage.h2': 'Use of the base package',
   'usage.chapo':
-    'What each consumer <strong>actually</strong> takes from the base package, read from its code at every survey — not the catalogue’s <code>configs</code> field, which is maintained by hand. A row is something the base package offers (an imported module, a tool called by a script, a reusable workflow), a column a repository that depends on it, from the biggest taker to the smallest. A row no column takes is a candidate for removal; <strong>clicking a repository</strong> lists the modules most of the others take and it does not — the effort for it to lean more on the base package.',
+    'What each consumer <strong>actually</strong> takes from the base package, read from its code at every survey — not the catalogue’s <code>configs</code> field, which is maintained by hand. A row is something the base package offers (an imported module, a tool called by a script, a reusable workflow), a column a repository that depends on it, from the biggest taker to the smallest. A filled dot <strong>●</strong>: it takes it directly; a ring <strong>○</strong>: it receives it through another module of the base package, or the shared CI runs it for it. A row no column takes, directly or otherwise, is a candidate for removal; <strong>clicking a repository</strong> lists the modules most of the others take and it does not — the effort for it to lean more on the base package.',
   'usage.caption': 'Use of the base package: one row per module, tool or workflow offered, one column per consuming repository; a filled cell means it takes it.',
   'usage.filtreCanal.al': 'Filter by channel',
   'usage.filtreCanal.etiq': 'Channel',
@@ -1198,6 +1208,16 @@ const LIBELLES_EN = {
   'usage.th.n': 'Taken by',
   'usage.col.al': '{depot} — {n} taken from the base package; open the details',
   'usage.case.oui': 'taken',
+  'usage.case.indirect': 'received indirectly',
+  'usage.n.indirect': { one: '+{n} indirect', other: '+{n} indirect' },
+  'usage.depot.recoit': 'Received through other modules of the base package: {modules} · tools run by the shared CI: {outils}.',
+  'usage.ligne.parIndirect': {
+    one: 'And received by {n} other, through a module of the base package it imports.',
+    other: 'And received by {n} others, through a module of the base package they import.',
+  },
+  'usage.ligne.parCi': { one: 'And run by the shared CI for {n} other.', other: 'And run by the shared CI for {n} others.' },
+  'usage.ligne.recoivent': 'Receive it through another module',
+  'usage.ligne.recoiventCi': 'The shared CI runs it for them',
   'usage.depot.prend': 'Modules: {modules} · tools: {outils} · workflows: {workflows}.',
   'usage.depot.incomplet': 'Incomplete measure: an unreadable file, or more files than the survey reads. The repository may take more.',
   'usage.depot.inconnus': {

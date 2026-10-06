@@ -450,9 +450,10 @@
           </div>
           <p class="chapo" data-th="usage.chapo">
             Ce que chaque consommateur prend <strong>réellement</strong> au socle, lu dans son code à chaque relevé — pas le champ <code>configs</code> du catalogue, tenu à la main. Une ligne est
-            ce que le socle offre (un module importé, un outil appelé par un script, un workflow réutilisable), une colonne un dépôt qui en dépend, du plus gros preneur au plus petit. Une ligne
-            qu'aucune colonne ne prend est un candidat au retrait ; <strong>un clic sur un dépôt</strong> liste les modules que la plupart des autres prennent et pas lui — l'effort pour qu'il
-            s'appuie davantage sur le socle.
+            ce que le socle offre (un module importé, un outil appelé par un script, un workflow réutilisable), une colonne un dépôt qui en dépend, du plus gros preneur au plus petit. Un point
+            plein <strong>●</strong> : il le prend directement ; un rond <strong>○</strong> : il le reçoit par un autre module du socle, ou la CI partagée le lance pour lui. Une ligne qu'aucune
+            colonne ne prend, ni directement ni autrement, est un candidat au retrait ; <strong>un clic sur un dépôt</strong> liste les modules que la plupart des autres prennent et pas lui —
+            l'effort pour qu'il s'appuie davantage sur le socle.
           </p>
           <div class="filtres" id="filtresCanalUsage" role="group" data-t-aria-label="usage.filtreCanal.al" aria-label="Filtrer par canal">
             <span class="etiquetteFiltre" data-t="usage.filtreCanal.etiq">Canal</span>
@@ -3887,7 +3888,9 @@
 
         for (const l of lignes) {
           const r = el('tr')
-          if (l.n <= 1) r.dataset.rare = String(l.n)
+          // Rare = pris par 0 ou 1 dépôt, directement OU NON : un module que
+          // tout le parc reçoit par un autre n'est pas un candidat au retrait.
+          if (l.n + l.ni <= 1) r.dataset.rare = String(l.n + l.ni)
           const th = el('th')
           th.scope = 'row'
           const b = el('button', 'usageLigne')
@@ -3898,17 +3901,21 @@
           const n = el('td', 'usageN')
           const barre = el('span', 'usageBarre')
           barre.style.setProperty('--part', String(l.n / colonnes.length))
+          barre.style.setProperty('--partInd', String((l.n + l.ni) / colonnes.length))
           barre.setAttribute('aria-hidden', 'true')
           n.append(barre, el('span', 'usageNombre', String(l.n)))
+          if (l.ni) n.append(el('span', 'usageIndirect', T('usage.n.indirect', { n: l.ni })))
           r.append(th, n)
           const par = new Set(l.par)
+          const parInd = new Set(l.parIndirect)
           for (const c of colonnes) {
             const td = el('td', 'usageCase')
-            if (par.has(c.nom)) {
-              td.dataset.pris = 'oui'
-              const g = el('span', null, '●')
+            const direct = par.has(c.nom)
+            if (direct || parInd.has(c.nom)) {
+              td.dataset.pris = direct ? 'direct' : 'indirect'
+              const g = el('span', null, direct ? '●' : '○')
               g.setAttribute('aria-hidden', 'true')
-              td.append(g, el('span', 'sr', T('usage.case.oui')))
+              td.append(g, el('span', 'sr', T(direct ? 'usage.case.oui' : 'usage.case.indirect')))
             }
             r.append(td)
           }
@@ -3937,6 +3944,7 @@
       function ouvrePanneauUsageDepot(c) {
         const corps = ouvrePanneau(c.nom)
         corps.append(el('p', null, T('usage.depot.prend', { modules: c.modules, outils: c.outils, workflows: c.workflows })))
+        if (c.indirects || c.outilsCi) corps.append(el('p', null, T('usage.depot.recoit', { modules: c.indirects, outils: c.outilsCi })))
         if (c.incomplet) corps.append(el('p', 'aide', T('usage.depot.incomplet')))
         if (c.inconnus.length) {
           corps.append(el('p', null, T('usage.depot.inconnus', { n: c.inconnus.length })), listeMono(c.inconnus))
@@ -3959,9 +3967,11 @@
       function ouvrePanneauUsageLigne(l, colonnes) {
         const corps = ouvrePanneau(l.cle)
         corps.append(el('p', null, T('usage.ligne.par', { n: l.n, total: colonnes.length, famille: familleUsage(l) })))
-        const par = new Set(l.par)
+        if (l.ni) corps.append(el('p', null, T(l.canal === 'outil' ? 'usage.ligne.parCi' : 'usage.ligne.parIndirect', { n: l.ni })))
+        const tous = new Set([...l.par, ...l.parIndirect])
         if (l.par.length) corps.append(el('h4', null, T('usage.ligne.prennent')), listeMono(l.par))
-        const pas = colonnes.filter((c) => !par.has(c.nom)).map((c) => c.nom)
+        if (l.parIndirect.length) corps.append(el('h4', null, T(l.canal === 'outil' ? 'usage.ligne.recoiventCi' : 'usage.ligne.recoivent')), listeMono(l.parIndirect))
+        const pas = colonnes.filter((c) => !tous.has(c.nom)).map((c) => c.nom)
         if (pas.length) corps.append(el('h4', null, T('usage.ligne.prennentPas')), listeMono(pas))
       }
 

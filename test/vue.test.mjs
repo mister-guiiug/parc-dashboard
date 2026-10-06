@@ -54,6 +54,7 @@ import {
   moteurDe,
   matriceUsageSocle,
   manquesUsage,
+  indirectsDe,
   CATEGORIES_USAGE,
 } from '../scripts/vue.mjs'
 import { CATEGORIES } from '../scripts/socle-usage.mjs'
@@ -934,4 +935,44 @@ test('les familles de la vue sont celles que le relevé calcule', () => {
   // La page n'embarque pas socle-usage.mjs : les deux listes vivent chacune
   // de leur côté, et ce test les tient ensemble.
   assert.deepEqual([...CATEGORIES_USAGE].sort(), [...CATEGORIES].sort())
+})
+
+test('l’usage INDIRECT : reçu par un autre module, ou lancé par la CI partagée', () => {
+  const D = {
+    socleOffre: {
+      modules: ['react/i18n', 'react/labels-fr', 'react/app-footer', 'vcard'],
+      categories: { 'react/i18n': 'composant', 'react/labels-fr': 'libelles', 'react/app-footer': 'composant', vcard: 'bibliotheque' },
+      outils: ['pwa-doctor'],
+      workflows: [],
+      // le graphe du relevé, déjà transitif
+      graphe: { modules: { 'react/i18n': ['react/labels-fr'], 'react/app-footer': ['react/labels-fr'] } },
+    },
+    depots: [
+      { nom: 'a', usageSocle: usage(['react/i18n'], [], [], { outilsCi: ['pwa-doctor'] }) },
+      { nom: 'b', usageSocle: usage(['react/i18n', 'react/labels-fr'], ['pwa-doctor']) },
+      { nom: 'c', usageSocle: usage(['react/app-footer']) },
+    ],
+  }
+  const { lignes, colonnes } = matriceUsageSocle(D)
+  const ligne = (cle) => lignes.find((l) => l.cle === cle)
+  // b importe les libellés directement : il n'est compté qu'une fois, en direct.
+  assert.deepEqual([ligne('react/labels-fr').par, ligne('react/labels-fr').parIndirect], [['b'], ['a', 'c']])
+  assert.deepEqual([ligne('pwa-doctor').n, ligne('pwa-doctor').ni], [1, 1])
+  assert.deepEqual(colonnes.find((c) => c.nom === 'a'), {
+    nom: 'a', famille: undefined, modules: 1, outils: 0, workflows: 0, total: 1, indirects: 1, outilsCi: 1, incomplet: false, inconnus: [],
+  })
+  // Reçus par tout le parc, les libellés ne sont pas « rares » ; app-footer
+  // (un seul preneur) et vcard (aucun) le sont.
+  assert.deepEqual(matriceUsageSocle(D, { rares: true }).lignes.map((l) => l.cle), ['react/app-footer', 'vcard'])
+  // Ce qu'une app reçoit déjà n'est pas un manque : c n'a « rien à adopter »
+  // côté libellés, seulement react/i18n, que les deux autres importent.
+  assert.deepEqual(manquesUsage(D, 'c').manquants.map((m) => m.cle), ['react/i18n'])
+})
+
+test('indirectsDe : ce qu’emportent les modules importés, moins eux-mêmes', () => {
+  const graphe = { 'react/i18n': ['react/labels', 'react/labels-fr'], 'react/labels': ['react/labels-fr'] }
+  assert.deepEqual(indirectsDe(['react/i18n'], graphe), ['react/labels', 'react/labels-fr'])
+  assert.deepEqual(indirectsDe(['react/i18n', 'react/labels'], graphe), ['react/labels-fr'])
+  assert.deepEqual(indirectsDe(['vcard'], graphe), [])
+  assert.deepEqual(indirectsDe(['react/i18n'], undefined), [])
 })
