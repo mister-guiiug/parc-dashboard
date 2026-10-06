@@ -283,7 +283,9 @@ h3 {
   max-width: 360px;
   min-width: 180px;
 }
+/* Repère de ce qu'elle contient, comme toute zone à défilement (voir `.tableEnveloppe`). */
 .sitesMobile {
+  position: relative;
   display: none;
   gap: 6px;
   margin-top: 10px;
@@ -658,7 +660,12 @@ th.num {
   text-align: right;
   white-space: nowrap;
 }
+/* `position: relative` : la zone à défilement devient le REPÈRE des textes
+   `.sr` (absolus) de ses cases. Sans repère positionné, ils prenaient la page
+   pour repère, sortaient de la zone et l'élargissaient tout entière — 177 px
+   sur un écran de 426 px, par la colonne « Retard » des Librairies. */
 .tableEnveloppe {
+  position: relative;
   overflow-x: auto;
   padding: 14px 4px 6px;
 }
@@ -1212,7 +1219,9 @@ footer {
    Une cellule = la version qu'un dépôt VERROUILLE. La couleur ne dit pas
    « vieux » dans l'absolu mais l'ÉCART à la version la plus récente du
    parc pour ce paquet : c'est le seul écart sur lequel on peut agir. */
+/* Même repère que `.tableEnveloppe`, pour la même raison. */
 .matriceEnveloppe {
+  position: relative;
   overflow: auto;
   max-height: 78vh;
   padding: 0;
