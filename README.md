@@ -213,7 +213,10 @@ dans le champ `configs` du catalogue, tenu à la main. Les règles sont dans
   les VÉRIFIE, il ne les livre pas.
 - **Les outils de la CI** se déduisent des réutilisables : chaque étape qui
   lance un outil, sous le `if: inputs.<option>` de son job et de son étape ; un
-  dépôt les reçoit selon les options de son `with:`, ou leur défaut.
+  dépôt les reçoit selon les options de son `with:`, ou leur défaut. Seuls les
+  `jobs:` sont lus, et la condition d'une étape s'applique une fois l'étape
+  entière lue : un `name: Lance pwa-doctor` avant son `if:`, la `description:`
+  d'une option ou le nom d'un artefact ne lancent rien.
 - **Une ligne rare** (trait rouge : personne ; orange : un seul), directement
   ou non, est un candidat au retrait.
 - **Un clic sur un dépôt** liste les modules que la moitié des autres importent
@@ -225,6 +228,14 @@ du socle quand la sienne bouge ; le reste vient de la page en ligne. Un passage
 sans changement ne coûte rien de plus. La mesure porte un numéro de version
 (`VERSION_MESURE`) : le monter force une relecture complète — sans lui, une
 mesure corrigée ne se verrait que sur les dépôts qui reçoivent un commit.
+
+**Une lecture qui échoue ne fait rien disparaître.** Un dépôt dont l'arbre est
+illisible garde sa mesure précédente, dite incomplète. Un graphe du socle
+amputé d'un fichier illisible est publié avec un avertissement, et relu au
+passage suivant au lieu d'être gardé en cache. Un import servi par un motif
+(`components/sheet.css` sous `components/*.css`) garde son sous-chemin
+(`viaMotif`) : si le socle remplaçait le motif par des exports exacts, il ne
+passerait pas pour inconnu.
 
 ## Les deux langues
 

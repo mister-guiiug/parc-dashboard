@@ -457,6 +457,7 @@ const LIBELLES_FR = {
   'usage.tri.nom': 'Trier : nom',
   'usage.aucuneLigne': 'Rien ne répond à ces filtres.',
   'usage.absent': "Le relevé n'a pas encore mesuré l'usage du socle.",
+  'usage.grapheIncomplet': 'Le graphe interne du socle est incomplet — un fichier illisible au relevé : des ronds ○ peuvent manquer. Il sera relu au prochain passage.',
   'usage.compteur': { one: '{n} ligne sur {total} · {depots} dépôts', other: '{n} lignes sur {total} · {depots} dépôts' },
   'usage.th.offre': 'Offert par le socle',
   'usage.th.n': 'Pris par',
@@ -473,7 +474,7 @@ const LIBELLES_FR = {
   'usage.ligne.recoivent': 'Le reçoivent par un autre module',
   'usage.ligne.recoiventCi': 'La CI partagée le lance pour eux',
   'usage.depot.prend': 'Modules : {modules} · outils : {outils} · workflows : {workflows}.',
-  'usage.depot.incomplet': 'Mesure incomplète : un fichier illisible, ou plus de fichiers que le relevé n’en lit. Le dépôt peut prendre davantage.',
+  'usage.depot.incomplet': 'Mesure incomplète : un fichier illisible, plus de fichiers que le relevé n’en lit, ou un arbre illisible — la mesure précédente est alors gardée. Le dépôt peut prendre davantage.',
   'usage.depot.inconnus': {
     one: '{n} import vise un sous-chemin que le socle n’exporte pas — il casserait à la prochaine montée :',
     other: '{n} imports visent des sous-chemins que le socle n’exporte pas — ils casseraient à la prochaine montée :',
@@ -1203,6 +1204,7 @@ const LIBELLES_EN = {
   'usage.tri.nom': 'Sort: name',
   'usage.aucuneLigne': 'Nothing matches these filters.',
   'usage.absent': 'The survey has not measured the use of the base package yet.',
+  'usage.grapheIncomplet': 'The internal graph of the base package is incomplete — a file was unreadable during the survey: some ○ marks may be missing. It will be read again on the next run.',
   'usage.compteur': { one: '{n} row of {total} · {depots} repositories', other: '{n} rows of {total} · {depots} repositories' },
   'usage.th.offre': 'Offered by the base package',
   'usage.th.n': 'Taken by',
@@ -1219,7 +1221,7 @@ const LIBELLES_EN = {
   'usage.ligne.recoivent': 'Receive it through another module',
   'usage.ligne.recoiventCi': 'The shared CI runs it for them',
   'usage.depot.prend': 'Modules: {modules} · tools: {outils} · workflows: {workflows}.',
-  'usage.depot.incomplet': 'Incomplete measure: an unreadable file, or more files than the survey reads. The repository may take more.',
+  'usage.depot.incomplet': 'Incomplete measure: an unreadable file, more files than the survey reads, or an unreadable tree — the previous measure is then kept. The repository may take more.',
   'usage.depot.inconnus': {
     one: '{n} import targets a subpath the base package does not export — it would break at the next upgrade:',
     other: '{n} imports target subpaths the base package does not export — they would break at the next upgrade:',
