@@ -52,7 +52,11 @@ import {
   nomDemande,
   nbDepotsDe,
   moteurDe,
+  matriceUsageSocle,
+  manquesUsage,
+  CATEGORIES_USAGE,
 } from '../scripts/vue.mjs'
+import { CATEGORIES } from '../scripts/socle-usage.mjs'
 import { cmpVersion, etatPublie } from '../scripts/regles.mjs'
 
 test('rangEcart nomme le RANG, pas la distance', () => {
@@ -830,4 +834,104 @@ test('phraseChangement : le nom propre d’abord, et un nouveau majeur se dit', 
   assert.ok(amont.includes('[changements.amont.majeur]'))
   assert.deepEqual(phraseChangement({ type: 'site-tombe', depot: 'b' }, T), ['b', '[changements.site-tombe]'])
   assert.deepEqual(phraseChangement({ type: 'prod-retard', depot: 'c', retard: 2 }, T), ['c', '[changements.prod-retard {"n":2}]'])
+})
+
+/* ── usage du socle ── */
+
+const usage = (modules, outils = [], workflows = [], extra = {}) => ({ modules, outils, workflows, inconnus: [], fichiers: 10, ...extra })
+const PARC_USAGE = {
+  socleOffre: {
+    modules: ['react/card', 'react/button', 'csv', 'eslint-react', 'react/use-online', 'vcard'],
+    categories: { 'react/card': 'composant', 'react/button': 'composant', csv: 'bibliotheque', 'eslint-react': 'outillage', 'react/use-online': 'crochet', vcard: 'bibliotheque' },
+    outils: ['pwa-doctor', 'pwa-icons'],
+    workflows: ['pwa-ci.yml'],
+  },
+  depots: [
+    { nom: 'a', famille: 'pwa', usageSocle: usage(['react/card', 'react/button', 'eslint-react', 'csv'], ['pwa-doctor'], ['pwa-ci.yml']) },
+    { nom: 'b', famille: 'pwa', usageSocle: usage(['react/card', 'eslint-react'], [], ['pwa-ci.yml']) },
+    { nom: 'c', famille: 'pwa', usageSocle: usage(['react/card', 'react/button', 'eslint-react'], [], ['pwa-ci.yml'], { incomplet: true, inconnus: ['ancien'] }) },
+    { nom: 'sans-socle', famille: 'autre' },
+  ],
+}
+
+test('la matrice d’usage : une colonne par consommateur, du plus gros preneur au plus petit', () => {
+  const { colonnes, lignes, total } = matriceUsageSocle(PARC_USAGE)
+  assert.deepEqual(
+    colonnes.map((c) => [c.nom, c.total]),
+    [
+      ['a', 6],
+      ['c', 4],
+      ['b', 3],
+    ],
+  )
+  assert.equal(colonnes.find((c) => c.nom === 'c').incomplet, true)
+  assert.deepEqual(colonnes.find((c) => c.nom === 'c').inconnus, ['ancien'])
+  assert.equal(total, 9, '6 modules, 2 outils, 1 workflow')
+  // Tri par défaut : le plus pris d'abord, puis le canal, puis le nom.
+  assert.deepEqual(
+    lignes.slice(0, 4).map((l) => [l.cle, l.n]),
+    [
+      ['eslint-react', 3],
+      ['react/card', 3],
+      ['pwa-ci.yml', 3],
+      ['react/button', 2],
+    ],
+  )
+  assert.deepEqual(lignes.find((l) => l.cle === 'vcard').par, [])
+})
+
+test('la matrice se filtre par canal, par famille, et sur les rares', () => {
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { canaux: ['outil'] }).lignes.map((l) => l.cle),
+    ['pwa-doctor', 'pwa-icons'],
+  )
+  // Une famille choisie ne garde QUE des modules : outils et workflows n'en ont pas.
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { categories: ['bibliotheque'] }).lignes.map((l) => l.cle),
+    ['csv', 'vcard'],
+  )
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { rares: true, tri: 'nom' }).lignes.map((l) => [l.cle, l.n]),
+    [
+      ['csv', 1],
+      ['pwa-doctor', 1],
+      ['pwa-icons', 0],
+      ['react/use-online', 0],
+      ['vcard', 0],
+    ],
+  )
+  // Par famille : canal, puis famille dans l'ordre des boutons, puis usage.
+  assert.deepEqual(
+    matriceUsageSocle(PARC_USAGE, { tri: 'categorie' }).lignes.map((l) => l.cle),
+    ['eslint-react', 'react/card', 'react/button', 'react/use-online', 'csv', 'vcard', 'pwa-doctor', 'pwa-icons', 'pwa-ci.yml'],
+  )
+})
+
+test('sans offre relevée, la matrice garde ses colonnes et n’a aucune ligne', () => {
+  const { colonnes, lignes } = matriceUsageSocle({ depots: PARC_USAGE.depots })
+  assert.equal(colonnes.length, 3)
+  assert.deepEqual(lignes, [])
+  assert.deepEqual(matriceUsageSocle(undefined), { colonnes: [], lignes: [], total: 0 })
+})
+
+test('les manques d’une app : ce que la moitié des AUTRES prend et pas elle', () => {
+  // Pour b, les autres sont a et c : seuil = 1. b ne prend ni react/button (2) ni csv (1).
+  assert.deepEqual(manquesUsage(PARC_USAGE, 'b'), {
+    seuil: 1,
+    autres: 2,
+    manquants: [
+      { cle: 'react/button', categorie: 'composant', n: 2 },
+      { cle: 'csv', categorie: 'bibliotheque', n: 1 },
+    ],
+  })
+  // À la part 1, seul ce que TOUS les autres prennent compte.
+  assert.deepEqual(manquesUsage(PARC_USAGE, 'b', 1).manquants.map((m) => m.cle), ['react/button'])
+  // Un outil manquant n'est pas un manque : b n'a pas pwa-doctor et ne le voit pas.
+  assert.ok(!manquesUsage(PARC_USAGE, 'b').manquants.some((m) => m.cle === 'pwa-doctor'))
+})
+
+test('les familles de la vue sont celles que le relevé calcule', () => {
+  // La page n'embarque pas socle-usage.mjs : les deux listes vivent chacune
+  // de leur côté, et ce test les tient ensemble.
+  assert.deepEqual([...CATEGORIES_USAGE].sort(), [...CATEGORIES].sort())
 })

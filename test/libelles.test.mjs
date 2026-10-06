@@ -30,7 +30,7 @@ import assert from 'node:assert/strict'
 
 import { DEFAUT, LANGUES, LIBELLES, choisitLangue, interpole, traducteur } from '../scripts/libelles.mjs'
 import { SOCLE, classe } from '../scripts/regles.mjs'
-import { GRAVITES, GROUPES, ORDRE_A_FAIRE, PERIODES, elementsHorsNpm } from '../scripts/vue.mjs'
+import { CANAUX_USAGE, CATEGORIES_USAGE, GRAVITES, GROUPES, ORDRE_A_FAIRE, PERIODES, elementsHorsNpm } from '../scripts/vue.mjs'
 import { pileDuDepot } from '../scripts/modele.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
@@ -241,6 +241,10 @@ const FAMILLES_DYNAMIQUES = [
   { prefixe: 'tendances.', membres: ['taux', 'rouges', 'alertes', 'dormantes', 'socle', 'envManifest', 'rulesets'], partielle: true },
   // `alertesCrossParc()` — kind dependabot | codeql.
   { prefixe: 'secu.kind.', membres: ['dependabot', 'codeql'] },
+  // `familleUsage()` du gabarit : la famille d'un module, le canal sinon —
+  // les deux listes viennent de `vue.mjs`, importées.
+  { prefixe: 'usage.categorie.', membres: CATEGORIES_USAGE },
+  { prefixe: 'usage.canal.', membres: CANAUX_USAGE },
 ]
 
 test('les familles de clés construites à l’exécution sont complètes', () => {

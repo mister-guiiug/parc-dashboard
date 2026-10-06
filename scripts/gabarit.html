@@ -443,6 +443,59 @@
           <p class="vide" id="aucuneLigne" hidden data-t="matrice.aucuneLigne">Aucun dépôt ne répond à ces filtres.</p>
         </section>
 
+        <section id="usageSocle">
+          <div class="titreSection">
+            <h2 data-t="usage.h2">Usage du socle</h2>
+            <span class="compteur" id="compteurUsage" aria-live="polite"></span>
+          </div>
+          <p class="chapo" data-th="usage.chapo">
+            Ce que chaque consommateur prend <strong>réellement</strong> au socle, lu dans son code à chaque relevé — pas le champ <code>configs</code> du catalogue, tenu à la main. Une ligne est
+            ce que le socle offre (un module importé, un outil appelé par un script, un workflow réutilisable), une colonne un dépôt qui en dépend, du plus gros preneur au plus petit. Une ligne
+            qu'aucune colonne ne prend est un candidat au retrait ; <strong>un clic sur un dépôt</strong> liste les modules que la plupart des autres prennent et pas lui — l'effort pour qu'il
+            s'appuie davantage sur le socle.
+          </p>
+          <div class="filtres" id="filtresCanalUsage" role="group" data-t-aria-label="usage.filtreCanal.al" aria-label="Filtrer par canal">
+            <span class="etiquetteFiltre" data-t="usage.filtreCanal.etiq">Canal</span>
+            <button class="bouton" type="button" data-canal="module" aria-pressed="false" data-t="usage.canal.module">Module</button>
+            <button class="bouton" type="button" data-canal="outil" aria-pressed="false" data-t="usage.canal.outil">Outil</button>
+            <button class="bouton" type="button" data-canal="workflow" aria-pressed="false" data-t="usage.canal.workflow">Workflow</button>
+          </div>
+          <div class="filtres" id="filtresFamilleUsage" role="group" data-t-aria-label="usage.filtreFamille.al" aria-label="Filtrer par famille de module">
+            <span class="etiquetteFiltre" data-t="usage.filtreFamille.etiq">Famille</span>
+            <button class="bouton" type="button" data-categorie="outillage" aria-pressed="false" data-t="usage.categorie.outillage">Outillage</button>
+            <button class="bouton" type="button" data-categorie="vite" aria-pressed="false" data-t="usage.categorie.vite">Vite</button>
+            <button class="bouton" type="button" data-categorie="composant" aria-pressed="false" data-t="usage.categorie.composant">Composant</button>
+            <button class="bouton" type="button" data-categorie="crochet" aria-pressed="false" data-t="usage.categorie.crochet">Crochet</button>
+            <button class="bouton" type="button" data-categorie="libelles" aria-pressed="false" data-t="usage.categorie.libelles">Libellés</button>
+            <button class="bouton" type="button" data-categorie="bibliotheque" aria-pressed="false" data-t="usage.categorie.bibliotheque">Bibliothèque</button>
+          </div>
+          <div class="filtres">
+            <button class="bouton" type="button" id="usageRares" aria-pressed="false" data-t="usage.rares">Seulement ce que 0 ou 1 dépôt prend</button>
+            <select class="bouton" id="usageTri" data-t-aria-label="usage.tri.al" aria-label="Trier les lignes de l'usage du socle">
+              <option value="usage" data-t="usage.tri.usage">Trier : le plus pris d'abord</option>
+              <option value="categorie" data-t="usage.tri.categorie">Trier : par famille</option>
+              <option value="nom" data-t="usage.tri.nom">Trier : nom</option>
+            </select>
+            <button class="bouton raz" type="button" id="raz-usage" hidden data-t="raz">Tout réafficher</button>
+          </div>
+          <aside class="carte panneauMatrice" id="panneauUsage" hidden>
+            <div class="titreSection">
+              <h3 id="panneauUsageTitre" class="mono" tabindex="-1"></h3>
+              <button class="bouton" type="button" id="fermePanneauUsage" data-t="matrice.panneau.ferme">Fermer</button>
+            </div>
+            <div id="panneauUsageCorps"></div>
+          </aside>
+          <div class="carte matriceEnveloppe">
+            <table class="matrice usage">
+              <caption class="sr" data-t="usage.caption">Usage du socle : une ligne par module, outil ou workflow offert, une colonne par dépôt consommateur ; une case pleine dit qu'il le prend.</caption>
+              <thead id="teteUsage"></thead>
+              <tbody id="corpsUsage"></tbody>
+            </table>
+          </div>
+          <p class="vide" id="usageAucuneLigne" hidden data-t="usage.aucuneLigne">Rien ne répond à ces filtres.</p>
+          <p class="vide" id="usageAbsent" hidden data-t="usage.absent">Le relevé n'a pas encore mesuré l'usage du socle.</p>
+        </section>
+
         <section id="cockpit">
           <div class="titreSection">
             <h2 data-t="cockpit.h2">Production & sites</h2>
@@ -3775,6 +3828,158 @@
         corps.append(el('dt', null, T('renovate.th.depot')), dd)
       }
 
+      /* ---------------- usage du socle ---------------- */
+
+      // Le choix est LU dans les boutons, jamais tenu à part : ce qui est
+      // affiché pressé est exactement ce qui filtre.
+      function choixUsage() {
+        const presses = (zone, attr) => [...document.querySelectorAll(`${zone} button[aria-pressed="true"]`)].map((b) => b.dataset[attr])
+        return {
+          canaux: presses('#filtresCanalUsage', 'canal'),
+          categories: presses('#filtresFamilleUsage', 'categorie'),
+          rares: $('#usageRares').getAttribute('aria-pressed') === 'true',
+          tri: $('#usageTri').value,
+        }
+      }
+
+      /** Le libellé d'une ligne : sa famille pour un module, son canal sinon. */
+      const familleUsage = (l) => (l.categorie ? T('usage.categorie.' + l.categorie) : T('usage.canal.' + l.canal))
+
+      function rendUsage() {
+        const tete = $('#teteUsage')
+        const corps = $('#corpsUsage')
+        tete.textContent = ''
+        corps.textContent = ''
+        const choix = choixUsage()
+        const { colonnes, lignes, total } = matriceUsageSocle(D, choix)
+        const absent = !D.socleOffre || !colonnes.length
+        $('#usageAbsent').hidden = !absent
+        $('#usageAucuneLigne').hidden = absent || lignes.length > 0
+        $('#raz-usage').hidden = !(choix.canaux.length || choix.categories.length || choix.rares)
+        $('#compteurUsage').textContent = absent ? '' : T('usage.compteur', { n: lignes.length, total, depots: colonnes.length })
+        if (absent || !lignes.length) return
+
+        const tr = el('tr')
+        const coin = el('th', null, T('usage.th.offre'))
+        coin.scope = 'col'
+        const thN = el('th', 'usageN', T('usage.th.n'))
+        thN.scope = 'col'
+        tr.append(coin, thN)
+        for (const c of colonnes) {
+          const th = el('th')
+          th.scope = 'col'
+          const b = el('button', 'triCol')
+          b.type = 'button'
+          b.setAttribute('aria-label', T('usage.col.al', { depot: c.nom, n: c.total }))
+          b.append(el('span', 'matriceCol mono', c.nom), el('span', 'usageTotal', String(c.total)))
+          // Une mesure qui peut sous-compter, ou un import que le socle ne
+          // sert plus : la colonne le signale, le panneau dit lequel.
+          if (c.incomplet || c.inconnus.length) {
+            const signe = el('span', 'usageSigne', '!')
+            signe.setAttribute('aria-hidden', 'true')
+            b.append(signe)
+          }
+          b.addEventListener('click', () => ouvrePanneauUsageDepot(c))
+          th.append(b)
+          tr.append(th)
+        }
+        tete.append(tr)
+
+        for (const l of lignes) {
+          const r = el('tr')
+          if (l.n <= 1) r.dataset.rare = String(l.n)
+          const th = el('th')
+          th.scope = 'row'
+          const b = el('button', 'usageLigne')
+          b.type = 'button'
+          b.append(el('span', 'mono', l.cle), el('span', 'usageFamille', familleUsage(l)))
+          b.addEventListener('click', () => ouvrePanneauUsageLigne(l, colonnes))
+          th.append(b)
+          const n = el('td', 'usageN')
+          const barre = el('span', 'usageBarre')
+          barre.style.setProperty('--part', String(l.n / colonnes.length))
+          barre.setAttribute('aria-hidden', 'true')
+          n.append(barre, el('span', 'usageNombre', String(l.n)))
+          r.append(th, n)
+          const par = new Set(l.par)
+          for (const c of colonnes) {
+            const td = el('td', 'usageCase')
+            if (par.has(c.nom)) {
+              td.dataset.pris = 'oui'
+              const g = el('span', null, '●')
+              g.setAttribute('aria-hidden', 'true')
+              td.append(g, el('span', 'sr', T('usage.case.oui')))
+            }
+            r.append(td)
+          }
+          corps.append(r)
+        }
+      }
+
+      function ouvrePanneau(titre) {
+        const pan = $('#panneauUsage')
+        pan.hidden = false
+        $('#panneauUsageTitre').textContent = titre
+        const corps = $('#panneauUsageCorps')
+        corps.textContent = ''
+        // Le titre prend le focus : sans lui, un clic au clavier ouvrait un
+        // panneau que le lecteur d'écran ne disait pas.
+        $('#panneauUsageTitre').focus()
+        return corps
+      }
+
+      const listeMono = (noms) => {
+        const ul = el('ul', 'usageListe')
+        for (const x of noms) ul.append(el('li', 'mono', x))
+        return ul
+      }
+
+      function ouvrePanneauUsageDepot(c) {
+        const corps = ouvrePanneau(c.nom)
+        corps.append(el('p', null, T('usage.depot.prend', { modules: c.modules, outils: c.outils, workflows: c.workflows })))
+        if (c.incomplet) corps.append(el('p', 'aide', T('usage.depot.incomplet')))
+        if (c.inconnus.length) {
+          corps.append(el('p', null, T('usage.depot.inconnus', { n: c.inconnus.length })), listeMono(c.inconnus))
+        }
+        const { seuil, autres, manquants } = manquesUsage(D, c.nom)
+        corps.append(el('h4', null, T('usage.depot.manques', { seuil, autres })))
+        if (!manquants.length) {
+          corps.append(el('p', 'vide', T('usage.depot.aucunManque')))
+          return
+        }
+        const ul = el('ul', 'usageListe')
+        for (const m of manquants) {
+          const li = el('li')
+          li.append(el('span', 'mono', m.cle), ' ', el('span', 'usageFamille', T('usage.depot.manque', { n: m.n, autres, famille: T('usage.categorie.' + m.categorie) })))
+          ul.append(li)
+        }
+        corps.append(ul)
+      }
+
+      function ouvrePanneauUsageLigne(l, colonnes) {
+        const corps = ouvrePanneau(l.cle)
+        corps.append(el('p', null, T('usage.ligne.par', { n: l.n, total: colonnes.length, famille: familleUsage(l) })))
+        const par = new Set(l.par)
+        if (l.par.length) corps.append(el('h4', null, T('usage.ligne.prennent')), listeMono(l.par))
+        const pas = colonnes.filter((c) => !par.has(c.nom)).map((c) => c.nom)
+        if (pas.length) corps.append(el('h4', null, T('usage.ligne.prennentPas')), listeMono(pas))
+      }
+
+      $('#fermePanneauUsage').addEventListener('click', () => {
+        $('#panneauUsage').hidden = true
+      })
+      for (const b of document.querySelectorAll('#filtresCanalUsage button, #filtresFamilleUsage button, #usageRares')) {
+        b.addEventListener('click', () => {
+          b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true')
+          rendUsage()
+        })
+      }
+      $('#usageTri').addEventListener('change', rendUsage)
+      $('#raz-usage').addEventListener('click', () => {
+        for (const b of document.querySelectorAll('#filtresCanalUsage button, #filtresFamilleUsage button, #usageRares')) b.setAttribute('aria-pressed', 'false')
+        rendUsage()
+      })
+
       function majSelectionMatrice() {
         const n = colonnesCochees.size
         const c = $('#matriceSelectionCompteur')
@@ -3831,6 +4036,7 @@
         rendDepots()
         rendLibs()
         rendMatrice()
+        rendUsage()
         rendElements()
         rendActivite()
         majSelectionMatrice()

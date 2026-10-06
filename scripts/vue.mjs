@@ -968,3 +968,94 @@ export function phraseChangement(c, T) {
   if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
   return [c.depot, T('changements.depot-sorti')]
 }
+
+/* ── usage du socle ─────────────────────────────────────────────────────── */
+
+/** Les trois canaux par lesquels une app consomme le socle (voir `socle-usage.mjs`). */
+export const CANAUX_USAGE = ['module', 'outil', 'workflow']
+/** Les familles de modules, dans l'ordre des boutons — celles de `categorieModule`. */
+export const CATEGORIES_USAGE = ['outillage', 'vite', 'composant', 'crochet', 'libelles', 'bibliotheque']
+
+/**
+ * LA MATRICE D'USAGE DU SOCLE : une ligne par chose que le socle offre, une
+ * colonne par dépôt qui le consomme, mesurée dans son code par le relevé.
+ *
+ * Les COLONNES vont du plus gros preneur au plus petit : l'œil lit d'abord qui
+ * s'appuie sur le socle, et finit sur qui le contourne. Les LIGNES se filtrent
+ * par canal et par famille ; une famille choisie ne garde que des modules, les
+ * outils et les workflows n'en ayant pas. `rares` ne garde que ce qu'aucun ou
+ * un seul consommateur prend : les candidats au retrait, ou à la promotion
+ * manquée.
+ *
+ * @param {{ socleOffre?: object, depots?: object[] }} D
+ * @param {{ canaux?: string[], categories?: string[], rares?: boolean, tri?: 'usage' | 'nom' | 'categorie' }} options
+ */
+export function matriceUsageSocle(D, { canaux = [], categories = [], rares = false, tri = 'usage' } = {}) {
+  const consommateurs = (D?.depots || []).filter((d) => d.usageSocle)
+  const prises = new Map(
+    consommateurs.map((d) => [
+      d.nom,
+      { module: new Set(d.usageSocle.modules || []), outil: new Set(d.usageSocle.outils || []), workflow: new Set(d.usageSocle.workflows || []) },
+    ]),
+  )
+  const colonnes = consommateurs
+    .map((d) => {
+      const p = prises.get(d.nom)
+      return {
+        nom: d.nom,
+        famille: d.famille,
+        modules: p.module.size,
+        outils: p.outil.size,
+        workflows: p.workflow.size,
+        total: p.module.size + p.outil.size + p.workflow.size,
+        incomplet: Boolean(d.usageSocle.incomplet),
+        inconnus: d.usageSocle.inconnus || [],
+      }
+    })
+    .sort((a, b) => b.total - a.total || a.nom.localeCompare(b.nom))
+  const offre = D?.socleOffre
+  if (!offre) return { colonnes, lignes: [], total: 0 }
+
+  const toutes = [
+    ...(offre.modules || []).map((cle) => ({ cle, canal: 'module', categorie: offre.categories?.[cle] || 'bibliotheque' })),
+    ...(offre.outils || []).map((cle) => ({ cle, canal: 'outil', categorie: null })),
+    ...(offre.workflows || []).map((cle) => ({ cle, canal: 'workflow', categorie: null })),
+  ].map((l) => {
+    const par = colonnes.filter((c) => prises.get(c.nom)[l.canal].has(l.cle)).map((c) => c.nom)
+    return { ...l, par, n: par.length }
+  })
+  const lignes = toutes
+    .filter((l) => !canaux.length || canaux.includes(l.canal))
+    .filter((l) => !categories.length || (l.canal === 'module' && categories.includes(l.categorie)))
+    .filter((l) => !rares || l.n <= 1)
+  const rangCanal = (l) => CANAUX_USAGE.indexOf(l.canal)
+  const rangCategorie = (l) => (l.categorie ? CATEGORIES_USAGE.indexOf(l.categorie) : CATEGORIES_USAGE.length)
+  lignes.sort((a, b) =>
+    tri === 'nom'
+      ? a.cle.localeCompare(b.cle)
+      : tri === 'categorie'
+        ? rangCanal(a) - rangCanal(b) || rangCategorie(a) - rangCategorie(b) || b.n - a.n || a.cle.localeCompare(b.cle)
+        : b.n - a.n || rangCanal(a) - rangCanal(b) || a.cle.localeCompare(b.cle),
+  )
+  return { colonnes, lignes, total: toutes.length }
+}
+
+/**
+ * CE QU'UNE APP NE PREND PAS ALORS QUE LA PLUPART LE PRENNENT — la mesure de
+ * l'effort pour qu'elle s'appuie davantage sur le socle.
+ *
+ * « La plupart » = au moins `part` des AUTRES consommateurs (la moitié par
+ * défaut) : compter l'app elle-même ferait baisser le seuil de celles qui
+ * n'utilisent rien. Seuls les modules comptent : un outil ou un workflow
+ * manquant est un choix de CI, pas une copie de code.
+ */
+export function manquesUsage(D, nom, part = 0.5) {
+  const { colonnes, lignes } = matriceUsageSocle(D, { canaux: ['module'] })
+  const autres = colonnes.filter((c) => c.nom !== nom).length
+  const seuil = Math.max(1, Math.ceil(autres * part))
+  const manquants = lignes
+    .filter((l) => !l.par.includes(nom))
+    .filter((l) => l.n >= seuil)
+    .map(({ cle, categorie, n }) => ({ cle, categorie, n }))
+  return { seuil, autres, manquants }
+}
