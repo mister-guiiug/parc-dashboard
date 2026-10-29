@@ -17,7 +17,11 @@ import {
   importeDormance,
   scopesIncomplets,
   runbookDocUrl,
+  aFairePublie,
+  NIVEAU_A_FAIRE,
 } from '../scripts/pilotage.mjs'
+import { ORDRE_A_FAIRE } from '../scripts/vue.mjs'
+import { traducteur } from '../scripts/libelles.mjs'
 
 test('scoreSante : dépôt sain proche de 100', () => {
   const s = scoreSante({
@@ -190,4 +194,43 @@ test('scopesIncomplets lit les KPI', () => {
     'dependabot',
     'rulesets',
   ])
+})
+
+// `a-faire.json`, que lit le serveur MCP : la liste de la page, pas une autre.
+test('aFairePublie : la liste de la page, avec son niveau et son titre', () => {
+  const D = {
+    genere: '2026-10-29T18:27:49.157Z',
+    depots: [
+      { nom: 'a', compte: { rouge: 2 } },
+      { nom: 'b', compte: { rouge: 1 } },
+    ],
+    libs: [],
+    kpi: {},
+    socleAPublier: { version: '6.29.0' },
+  }
+  const r = aFairePublie(D, traducteur('fr'))
+  assert.equal(r.genere, D.genere)
+  assert.deepEqual(r.items, [
+    {
+      cle: 'rouges',
+      niveau: 'critique',
+      titre: '2 dépôts ont des workflows rouges',
+      n: 2,
+      details: [
+        { depot: 'a', n: 2 },
+        { depot: 'b', n: 1 },
+      ],
+    },
+    { cle: 'publier', niveau: 'decision', titre: 'Version du socle à publier', n: 1, details: [{ version: '6.29.0' }] },
+  ])
+})
+
+test('aFairePublie : rien à faire, une liste vide et datée de rien', () => {
+  assert.deepEqual(aFairePublie({}, traducteur('fr')), { genere: null, items: [] })
+})
+
+// Une rubrique sans niveau sortirait en `niveau: null` : un programme qui trie
+// par gravité la rangerait nulle part.
+test('chaque rubrique « À faire » a un niveau', () => {
+  for (const cle of ORDRE_A_FAIRE) assert.ok(NIVEAU_A_FAIRE[cle], cle)
 })

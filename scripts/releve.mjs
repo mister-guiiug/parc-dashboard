@@ -42,6 +42,7 @@ import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
 import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, brutsDepuisFichiers, estReutilisable, fichiersAScanner, fichiersDuSocle, grapheDuSocle, importesDe, offreDuSocle, outilsDuReutilisable, rattache, usageReprenable } from './socle-usage.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
+import { aFairePublie } from './pilotage.mjs'
 import { traducteur } from './libelles.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
@@ -1539,6 +1540,16 @@ if (DOSSIER_PUBLIE) {
   await copierModulesCommande(DOSSIER_PUBLIE)
   writeFileSync(join(DOSSIER_PUBLIE, 'historique.json'), JSON.stringify(histo) + '\n')
   writeFileSync(join(DOSSIER_PUBLIE, 'etat.json'), JSON.stringify(etatPublie(inchange ? avantPublie : modele, MAINTENANT)) + '\n')
+
+  // LES DONNÉES DE LA PAGE, LISIBLES SANS LA PAGE. Un programme qui voulait
+  // l'état du parc devait télécharger le HTML et en extraire le bloc `donnees`.
+  // `donnees.json` est ce bloc : le modèle que porte la page servie, donc celui
+  // de la page en ligne quand rien n'a bougé. `a-faire.json` est la liste « À
+  // faire » telle que la page la dresse. Le serveur MCP `mister-parc-mcp` ne lit
+  // que ces deux fichiers.
+  const servi = inchange ? avantPublie : modele
+  writeFileSync(join(DOSSIER_PUBLIE, 'donnees.json'), JSON.stringify(servi) + '\n')
+  writeFileSync(join(DOSSIER_PUBLIE, 'a-faire.json'), JSON.stringify(aFairePublie(servi, traducteur('fr'))) + '\n')
 
   // LE FLUX ATOM des changements : être prévenu sans ouvrir la page — un
   // lecteur de flux, un téléphone. Les titres sont les phrases de la page

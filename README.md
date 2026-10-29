@@ -29,6 +29,7 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Une URL de production va-t-elle mourir ? | morceaux fugaces et URL mortes, sur la carte et dans « À faire » |
 | Qu'attend Renovate, et que ne voit-il pas ? | ligne « Renovate » de chaque carte, et deux rubriques de « À faire » |
 | Comment être prévenu sans ouvrir la page ? | flux Atom `changements.xml`, lien sous le titre |
+| Comment un programme lit-il l'état du parc ? | `donnees.json` (le modèle de la page) et `a-faire.json` (la liste « À faire »), publiés à côté d'elle ; le serveur MCP [`mister-parc-mcp`](https://github.com/mister-guiiug/mister-parc-mcp) les sert |
 | Comment aller droit à un dépôt ou à une librairie ? | recherche de la barre fixe — touche `/` |
 | Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
 | Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
@@ -124,6 +125,10 @@ main — et la recopie du matin même avait donné « node 26.6.1 » pour `@type
   montée tant qu'on ne lui donne pas de jeton.
 - **Le flux Atom** `changements.xml` : chaque transition, datée du passage qui
   l'a vue, avec les phrases de la page (`phraseChangement`).
+- **Les données, pour un programme** : `donnees.json` est le modèle que porte la
+  page servie, `a-faire.json` sa liste « À faire » avec le niveau et le titre de
+  chaque rubrique (`aFairePublie`). Un lecteur n'a ni HTML à découper ni règle à
+  refaire.
 - **La barre fixe** : les chapitres, et une recherche qui MÈNE au dépôt ou à la
   librairie — la touche `/` y amène le curseur. Deux sections longues et peu
   consultées se replient ; le Ctrl+F du navigateur les rouvre.
@@ -413,7 +418,7 @@ l'environnement, environ 400 appels d'API (384 à 405 sur les passages des 27 et
 | `--prives` | inclut les dépôts privés du compte (demande un PAT, pas le `GITHUB_TOKEN`) | — |
 | `--sortie <chemin>` | force le fichier de sortie | — |
 | `--precedente <url>` | prend la page **en ligne** pour état précédent — voir ci-dessous | — |
-| `--publier <dossier>` | écrit le site à déployer : `index.html`, `etat.json`, `historique.json`, et `changements.xml` avec `--precedente` | `<dossier>` |
+| `--publier <dossier>` | écrit le site à déployer : `index.html`, `etat.json`, `historique.json`, `donnees.json`, `a-faire.json`, et `changements.xml` avec `--precedente` | `<dossier>` |
 | `--instantane` | avec `--publier`, écrit aussi la photo du jour dans le dépôt, quand un jour nouveau apparaît | `index.html`, `historique.json` |
 
 La CI lance `--precedente <url de la page> --publier _site --instantane`.
