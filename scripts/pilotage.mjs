@@ -5,6 +5,8 @@
  * Aucune dépendance DOM : tout ce qui est ici est éprouvé par `node --test`.
  */
 
+import { aFaire } from './vue.mjs'
+
 /** Niveau d’une rubrique « À faire » — couleur et glyphe du gabarit. */
 export const NIVEAU_A_FAIRE = {
   rouges: 'critique',
@@ -28,6 +30,31 @@ export const NIVEAU_A_FAIRE = {
 }
 
 export const GLYPHES_A_FAIRE = { critique: '✕', attention: '!', decision: '◆', entretien: '↑' }
+
+/**
+ * « À FAIRE », LU PAR UN PROGRAMME. La page dresse sa liste dans le navigateur,
+ * depuis les données qu'elle embarque. Un autre lecteur (le serveur MCP
+ * `mister-parc-mcp`) devait donc refaire `aFaire()`, ses gardes de lisibilité
+ * et ses niveaux, dans un autre langage : la même règle à deux endroits, dont
+ * l'un vieillirait sans le dire. Le relevé la calcule ici, une fois, et la
+ * publie à côté de la page (`a-faire.json`).
+ *
+ * Le titre est celui de la page, dans la langue de `T` ; le niveau, celui qui
+ * colore la rubrique. Clés et détails passent tels quels : c'est sur eux qu'un
+ * programme filtre.
+ */
+export function aFairePublie(D, T) {
+  return {
+    genere: D?.genere ?? null,
+    items: aFaire(D).map((it) => ({
+      cle: it.cle,
+      niveau: NIVEAU_A_FAIRE[it.cle] ?? null,
+      titre: T('afaire.' + it.cle, { n: it.n }),
+      n: it.n,
+      details: it.details,
+    })),
+  }
+}
 
 /** Entrées du rail hors chapitres `main` (contexte, file, cockpit). */
 export const LIENS_RAIL_OPS = [
