@@ -37,6 +37,9 @@ import {
   symboles,
   SEUIL_PANNE_MIN,
   SEUIL_FRAIS_MIN,
+  hrefAncre,
+  hrefExterne,
+  hrefSur,
   filtreChangements,
   libsDuContexte,
   fraicheur,
@@ -1051,4 +1054,44 @@ test('kpiDepuisDepots : un filtre qui ne retient RIEN ne rend pas une source ill
   assert.equal(k.taux, null, 'aucun workflow : pas de taux, et la page affiche « — », jamais « null % »')
   // sans relevé lisible, un sous-ensemble vide reste illisible
   assert.equal(kpiDepuisDepots([], {}).alertesLisibles, false)
+})
+
+/* ── Les liens que la page pose (CodeQL js/xss-through-dom) ─────────────── */
+
+test('hrefExterne laisse passer les adresses du parc à l’identique', () => {
+  // Ce que le relevé met vraiment dans le modèle : runs, sites Pages, workflows,
+  // et une branche à barre oblique déjà encodée — qui ne doit pas l'être deux fois.
+  for (const url of [
+    'https://github.com/mister-guiiug/miss-arcade/actions/runs/123/job/456',
+    'https://mister-guiiug.github.io/miss-arcade/',
+    'https://github.com/mister-guiiug/parc-dashboard/actions/workflows/releve.yml',
+    'https://github.com/o/r/blob/feat%2Fx/config/env.manifest.json',
+    'https://github.com/o/r/issues/7',
+  ])
+    assert.equal(hrefExterne(url), url)
+})
+
+test('hrefExterne refuse tout ce qui n’est pas une adresse web', () => {
+  // Une page de dépôt déclarée « javascript:… » s'exécutait au clic.
+  for (const url of ['javascript:alert(1)', '  JaVaScRiPt:alert(1)', 'data:text/html,<b>x</b>', 'vbscript:x', 'file:///etc/passwd', null, undefined, 'http://['])
+    assert.equal(hrefExterne(url), '#', String(url))
+})
+
+test('hrefExterne échappe chaque morceau qu’il reconstruit', () => {
+  assert.equal(hrefExterne('https://x.test:8443/a b/?q=1 2&r=%26#h t'), 'https://x.test:8443/a%20b/?q=1%202&r=%26#h%20t')
+  assert.equal(hrefExterne('https://x.test/"onmouseover="x'), 'https://x.test/%22onmouseover%3D%22x')
+  // relative : résolue contre la page, comme le ferait le navigateur
+  assert.equal(hrefExterne('notes.html', 'https://parc.test/parc-dashboard/'), 'https://parc.test/parc-dashboard/notes.html')
+})
+
+test('hrefAncre et hrefSur : une ancre échappée, que la page sait relire', () => {
+  assert.equal(hrefAncre('depot-miss-arcade'), '#depot-miss-arcade')
+  // le paquet du socle : `ouvreDepuisAncre` décode le fragment avant de chercher
+  const a = hrefAncre('lib-@mister-guiiug/dev-pwa-config')
+  assert.equal(a, '#lib-%40mister-guiiug%2Fdev-pwa-config')
+  assert.equal(decodeURIComponent(a), '#lib-@mister-guiiug/dev-pwa-config')
+  assert.equal(hrefSur('#depot-a'), '#depot-a')
+  assert.equal(hrefSur('#lib-%40s%2Fx'), '#lib-%40s%2Fx', 'une ancre déjà encodée ne l’est pas deux fois')
+  assert.equal(hrefSur('https://github.com/a'), 'https://github.com/a')
+  assert.equal(hrefSur('javascript:alert(1)'), '#')
 })

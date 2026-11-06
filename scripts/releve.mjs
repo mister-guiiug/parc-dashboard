@@ -960,7 +960,7 @@ const utilisables = {}
 const INTERROGES = new Set([...SUIVIES].map((p) => REEL.get(p) ?? p))
 await enLot([...INTERROGES], 6, async (p) => {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${p.replace('/', '%2f')}`)
+    const res = await fetch(`https://registry.npmjs.org/${p.replaceAll('/', '%2f')}`)
     if (!res.ok) return
     const doc = await res.json()
     const derniere = doc['dist-tags']?.latest
