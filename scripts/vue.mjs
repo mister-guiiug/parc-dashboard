@@ -983,6 +983,67 @@ export function aFaire(D) {
   return items.sort((a, b) => ORDRE_A_FAIRE.indexOf(a.cle) - ORDRE_A_FAIRE.indexOf(b.cle))
 }
 
+/* ── Les liens que la page pose ─────────────────────────────────────────── */
+
+/** `decodeURIComponent`, sans lever sur une séquence mal formée. */
+const decodeSur = (s) => {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
+}
+
+/**
+ * UNE ANCRE DE LA PAGE, ÉCHAPPÉE. Le nom d'un dépôt ou d'un paquet vient du
+ * modèle embarqué, que la page lit dans son propre DOM : CodeQL y voyait un
+ * texte réinjecté sans échappement (`js/xss-through-dom`). Un fragment ne
+ * porte pas de schéma, mais l'échapper ne coûte rien — et le navigateur, comme
+ * `ouvreDepuisAncre`, le décode avant de chercher l'élément.
+ *
+ * @param {string} id l'identifiant visé, sans `#`
+ */
+export const hrefAncre = (id) => '#' + encodeURIComponent(String(id ?? ''))
+
+/**
+ * UNE URL EXTERNE, RECONSTRUITE. Les adresses du modèle (runs, sites Pages,
+ * issues, dépôts amont) viennent de l'API ou de champs qu'un dépôt renseigne :
+ * une page déclarée `javascript:…` s'exécuterait au clic. Seuls `http:` et
+ * `https:` passent ; le reste devient `#`. L'URL est REFAITE morceau par
+ * morceau — hôte, chemin, requête, fragment, chacun échappé — plutôt que
+ * recopiée : rien d'autre qu'une adresse web ne peut sortir d'ici.
+ *
+ * @param {string} url
+ * @param {string} [base] l'adresse de la page, pour une URL relative
+ */
+export function hrefExterne(url, base = 'https://invalide.invalid/') {
+  // Une adresse absente ne mène nulle part — pas à la page elle-même, ce que
+  // donnerait une chaîne vide résolue contre la base.
+  if (!String(url ?? '').trim()) return '#'
+  let u
+  try {
+    u = new URL(String(url), base)
+  } catch {
+    return '#'
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return '#'
+  const hote = u.hostname
+    .split('.')
+    .map((x) => encodeURIComponent(x))
+    .join('.')
+  const port = u.port ? ':' + encodeURIComponent(u.port) : ''
+  const chemin = u.pathname
+    .split('/')
+    .map((x) => encodeURIComponent(decodeSur(x)))
+    .join('/')
+  const requete = [...u.searchParams].map(([cle, valeur]) => encodeURIComponent(cle) + '=' + encodeURIComponent(valeur)).join('&')
+  const fragment = u.hash ? '#' + encodeURIComponent(decodeSur(u.hash.slice(1))) : ''
+  return (u.protocol === 'https:' ? 'https://' : 'http://') + hote + port + chemin + (requete ? '?' + requete : '') + fragment
+}
+
+/** Un lien du modèle : une ancre de la page (`#…`) ou une URL externe. */
+export const hrefSur = (url, base) => (String(url ?? '').startsWith('#') ? hrefAncre(decodeSur(String(url).slice(1))) : hrefExterne(url, base))
+
 /* ── La recherche de la barre de navigation ─────────────────────────────── */
 
 /**

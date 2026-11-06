@@ -696,6 +696,10 @@
 
       const D = JSON.parse(document.getElementById('donnees').textContent)
       const $ = (s) => document.querySelector(s)
+      // Tout lien que la page pose passe par ces deux portes (voir `hrefExterne`
+      // de `vue.mjs`) : une ancre échappée, ou une URL http(s) reconstruite.
+      const lienExterne = (url) => hrefExterne(url, location.href)
+      const lienSur = (url) => hrefSur(url, location.href)
       const el = (t, cls, txt) => {
         const n = document.createElement(t)
         if (cls) n.className = cls
@@ -949,7 +953,7 @@
           // qui la cache) ; une section, seulement si elle est affichée.
           const cible = t.ancre && (t.ancre.startsWith('lib-') ? true : !document.getElementById(t.ancre)?.hidden)
           const n = el(cible ? 'a' : 'div', 'tuile' + (t.alerte ? ' tuileAlerte' : ''))
-          if (cible) n.href = '#' + t.ancre
+          if (cible) n.href = hrefAncre(t.ancre)
           n.append(el('div', 'etiq', t.etiq), el('div', 'val', String(t.val)))
           // SOUS FILTRE, PAS DE COURBE : l'historique est celui du parc entier, et
           // une tendance du parc sous un chiffre filtré se lisait comme la sienne.
@@ -1012,7 +1016,7 @@
           const cible = document.getElementById(x.ancre)
           const lien = (x.niveau === 'critique' || x.niveau === 'attention') && cible && !cible.hidden
           const corps = el(lien ? 'a' : 'span', null, texteEtat(x))
-          if (lien) corps.href = '#' + x.ancre
+          if (lien) corps.href = hrefAncre(x.ancre)
           // Le détail que portait le « 100 % » : neutralisés et jamais exécutés.
           if (x.cle === 'ci') corps.title = T('etatParc.ci.titre', { verts: x.verts, neutres: x.neutres, jamais: x.jamais })
           li.append(g, corps)
@@ -1099,7 +1103,7 @@
       /** Une pastille qui MÈNE quelque part : une carte, une ligne, une PR. */
       function puceLien(texte, href, externe = false) {
         const a = el('a', 'chipDepot', texte)
-        a.href = href
+        a.href = lienSur(href)
         if (externe) {
           a.target = '_blank'
           a.rel = 'noopener'
@@ -1332,7 +1336,7 @@
         hote.textContent = ''
         hote.append(document.createTextNode(T('pat.bandeau', { manques: manques.join(T('liste')) }) + ' '))
         const a = el('a', null, T('pat.sonder'))
-        a.href = `https://github.com/${D.compte || 'mister-guiiug'}/parc-dashboard/actions/workflows/scopes-pat.yml`
+        a.href = lienExterne(`https://github.com/${D.compte || 'mister-guiiug'}/parc-dashboard/actions/workflows/scopes-pat.yml`)
         a.target = '_blank'
         a.rel = 'noopener'
         hote.append(a)
@@ -1549,7 +1553,7 @@
           const d = D.depots.find((x) => x.nom === e.depot)
           const c1 = el('td')
           const a = el('a', 'depotLien', e.depot)
-          a.href = '#depot-' + e.depot
+          a.href = hrefAncre('depot-' + e.depot)
           c1.append(a)
           if (d && d.prive) c1.append(document.createTextNode(' '), el('span', 'badge prive', T('carte.prive')))
           const c2 = el('td')
@@ -1571,7 +1575,7 @@
           const cRb = el('td')
           if (e.url) {
             const rb = el('a', null, T('echecs.runbook.ouvrir', { piste }))
-            rb.href = e.url
+            rb.href = lienExterne(e.url)
             rb.target = '_blank'
             rb.rel = 'noopener'
             cRb.append(rb)
@@ -1583,7 +1587,7 @@
           cRb.append(document.createTextNode(' · '), doc)
           const c6 = el('td')
           const lien = el('a', null, T('echecs.run'))
-          lien.href = e.url
+          lien.href = lienExterne(e.url)
           lien.target = '_blank'
           lien.rel = 'noopener'
           c6.append(lien)
@@ -1627,7 +1631,7 @@
         h.append(bascule)
         tete.append(h)
         const a = el('a', 'depotLien', '↗')
-        a.href = d.url
+        a.href = lienExterne(d.url)
         a.target = '_blank'
         a.rel = 'noopener'
         a.title = T('carte.ouvrir', { depot: d.nom })
@@ -1741,7 +1745,7 @@
           const al = el('div', 'malLu')
           al.style.borderLeftColor = d.scanning.graves || d.scanning.erreurs ? 'var(--critical)' : 'var(--warning)'
           const a = el('a', null, T('carte.scanning.lien'))
-          a.href = `https://github.com/${d.nwo}/security/code-scanning`
+          a.href = lienExterne(`https://github.com/${d.nwo}/security/code-scanning`)
           a.target = '_blank'
           a.rel = 'noopener'
           al.append(
@@ -1802,7 +1806,7 @@
             const li = el('li')
             const a = el('a', null, '')
             if (p.url) {
-              a.href = p.url
+              a.href = lienExterne(p.url)
               a.target = '_blank'
               a.rel = 'noopener'
             }
@@ -1826,7 +1830,7 @@
           for (const w of d.workflows) {
             const r = el('a', 'wf')
             if (caches.includes(w)) r.hidden = true
-            r.href = w.url || d.url
+            r.href = lienExterne(w.url || d.url)
             r.target = '_blank'
             r.rel = 'noopener'
             r.append(pastille(w.etat))
@@ -1895,7 +1899,7 @@
           g.style.display = 'inline-grid'
           g.setAttribute('aria-hidden', 'true')
           const lien = el('a', null, T(d.pages.ok ? 'carte.site.enLigne' : 'carte.site.injoignable'))
-          lien.href = d.pages.url
+          lien.href = lienExterne(d.pages.url)
           lien.target = '_blank'
           lien.rel = 'noopener'
           s.append(g, document.createTextNode(' '), lien)
@@ -1973,7 +1977,7 @@
         const l = el('div')
         l.append(el('span', 'cle', T('carte.renovate')))
         const a = el('a', null, T('carte.renovate.attente', { n: r.enAttente }) + (r.majeures ? T('carte.renovate.majeures', { n: r.majeures }) : ''))
-        a.href = r.issue
+        a.href = lienExterne(r.issue)
         a.target = '_blank'
         a.rel = 'noopener'
         if (r.mises?.length) a.title = r.mises.map((m) => (m.majeure ? '◆ ' : '· ') + m.titre).join('\n')
@@ -2382,7 +2386,7 @@
           if (demandes.length) actions.append(boutonCopie(() => texteDemandes(demandes)))
           if (l.depotAmont) {
             const notes = el('a', null, T('libs.notes'))
-            notes.href = `https://github.com/${l.depotAmont}/releases`
+            notes.href = lienExterne(`https://github.com/${l.depotAmont}/releases`)
             notes.target = '_blank'
             notes.rel = 'noopener'
             actions.append(notes)
@@ -2396,7 +2400,7 @@
             for (const dep of v.depots) {
               // `miss-genius/worker` : le dossier se dit quand ce n'est pas la racine
               const ch = el('a', 'chipDepot' + (dep.transitif ? ' transitif' : ''), nomUnite(dep))
-              ch.href = '#depot-' + dep.depot
+              ch.href = hrefAncre('depot-' + dep.depot)
               ch.title = dep.transitif ? T('libs.detail.transitif') : T(dep.verrouille ? 'libs.detail.plage' : 'libs.detail.plageSeule', { plage: dep.plage })
               if (dep.plafond) ch.title += ' · ' + T('libs.detail.plafond', { moteur: moteurDe(l.paquet), plafond: dep.plafond })
               b.append(ch)
@@ -2554,7 +2558,7 @@
           const c5 = el('td')
           if (l.depotAmont) {
             const a = el('a', 'depotLien', l.depotAmont)
-            a.href = 'https://github.com/' + l.depotAmont
+            a.href = lienExterne('https://github.com/' + l.depotAmont)
             a.target = '_blank'
             a.rel = 'noopener'
             c5.append(a)
@@ -2682,7 +2686,7 @@
           ligne.append(el('span', f.panne ? 'panneFraicheur' : null, T(f.panne ? 'fraicheur.panne' : 'fraicheur.verifie', { quand: ilYa(f.minutes) })))
           ligne.append(' · ')
           const a = el('a', null, T('fraicheur.relancer'))
-          a.href = URL_RELEVE
+          a.href = lienExterne(URL_RELEVE)
           a.target = '_blank'
           a.rel = 'noopener'
           ligne.append(a)
@@ -3006,7 +3010,7 @@
           const l = el('tr')
           const th = el('th')
           const lien = el('a', 'depotLien', r.depot)
-          lien.href = '#depot-' + r.depot
+          lien.href = hrefAncre('depot-' + r.depot)
           th.append(lien)
           if (familleConnue(r.famille)) {
             const pf = el('span', 'pastilleFam', courtFamille(r.famille))
@@ -3155,7 +3159,7 @@
           // une section absente parce qu'elle n'a rien à dire n'a pas d'entrée
           if (s.hidden) continue
           const a = el('a', null, s.querySelector('h2').textContent.trim())
-          a.href = '#' + s.id
+          a.href = hrefAncre(s.id)
           liens.set(s.id, a)
           nav.append(a)
         }
@@ -3170,14 +3174,14 @@
           const cible = document.getElementById(id)
           if (!cible || cible.hidden) continue
           const a = el('a', null, T(cle))
-          a.href = '#' + id
+          a.href = hrefAncre(id)
           a.dataset.t = cle
           barre.append(a)
         }
         for (const s of chapitres) {
           if (s.hidden) continue
           const a = el('a', null, s.querySelector('h2').textContent.trim())
-          a.href = '#' + s.id
+          a.href = hrefAncre(s.id)
           liensBarre.set(s.id, a)
           barre.append(a)
         }
@@ -3926,7 +3930,7 @@
           for (const x of liste) {
             const li = el('li')
             const a = el('a', 'depotLien mono', x.depot)
-            a.href = '#depot-' + x.depot
+            a.href = hrefAncre('depot-' + x.depot)
             li.append(a)
             if (x.retard != null) li.append(document.createTextNode(' · ' + x.retard))
             if (x.url) li.append(document.createTextNode(' · ' + x.url))
@@ -3953,12 +3957,12 @@
           const tr = el('tr')
           const c1 = el('td')
           const a = el('a', 'depotLien mono', x.depot)
-          a.href = '#depot-' + x.depot
+          a.href = hrefAncre('depot-' + x.depot)
           c1.append(a)
           const c4 = el('td')
           if (x.url) {
             const l = el('a', null, T('renovate.ouvrir'))
-            l.href = x.url
+            l.href = lienExterne(x.url)
             l.target = '_blank'
             l.rel = 'noopener'
             c4.append(l)
@@ -4099,7 +4103,7 @@
         add(T('matrice.panneau.version'), version || '·')
         add(T('matrice.panneau.parc'), plusRecente || '·')
         const a = el('a', 'depotLien', depot)
-        a.href = '#depot-' + depot
+        a.href = hrefAncre('depot-' + depot)
         const dd = el('dd')
         dd.append(a)
         corps.append(el('dt', null, T('renovate.th.depot')), dd)
