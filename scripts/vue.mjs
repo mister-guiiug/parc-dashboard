@@ -237,9 +237,14 @@ export function kpiDepuisDepots(depots, base = {}) {
   const propres = liste.flatMap((d) => (d.workflows || []).filter((w) => !w.reutilisable))
   const verts = propres.filter((w) => w.etat === 'vert').length
   const rouges = propres.filter((w) => w.etat === 'rouge').length
-  const alertesLisibles = liste.some((d) => d.alertes?.etat === 'lu' || d.alertes?.etat === 'desactivees')
-  const scanningLisible = liste.some((d) => d.scanning?.etat === 'lu' || d.scanning?.etat === 'desactivees')
-  const rulesetsLisibles = liste.some((d) => d.ruleset && d.ruleset.etat !== 'illisible')
+  // UN SOUS-ENSEMBLE VIDE N'EST PAS UNE LECTURE RATÉE. Sous un filtre qui ne
+  // retient rien, ces drapeaux tombaient à faux, et les tuiles affirmaient
+  // « illisible — PARC_TOKEN sans le droit » alors que le jeton lisait très
+  // bien : c'est le relevé qui sait s'il a pu lire, pas le filtre.
+  const sinonBase = (cle, f) => (liste.length ? liste.some(f) : Boolean(base[cle]))
+  const alertesLisibles = sinonBase('alertesLisibles', (d) => d.alertes?.etat === 'lu' || d.alertes?.etat === 'desactivees')
+  const scanningLisible = sinonBase('scanningLisible', (d) => d.scanning?.etat === 'lu' || d.scanning?.etat === 'desactivees')
+  const rulesetsLisibles = sinonBase('rulesetsLisibles', (d) => d.ruleset && d.ruleset.etat !== 'illisible')
   const out = {
     ...base,
     depots: liste.length,
@@ -271,7 +276,7 @@ export function kpiDepuisDepots(depots, base = {}) {
     scanningErreurs: scanningLisible ? liste.reduce((n, d) => n + (d.scanning?.erreurs || 0), 0) : null,
     depotsSansScanning: liste.filter((d) => d.scanning?.etat === 'desactivees').length,
     depotsScanningIllisibles: liste.filter((d) => d.scanning?.etat === 'illisible').length,
-    envManifestLisibles: liste.some((d) => d.envManifest && d.envManifest.etat !== 'hors-scope'),
+    envManifestLisibles: sinonBase('envManifestLisibles', (d) => d.envManifest && d.envManifest.etat !== 'hors-scope'),
     sansEnvManifest: liste.filter(
       (d) => d.envManifest?.etat === 'absent' || d.envManifest?.etat === 'invalide' || d.envManifest?.etat === 'incomplet',
     ).length,
@@ -336,11 +341,43 @@ export function filtreAFaire(items, depots, c = {}) {
     }
     if (!details.length) continue
     let n = details.length
-    if (it.cle === 'renovate') n = details.reduce((s, x) => s + (x.n || 0), 0)
+    if (it.cle === 'renovate' || it.cle === 'graves') n = details.reduce((s, x) => s + (x.n || 0), 0)
     else if (it.cle === 'socle' || it.cle === 'publier') n = it.n
     out.push({ ...it, details, n })
   }
   return out
+}
+
+/**
+ * « Ce qui a bougé », restreint au contexte. Un changement de dépôt suit le
+ * dépôt ; un changement de paquet reste s'il touche un dépôt visible ; un
+ * changement de parc (un total) reste toujours — il n'appartient à personne.
+ *
+ * Le filtre promettait « toutes les sections » ; le 06/11/2026, six l'ignoraient,
+ * dont celle-ci, sans le dire.
+ *
+ * @param {object[]} changements
+ * @param {{ depots?: object[], libs?: object[] }} D
+ * @param {object} c critères du contexte
+ */
+export function filtreChangements(changements, D, c = {}) {
+  const liste = changements || []
+  if (!(c.familles?.size || c.drapeaux?.size)) return liste
+  const visibles = new Set(depotsFiltres(D?.depots, c).map((d) => d.nom))
+  const libsVisibles = new Set(libsDuContexte(D?.libs, visibles).map((l) => l.paquet))
+  return liste.filter((x) => (x.depot ? visibles.has(x.depot) : x.paquet ? libsVisibles.has(x.paquet) : true))
+}
+
+/**
+ * Les librairies portées par au moins un des dépôts visibles. Les comptes de
+ * chaque ligne restent ceux du parc : c'est la version du paquet sur TOUT le
+ * parc qui dit s'il y a un écart.
+ *
+ * @param {object[]} libs
+ * @param {Set<string>} visibles noms des dépôts retenus
+ */
+export function libsDuContexte(libs, visibles) {
+  return (libs || []).filter((l) => (l.versions || []).some((v) => (v.depots || []).some((x) => visibles.has(typeof x === 'string' ? x : x?.depot))))
 }
 
 /**
@@ -589,12 +626,23 @@ export const parVersion = (i, sens, rang) => (a, b) => {
 }
 
 /**
- * Au-delà de six heures sans vérification, le relevé horaire est tenu pour en
- * panne. Pas moins : le cron de GitHub part en retard, et de beaucoup — le
- * relevé quotidien de 05:17 UTC a démarré à 09:55 le 22/09/2026 et à 09:57 le
- * lendemain. Un seuil plus serré crierait au loup les jours de charge.
+ * Au-delà de douze heures sans vérification, le relevé est tenu pour en panne.
+ *
+ * Le seuil était de six heures, et il criait au loup : le cron horaire n'est
+ * exécuté qu'en partie par GitHub. Du 1er au 5/11/2026, les quinze passages
+ * planifiés étaient espacés de 4 h 11 à 10 h 38 (6,8 h en moyenne) — neuf
+ * intervalles sur quatorze dépassaient six heures, tous les passages ayant
+ * réussi. Une alerte qui sonne deux fois sur trois sans panne apprend à ne plus
+ * la lire. Douze heures couvrent le plus long trou observé avec une marge.
  */
-export const SEUIL_PANNE_MIN = 6 * 60
+export const SEUIL_PANNE_MIN = 12 * 60
+
+/**
+ * En deçà de deux heures, la donnée est dite fraîche. Entre les deux seuils,
+ * elle est « ancienne » : c'est l'état ordinaire d'un cron que GitHub espace,
+ * et la page le dit sans alarmer.
+ */
+export const SEUIL_FRAIS_MIN = 2 * 60
 
 /**
  * Ce que la page sait de sa propre fraîcheur, d'après `etat.json`.
@@ -621,9 +669,13 @@ export function fraicheur(genere, etat, maintenant, seuilPanneMin = SEUIL_PANNE_
   const minutes = Math.max(0, Math.floor((maintenant - verifie) / 60000))
   const publie = instant(etat.genere)
   const embarque = instant(genere)
+  const panne = minutes > seuilPanneMin
   return {
     minutes,
-    panne: minutes > seuilPanneMin,
+    panne,
+    // Trois états et non deux : « ancien » est le cas courant entre deux
+    // passages espacés, que la page doit nommer sans le confondre avec la panne.
+    etat: panne ? 'panne' : minutes <= SEUIL_FRAIS_MIN ? 'frais' : 'ancien',
     nouveau: publie !== null && embarque !== null && publie > embarque ? etat.genere : null,
   }
 }
@@ -776,6 +828,11 @@ export function correctifsDe(l) {
  * est en ligne sans être juste, ce qui attend une main, puis l'entretien.
  */
 export const ORDRE_A_FAIRE = [
+  // LA GRAVITÉ AVANT LA SOURCE. Le 06/11/2026, la seule alerte grave du parc
+  // (CodeQL, dev-pwa-config) se fondait dans « 2 dépôts ont des alertes
+  // sécurité et qualité », au milieu de la file, pendant que l'indicateur
+  // vedette affichait « 100 % ».
+  'graves',
   'rouges',
   'sites',
   'mortes',
@@ -813,6 +870,23 @@ export function aFaire(D) {
     if (details.length) items.push({ cle, n, details })
   }
 
+  // Une ligne par dépôt ET par source : une alerte grave Dependabot et une
+  // alerte grave CodeQL ne se corrigent pas au même endroit. Les gardes de
+  // lisibilité sont celles des rubriques `alertes` et `scanning`.
+  const graves = [
+    ...(D?.kpi?.alertesLisibles
+      ? depots.filter((d) => d.alertes?.etat === 'lu' && d.alertes.graves > 0).map((d) => ({ depot: d.nom, source: 'dependabot', n: d.alertes.graves }))
+      : []),
+    ...(D?.kpi?.scanningLisible
+      ? depots.filter((d) => d.scanning?.etat === 'lu' && d.scanning.graves > 0).map((d) => ({ depot: d.nom, source: 'codeql', n: d.scanning.graves }))
+      : []),
+  ]
+  // Le titre compte les ALERTES graves, pas les lignes : un dépôt peut en porter plusieurs.
+  pousse(
+    'graves',
+    graves,
+    graves.reduce((n, x) => n + x.n, 0),
+  )
   pousse(
     'rouges',
     depots.filter((d) => d.compte?.rouge > 0).map((d) => ({ depot: d.nom, n: d.compte.rouge })),
@@ -912,18 +986,28 @@ export function aFaire(D) {
 /* ── La recherche de la barre de navigation ─────────────────────────────── */
 
 /**
+ * « Sécurité » se trouve en tapant « securite » : les accents ne trient rien.
+ * Les diacritiques combinants (U+0300 à U+036F) sont retirés après
+ * décomposition ; la classe est construite par code de caractère pour rester
+ * lisible dans la source.
+ */
+const DIACRITIQUES = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g')
+const sansAccent = (s) => s.normalize('NFD').replace(DIACRITIQUES, '')
+
+/**
  * Les dépôts et librairies dont le nom contient `q` — un DÉBUT de nom
  * d'abord, puis un début de mot (`react` trouve `@sentry/react` avant
  * `preact-render`), puis le reste ; à rang égal, le nom le plus court.
  */
-export function chercheCibles(q, D, max = 8) {
-  const t = String(q || '')
-    .trim()
-    .toLowerCase()
+export function chercheCibles(q, D, max = 8, autres = []) {
+  const t = sansAccent(String(q || '').trim().toLowerCase())
   if (!t) return []
-  const cibles = [...(D?.depots || []).map((d) => ({ type: 'depot', nom: d.nom })), ...(D?.libs || []).map((l) => ({ type: 'lib', nom: l.paquet }))]
+  // `autres` : ce que la page seule sait nommer — ses sections, dans la langue
+  // affichée, et les identifiants d'alerte. Le 06/11/2026, chercher
+  // « renovate » ou une CVE ne donnait rien, sans même le dire.
+  const cibles = [...(D?.depots || []).map((d) => ({ type: 'depot', nom: d.nom })), ...(D?.libs || []).map((l) => ({ type: 'lib', nom: l.paquet })), ...autres]
   const rang = (nom) => {
-    const n = nom.toLowerCase()
+    const n = sansAccent(nom.toLowerCase())
     const i = n.indexOf(t)
     if (i < 0) return -1
     if (i === 0) return 0

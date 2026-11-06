@@ -188,7 +188,7 @@ test('choisitLangue compare sur la BASE, pas sur la région', () => {
  */
 const FAMILLES_DYNAMIQUES = [
   // `etatDe()` de regles.mjs ne rend que ces cinq états.
-  { prefixe: 'etat.', membres: ['vert', 'rouge', 'neutre', 'encours', 'jamais', 'neutre.long'] },
+  { prefixe: 'etat.', membres: ['vert', 'rouge', 'neutre', 'encours', 'jamais'] },
   // `etatDormance()` de modele.mjs, plus l'aide de chaque état.
   { prefixe: 'dormance.', membres: ['arretee', 'archivee', 'sans-version', 'inconnue'].flatMap((e) => [e, e + '.aide']), partielle: true },
   // `maturitesDuCatalogue()` rend alpha|beta|stable ; `aucune` est le défaut de la page.
@@ -218,7 +218,9 @@ const FAMILLES_DYNAMIQUES = [
   },
   // `aFaire()` de vue.mjs : une entrée par clé de `ORDRE_A_FAIRE`, importé —
   // une rubrique ajoutée demain n'aura pas à être recopiée ici.
-  { prefixe: 'afaire.', membres: ORDRE_A_FAIRE, partielle: true },
+  // `remplacer` en plus : rubrique de la PAGE seule, tirée des décisions de
+  // dormance mémorisées dans le navigateur (`itemsAFaire` du gabarit).
+  { prefixe: 'afaire.', membres: [...ORDRE_A_FAIRE, 'remplacer'], partielle: true },
   // `graviteRetard()` de vue.mjs.
   { prefixe: 'gravite.', membres: GRAVITES },
   // `etatProd()` de collecte.mjs, plus `absente` — une production sans
@@ -237,8 +239,6 @@ const FAMILLES_DYNAMIQUES = [
   { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique', 'ouvrir', 'doc'] },
   // `cockpitProd()` — clés de rubrique rendues dans le gabarit.
   { prefixe: 'cockpit.', membres: ['encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
-  // `tendances()` — tuiles du gabarit.
-  { prefixe: 'tendances.', membres: ['taux', 'rouges', 'alertes', 'dormantes', 'socle', 'envManifest', 'rulesets'], partielle: true },
   // `alertesCrossParc()` — kind dependabot | codeql.
   { prefixe: 'secu.kind.', membres: ['dependabot', 'codeql'] },
   // `familleUsage()` du gabarit : la famille d'un module, le canal sinon —

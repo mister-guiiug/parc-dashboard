@@ -7,14 +7,15 @@ verrouillées dans les lockfiles.
 
 **→ https://mister-guiiug.github.io/parc-dashboard/**
 
-Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflows/releve.yml) demande un passage par heure, à :17, mais GitHub n'en exécute qu'une partie (du 24 au 28/09/2026, quatre à six passages planifiés par jour, espacés de près de cinq heures en médiane et jusqu'à 8,6 heures). Elle **dit elle-même depuis quand elle est juste** : « Vérifié il y a 12 minutes » sous le titre, un bandeau quand un relevé plus récent est en ligne, une alerte au-delà de six heures sans passage, seuil que ces trous franchissent sans qu'il y ait de panne. Voir « Comment la page est publiée ».
+Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflows/releve.yml) demande un passage par heure, à :17, mais GitHub n'en exécute qu'une partie (du 24 au 28/09/2026, quatre à six passages planifiés par jour, espacés de près de cinq heures en médiane et jusqu'à 8,6 heures). Elle **dit elle-même depuis quand elle est juste** : « Vérifié il y a 12 minutes » sous le titre, avec une pastille (fraîche sous deux heures, ancienne ensuite, en retard au-delà de douze heures), un bandeau quand un relevé plus récent est en ligne. Le seuil d'alerte était de six heures, et ces trous le franchissaient sans qu'il y ait de panne : du 1er au 5/11/2026, neuf intervalles sur quatorze, le plus long de 10 h 38. Voir « Comment la page est publiée ».
 
 ## Ce que la page répond
 
 | Question | Où |
 |---|---|
-| Combien d'applications PWA, et qu'est-ce qui n'en est pas une ? | bloc « Par famille », puis une section par famille |
-| Qu'est-ce qui est rouge, et à quelle étape exactement ? | section « Ce qui est rouge » |
+| Tout va-t-il bien, ou qu'est-ce qui ne va pas ? | ligne d'état en tête : CI, production, sites, sécurité, PR, Renovate — un élément qui signale un problème mène à sa section |
+| Combien d'applications PWA, et qu'est-ce qui n'en est pas une ? | tuile « Applications PWA », groupes de la section « Dépôts » ; bloc « Par famille » quand une famille a un échec |
+| Qu'est-ce qui est rouge, et à quelle étape exactement ? | section « En échec » (absente quand rien n'échoue) |
 | Plusieurs pipelines cassent-ils pour la même raison ? | bandeau de motif partagé, en tête de cette section |
 | Quels workflows tournent, et avec quel historique ? | les cinq derniers runs, en bande, sur chaque carte |
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
@@ -31,11 +32,11 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Comment être prévenu sans ouvrir la page ? | flux Atom `changements.xml`, lien sous le titre |
 | Comment un programme lit-il l'état du parc ? | `donnees.json` (le modèle de la page) et `a-faire.json` (la liste « À faire »), publiés à côté d'elle ; le serveur MCP [`mister-parc-mcp`](https://github.com/mister-guiiug/mister-parc-mcp) les sert |
 | Comment aller droit à un dépôt ou à une librairie ? | recherche de la barre fixe — touche `/` |
-| Est-ce que ça s'améliore ? | courbe sous les tuiles qui en portent une |
-| Où sont les vulnérabilités connues ? | tuile « Alertes de vulnérabilité », et bandeau sur la carte du dépôt |
+| Est-ce que ça s'améliore ? | courbe et écart daté (« +49 depuis le 12 sept. ») sous les tuiles qui en portent une |
+| Où sont les vulnérabilités connues ? | section « Sécurité », une ligne par CVE ou règle CodeQL avec les dépôts touchés ; tuile « Alertes de vulnérabilité », bandeau sur la carte du dépôt |
 | Où sont les alertes CodeQL (Security and quality) ? | tuile « Sécurité et qualité », badge et bandeau sur la carte, rubrique « À faire » |
-| Quelles apps PWA n'ont pas d'`env.manifest` ? | tuile « env.manifest », badge carte, rubrique « À faire » |
-| Quels dépôts n'ont pas de Protect main solide ? | tuile « Rulesets », badge carte, rubrique « À faire » |
+| Quelles apps PWA n'ont pas d'`env.manifest` ? | tuile « PWA sans env.manifest », badge carte, rubrique « À faire » |
+| Quels dépôts n'ont pas de Protect main solide ? | tuile « Dépôts sans ruleset », badge carte, rubrique « À faire » |
 | Quel dépôt est en retard sur quoi, tout en un coup d'œil ? | section « Matrice des écarts » |
 | Qui prend quoi au socle, et que reste-t-il à adopter ou à retirer ? | section « Usage du socle » — voir plus bas |
 | Où suis-je dans la page, et comment revenir en haut ? | barre fixe en haut, chapitre courant souligné ; sommaire flottant en bas à droite sur petit écran |
@@ -48,15 +49,15 @@ console d'exploitation.
 
 | Surface | Rôle |
 |---|---|
-| **Contexte du parc** | Un filtre (familles, retard, échec, sécu grave) pour À faire, échecs, cartes, familles, dormance, cockpit, Renovate et sécu ; presets (`matin-ci`, `entretien-majeurs`, `prod-drift`, `conformite`, `secu-grave`) |
-| **À faire** | File d'actions (Renovate introuvables en critique), cases « traité », export/import JSON, deep links conformité + Packages |
+| **Ligne d'état** | `etatDuParc()` : CI, production, sites, sécurité, PR, Renovate, chacun ok / attention / critique / inconnu ; remplace le « 100 % » et les blocs qui ne disaient que « rien » |
+| **Filtrer le parc** | Un filtre (familles, retard, échec, sécurité grave) appliqué à TOUTE la page sauf le tableau périodique, qui le signale ; rappelé dans la barre fixe tant qu'il est actif ; presets (`matin-ci`, `entretien-majeurs`, `prod-drift`, `conformite`, `secu-grave`) |
+| **À faire** | File d'actions, alertes graves en tête (`graves`), cases « traité » nommées, librairies dormantes à remplacer (décision locale), « Copier les actions affichées », deep links conformité + Packages |
 | **Score santé** | Badge 0–100 sur chaque carte (CI, prod, deps, sécu / conformité) |
-| **Ce qui est rouge** | Table des échecs + colonne piste (runbook) menant au run GitHub |
-| **Production & sites** | Cockpit : déploiements, retard prod, sites down, URL mortes, fugaces |
-| **Tendances** | Deltas sur l'historique (taux, rouges, alertes, dormantes, socle, env.manifest, rulesets) |
-| **Salle Renovate** | Backlog agrégé + paquets irrésolubles |
-| **Alertes cross-parc** | Dependabot + CodeQL (échantillon d'ids CVE/GHSA), avec prompt de remédiation |
-| **Décisions dormance** | Garder / remplacer / ignorer 90 j, mémorisé localement ; export/import JSON |
+| **En échec** | Table des échecs + colonne piste (runbook) menant au run GitHub ; absente sans échec |
+| **Production** | Déploiements, retard prod, sites down, URL mortes, fugaces ; absente sans rien à signaler |
+| **Salle Renovate** | Backlog agrégé + paquets irrésolubles ; absente sans attente ni irrésoluble |
+| **Sécurité** | Dependabot + CodeQL regroupés par cause (`alertesParCause`) : CVE ou règle, paquet → correctif, dépôts touchés, gravité ; « Copier la demande de correction » (`texteCorrectionSecu`) |
+| **Décisions dormance** | Garder / remplacer / ignorer 90 j, mémorisé localement : « Ignorer » masque la ligne, « Remplacer » crée une action ; un seul export/import « Mes décisions » avec les cases « traité » |
 
 Le secret `PARC_TOKEN` porte plusieurs scopes (Dependabot, Code scanning,
 Administration pour les rulesets). Si l'un manque, un bandeau en tête de page
@@ -130,8 +131,11 @@ main — et la recopie du matin même avait donné « node 26.6.1 » pour `@type
   chaque rubrique (`aFairePublie`). Un lecteur n'a ni HTML à découper ni règle à
   refaire.
 - **La barre fixe** : les chapitres, et une recherche qui MÈNE au dépôt ou à la
-  librairie — la touche `/` y amène le curseur. Deux sections longues et peu
-  consultées se replient ; le Ctrl+F du navigateur les rouvre.
+  librairie, mais aussi à une section ou à une alerte — la touche `/` y amène
+  le curseur, et une recherche sans résultat le dit. Les cinq sections
+  d'analyse (librairies, dormantes, matrice, usage du socle, tableau
+  périodique) se replient sous un chapeau d'une phrase ; le Ctrl+F du
+  navigateur les rouvre.
 
 Les règles de la collecte (production, fugaces, Renovate, pairs, journal, Atom,
 plages npm, dernière d'une série, dossiers, `.nvmrc`, plafonds de moteur)
@@ -448,9 +452,10 @@ heure du `GITHUB_TOKEN` ne valent que pour le repli.
   l'identique, et seul `etat.json` avance. `genere` y date le relevé que porte la
   page, `verifie` le passage. C'est ce qui permet à la page de dire « Vérifié il
   y a 12 minutes », d'annoncer un relevé plus récent que celle qu'on a ouverte,
-  et de signaler un relevé qui ne passe plus depuis six heures. Les trous du
-  cron suffisent à franchir ce seuil : six fois du 24 au 28/09/2026, alors que
-  tous les passages avaient réussi. Cette lecture est **la seule requête réseau
+  et de signaler un relevé qui ne passe plus depuis douze heures. Le seuil
+  était de six heures, et les trous du cron le franchissaient sans panne : six
+  fois du 24 au 28/09/2026, neuf intervalles sur quatorze du 1er au 5/11/2026
+  (le plus long : 10 h 38), alors que tous les passages avaient réussi. Cette lecture est **la seule requête réseau
   de la page**, et elle est facultative : en `file://`, rien ne s'affiche de
   plus.
 - **La photo du jour** : le premier passage qui voit un jour nouveau commite

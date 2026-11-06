@@ -36,6 +36,9 @@ import {
   periodeDe,
   symboles,
   SEUIL_PANNE_MIN,
+  SEUIL_FRAIS_MIN,
+  filtreChangements,
+  libsDuContexte,
   fraicheur,
   FRAICHE_H,
   ORDRE_A_FAIRE,
@@ -428,7 +431,7 @@ test('fraicheur compte les minutes depuis la DERNIÈRE VÉRIFICATION, pas depuis
   // Rien n'a bougé depuis 09:57, mais le relevé est passé il y a 12 minutes :
   // la page est juste, et doit pouvoir le dire.
   const f = fraicheur('2026-09-23T09:57:00Z', { genere: '2026-09-23T09:57:00Z', verifie: minutesAvant(12) }, T0)
-  assert.deepEqual(f, { minutes: 12, panne: false, nouveau: null })
+  assert.deepEqual(f, { minutes: 12, panne: false, etat: 'frais', nouveau: null })
 })
 
 test('fraicheur annonce un relevé plus récent que la page ouverte', () => {
@@ -462,7 +465,7 @@ test('etatPublie et fraicheur parlent le même contrat', () => {
   // Ce que le relevé écrit, la page le relit : juste après un passage, la page
   // publiée est à jour, vérifiée à l'instant, et rien n'est à recharger.
   const genere = '2026-09-23T14:17:00Z'
-  assert.deepEqual(fraicheur(genere, etatPublie({ genere }, T0), T0), { minutes: 0, panne: false, nouveau: null })
+  assert.deepEqual(fraicheur(genere, etatPublie({ genere }, T0), T0), { minutes: 0, panne: false, etat: 'frais', nouveau: null })
 })
 
 /* ── Gravité, âge et demande de montée ──────────────────────────────────── */
@@ -626,8 +629,12 @@ test('aFaire range du cassé à l’entretien, et tait ce qui est vide', () => {
   const r = aFaire(D)
   assert.deepEqual(
     r.map((x) => x.cle),
-    ['rouges', 'sites', 'introuvables', 'prod', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate'],
+    ['graves', 'rouges', 'sites', 'introuvables', 'prod', 'scanning', 'prs', 'majeures', 'correctifs', 'socle', 'renovate'],
   )
+  // la gravité avant la source : l'alerte grave ouvre le bloc, et le titre compte
+  // les ALERTES graves (deux), pas les lignes (une)
+  assert.deepEqual(r.find((x) => x.cle === 'graves').details, [{ depot: 'a', source: 'codeql', n: 2 }])
+  assert.equal(r.find((x) => x.cle === 'graves').n, 2)
   // un brouillon n'est pas « à relire »
   assert.equal(r.find((x) => x.cle === 'prs').n, 1)
   // le socle compte ses DÉPÔTS en retard, pas ses lignes ; Renovate ses mises à jour
@@ -975,4 +982,73 @@ test('indirectsDe : ce qu’emportent les modules importés, moins eux-mêmes', 
   assert.deepEqual(indirectsDe(['react/i18n', 'react/labels'], graphe), ['react/labels-fr'])
   assert.deepEqual(indirectsDe(['vcard'], graphe), [])
   assert.deepEqual(indirectsDe(['react/i18n'], undefined), [])
+})
+
+/* ── Refonte du 06/11/2026 ──────────────────────────────────────────────── */
+
+test('fraicheur : trois états, et la panne au-delà du plus long trou mesuré du cron', () => {
+  const etat = (n) => ({ genere: '2026-09-23T01:00:00Z', verifie: minutesAvant(n) })
+  assert.equal(fraicheur('2026-09-23T01:00:00Z', etat(SEUIL_FRAIS_MIN), T0).etat, 'frais')
+  assert.equal(fraicheur('2026-09-23T01:00:00Z', etat(SEUIL_FRAIS_MIN + 1), T0).etat, 'ancien')
+  assert.equal(fraicheur('2026-09-23T01:00:00Z', etat(SEUIL_PANNE_MIN + 1), T0).etat, 'panne')
+  // Du 1er au 5/11/2026, le plus long intervalle entre deux passages réussis
+  // a été de 10 h 38 : l'alerte ne doit pas sonner pour un trou ordinaire.
+  assert.ok(SEUIL_PANNE_MIN > 10 * 60 + 38)
+  assert.equal(fraicheur('2026-09-23T01:00:00Z', etat(10 * 60 + 38), T0).panne, false)
+})
+
+test('filtreChangements : le dépôt suit le filtre, le paquet aussi, le parc reste', () => {
+  const D = {
+    depots: [
+      { nom: 'a', famille: 'pwa' },
+      { nom: 'b', famille: 'socle' },
+    ],
+    libs: [
+      { paquet: 'vite', versions: [{ version: '8', depots: [{ depot: 'a' }] }] },
+      { paquet: 'tsup', versions: [{ version: '8', depots: [{ depot: 'b' }] }] },
+    ],
+  }
+  const ch = [{ type: 'ci-vert', depot: 'a' }, { type: 'ci-vert', depot: 'b' }, { type: 'amont', paquet: 'vite' }, { type: 'amont', paquet: 'tsup' }, { type: 'scanning', de: 35, a: 29 }]
+  assert.equal(filtreChangements(ch, D, {}).length, 5, 'sans filtre, tout')
+  assert.deepEqual(filtreChangements(ch, D, { familles: new Set(['pwa']), drapeaux: new Set() }), [ch[0], ch[2], ch[4]])
+})
+
+test('libsDuContexte : les paquets portés par au moins un dépôt retenu', () => {
+  const libs = [
+    { paquet: 'vite', versions: [{ version: '8', depots: [{ depot: 'a' }, 'b'] }] },
+    { paquet: 'tsup', versions: [{ version: '8', depots: [{ depot: 'c' }] }] },
+  ]
+  assert.deepEqual(
+    libsDuContexte(libs, new Set(['b'])).map((l) => l.paquet),
+    ['vite'],
+  )
+  assert.deepEqual(libsDuContexte(null, new Set(['b'])), [])
+})
+
+test('chercheCibles trouve aussi les sections et les alertes, sans tenir aux accents', () => {
+  const D = { depots: [{ nom: 'miss-arcade' }], libs: [{ paquet: 'vite' }] }
+  const autres = [
+    { type: 'section', nom: 'Sécurité', cible: 'secu' },
+    { type: 'section', nom: 'Salle Renovate', cible: 'renovate' },
+    { type: 'alerte', nom: 'CVE-2026-118764', cible: 'secu' },
+  ]
+  assert.deepEqual(chercheCibles('securite', D, 8, autres), [autres[0]])
+  assert.deepEqual(chercheCibles('renovate', D, 8, autres), [autres[1]])
+  assert.deepEqual(chercheCibles('cve-2026', D, 8, autres), [autres[2]])
+  // sans `autres`, la recherche d'avant
+  assert.deepEqual(chercheCibles('securite', D), [])
+})
+
+test('kpiDepuisDepots : un filtre qui ne retient RIEN ne rend pas une source illisible', () => {
+  // Le 06/11/2026, « Avec échec » sans aucun échec faisait dire aux tuiles
+  // « illisible — PARC_TOKEN sans le droit », sur un relevé qui lisait tout.
+  const base = { alertesLisibles: true, scanningLisible: true, rulesetsLisibles: true, envManifestLisibles: true }
+  const k = kpiDepuisDepots([], base)
+  assert.equal(k.alertesLisibles, true)
+  assert.equal(k.alertes, 0)
+  assert.equal(k.scanningLisible, true)
+  assert.equal(k.depotsSansRuleset, 0)
+  assert.equal(k.taux, null, 'aucun workflow : pas de taux, et la page affiche « — », jamais « null % »')
+  // sans relevé lisible, un sous-ensemble vide reste illisible
+  assert.equal(kpiDepuisDepots([], {}).alertesLisibles, false)
 })

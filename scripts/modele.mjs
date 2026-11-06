@@ -127,3 +127,41 @@ export function pileDuDepot(d, ctx) {
   }
   return pile
 }
+
+/**
+ * LA PAGE 404 DU SITE. Une URL inconnue sous `/parc-dashboard/` montrait la
+ * page générique de GitHub, en anglais, sans chemin de retour. Les deux langues
+ * sur la même page : une 404 ne sait pas laquelle on lit.
+ *
+ * @param {(cle: string) => string} Tfr
+ * @param {(cle: string) => string} Ten
+ * @param {string} base chemin de la page du parc, par exemple `/parc-dashboard/`
+ */
+export function page404(Tfr, Ten, base = './') {
+  const echappe = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const lien = echappe(base)
+  return `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>${echappe(Tfr('page404.titre'))}</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 0; display: grid; min-height: 100vh; place-items: center; background: #f6f7f9; color: #1f2933; }
+      main { max-width: 32rem; padding: 2rem; }
+      h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+      a { color: #0b6b62; font-weight: 600; }
+      @media (prefers-color-scheme: dark) { body { background: #171d25; color: #e8eef5; } a { color: #5eead4; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${echappe(Tfr('page404.texte'))}</h1>
+      <p><a href="${lien}">${echappe(Tfr('page404.retour'))}</a></p>
+      <p lang="en">${echappe(Ten('page404.texte'))} <a href="${lien}">${echappe(Ten('page404.retour'))}</a></p>
+    </main>
+  </body>
+</html>
+`
+}
