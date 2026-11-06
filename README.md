@@ -23,11 +23,12 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
 | Qu'est-ce qui a changé depuis la photo du jour ? | bandeau « Ce qui a bougé », sous les tuiles |
 | La page est-elle à jour ? | ligne « Vérifié il y a … » sous le titre, et bandeau « relevé plus récent » en tête |
-| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, PR, socle à publier, majeurs, correctifs, socle, Renovate |
+| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, textes en double, PR, socle à publier, majeurs, correctifs, socle, Renovate |
 | Comment demander une montée sans ambiguïté ? | bouton « Copier la demande » : nom exact, cible, gravité, chaque dépôt et sa version |
 | Comment faire faire la montée par une IA ? | bouton « Copier le prompt », dans Librairies : les consignes, puis les montées des lignes affichées |
 | Ce qui tourne en ligne est-il ce qui est fusionné ? | ligne « Production » de chaque carte (`version.json` comparé à `main`) |
 | Une URL de production va-t-elle mourir ? | morceaux fugaces et URL mortes, sur la carte et dans « À faire » |
+| Le parc publie-t-il le même texte sur plusieurs pages ? | rubrique « textes publiés sur plusieurs pages » de « À faire » — voir « Les textes en double » |
 | Qu'attend Renovate, et que ne voit-il pas ? | ligne « Renovate » de chaque carte, et deux rubriques de « À faire » |
 | Comment être prévenu sans ouvrir la page ? | flux Atom `changements.xml`, lien sous le titre |
 | Comment un programme lit-il l'état du parc ? | `donnees.json` (le modèle de la page) et `a-faire.json` (la liste « À faire »), publiés à côté d'elle ; le serveur MCP [`mister-parc-mcp`](https://github.com/mister-guiiug/mister-parc-mcp) les sert |
@@ -120,6 +121,14 @@ main — et la recopie du matin même avait donné « node 26.6.1 » pour `@type
   la règle `chunk-hors-precache` du docteur, appliquée au site en ligne ; chaque
   morceau hors précache est demandé pour de vrai, une URL qui ne répond pas est
   MORTE.
+- **Les textes en double** : chaque page des plans de site du parc, comparée à
+  toutes les autres sur son texte rédigé — l'article d'un guide, le texte
+  d'accueil servi — par suites de cinq mots ([`doublons.mjs`](scripts/doublons.mjs)).
+  Le 06/11/2026, l'accueil et les trois guides du squelette étaient publiés
+  tels quels par miss-arcade et miss-holi-voyage depuis six jours : le
+  générateur les recopiait. Mesuré sur les 85 pages du parc, les copies sont
+  au-dessus de 0,97, la paire suivante à 0,54 : le seuil est à 0,8. Les pages
+  ne sont relues que quand un plan de site a bougé.
 - **Renovate** : les « Dependency Dashboard » du compte, lus en une recherche —
   ce qui attend le samedi, et ce que Renovate ne sait pas résoudre. Le socle,
   publié sur GitHub Packages, en fait partie : Renovate ne proposera jamais sa

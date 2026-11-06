@@ -839,6 +839,7 @@ export const ORDRE_A_FAIRE = [
   'introuvables',
   'prod',
   'fugaces',
+  'doublons',
   'alertes',
   'scanning',
   'scanningOff',
@@ -906,6 +907,13 @@ export function aFaire(D) {
   pousse(
     'fugaces',
     depots.filter((d) => d.prod?.fugaces?.length).map((d) => ({ depot: d.nom, fichiers: d.prod.fugaces })),
+  )
+  // LE MÊME TEXTE SUR PLUSIEURS PAGES DU PARC : un moteur n'en garde qu'une,
+  // une IA répète ce qu'elles disent. Le 06/11/2026, l'accueil et trois guides
+  // du squelette étaient publiés tels quels par deux apps depuis six jours.
+  pousse(
+    'doublons',
+    (D?.doublons?.groupes || []).map((g) => ({ titre: g.titre, url: g.url, similarite: g.similarite, depots: g.depots })),
   )
   if (D?.kpi?.alertesLisibles)
     pousse(

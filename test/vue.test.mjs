@@ -707,6 +707,37 @@ test('aFaire tait les rulesets quand ils sont illisibles', () => {
   assert.ok(!r.some((x) => x.cle === 'rulesets'))
 })
 
+test('aFaire demande de traiter les textes publiés en double, et le filtre suit leurs dépôts', () => {
+  const groupe = {
+    titre: 'Créer une PWA avec React et Vite',
+    url: 'https://h/miss-arcade/creer.html',
+    similarite: 0.97,
+    depots: [
+      { depot: 'miss-arcade', url: 'https://h/miss-arcade/creer.html' },
+      { depot: 'pwa-starter-kit', url: 'https://h/pwa-starter-kit/creer.html' },
+    ],
+  }
+  const depots = [depotAFaire('miss-arcade', { famille: 'pwa' }), depotAFaire('pwa-starter-kit', { famille: 'socle' }), depotAFaire('x', { famille: 'pwa', prod: { fugaces: ['a.js'] } })]
+  const r = aFaire({ kpi: {}, depots, libs: [], doublons: { empreinte: 'e', pages: 9, groupes: [groupe] } })
+  const it = r.find((x) => x.cle === 'doublons')
+  assert.equal(it.n, 1)
+  assert.deepEqual(it.details, [groupe])
+  // ce qui est en ligne et faux, juste après les morceaux fugaces
+  assert.deepEqual(
+    r.map((x) => x.cle),
+    ['fugaces', 'doublons'],
+  )
+  // sans groupe, ou sans relevé (`null`), la rubrique se tait
+  assert.ok(!aFaire({ kpi: {}, depots, libs: [], doublons: { groupes: [] } }).some((x) => x.cle === 'doublons'))
+  assert.ok(!aFaire({ kpi: {}, depots, libs: [], doublons: null }).some((x) => x.cle === 'doublons'))
+  // le filtre de familles garde le groupe s'il touche un dépôt retenu
+  const f = filtreAFaire(r, depots, { familles: new Set(['socle']) })
+  assert.deepEqual(
+    f.find((x) => x.cle === 'doublons').details[0].depots.map((d) => d.depot),
+    ['pwa-starter-kit'],
+  )
+})
+
 test('kpiDepuisDepots recalcule sur le sous-ensemble filtré', () => {
   const depots = [
     {
