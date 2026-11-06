@@ -39,6 +39,8 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // page. Voir `scripts/collecte.mjs`.
 import { causesDependabot, derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
+// Les pages publiées en double entre les sites : règles pures et seuil mesuré.
+import { bardeaux, groupesDeDoublons, proprietaire, texteRedige, titreDe, urlsDuPlan } from './doublons.mjs'
 import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, brutsDepuisFichiers, estReutilisable, fichiersAScanner, fichiersDuSocle, grapheDuSocle, importesDe, offreDuSocle, outilsDuReutilisable, rattache, usageReprenable } from './socle-usage.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
 import { phraseChangement } from './vue.mjs'
@@ -829,6 +831,72 @@ await enLot(sites, 8, async (d) => {
 })
 for (const d of depots) if (!d.pages) d.pages = d.pagesUrl ? { url: d.pagesUrl, code: null, ok: null } : null
 
+/* ------------------------------------------- les pages publiées en double */
+
+/**
+ * LE MÊME TEXTE SUR PLUSIEURS PAGES DU PARC — règles et seuil dans
+ * `scripts/doublons.mjs`.
+ *
+ * Seules comptent les pages qu'un site OFFRE aux moteurs : celles de son plan
+ * de site. L'index de la racine se déplie, mais seules ses entrées propres
+ * comptent — le plan d'une app est relu chez elle, sous son propre nom.
+ *
+ * Les pages ne sont retéléchargées que si un plan a bougé : le socle date
+ * chaque URL par l'empreinte de son contenu, et tant que les plans sont les
+ * mêmes octets, les pages aussi. Sinon on reprend ce que la page en ligne en
+ * savait.
+ *
+ * @returns {Promise<null | { empreinte: string, pages: number, groupes: ReturnType<typeof groupesDeDoublons> }>}
+ *   `null` quand aucun plan n'a pu être lu : « rien en double » et « rien lu »
+ *   ne se confondent pas.
+ */
+async function releveDoublons() {
+  const bases = depots.filter((d) => d.pagesUrl && d.pages?.ok).map((d) => ({ depot: d.nom, base: d.pagesUrl.endsWith('/') ? d.pagesUrl : d.pagesUrl + '/' }))
+  const lirePlan = async (url) => {
+    try {
+      const r = await fetch(fraiche('', url), { redirect: 'follow' })
+      return r.ok ? await r.text() : null
+    } catch {
+      return null
+    }
+  }
+  const plans = []
+  await enLot(bases, 8, async ({ depot, base }) => {
+    const xml = await lirePlan(new URL('sitemap.xml', base).href)
+    if (xml === null) return
+    const { index, locs } = urlsDuPlan(xml)
+    if (!index) return plans.push({ depot, xml, locs })
+    for (const enfant of locs.filter((u) => proprietaire(u, bases) === depot)) {
+      const sous = await lirePlan(enfant)
+      if (sous !== null) plans.push({ depot, xml: sous, locs: urlsDuPlan(sous).locs })
+    }
+  })
+  if (!plans.length) return null
+  plans.sort((a, b) => a.depot.localeCompare(b.depot) || a.xml.localeCompare(b.xml))
+  const empreinte = createHash('sha256')
+    .update(plans.map((p) => p.depot + '\n' + p.xml).join('\n'))
+    .digest('hex')
+    .slice(0, 16)
+  const deja = avantPublie?.doublons
+  if (deja?.empreinte === empreinte && Array.isArray(deja.groupes)) return deja
+
+  const aLire = new Map()
+  for (const p of plans) for (const url of p.locs) if (proprietaire(url, bases) === p.depot && !aLire.has(url)) aLire.set(url, p.depot)
+  const pages = []
+  await enLot([...aLire], 8, async ([url, depot]) => {
+    try {
+      const r = await fetch(fraiche('', url), { redirect: 'follow' })
+      if (!r.ok) return
+      const html = await r.text()
+      pages.push({ depot, url, titre: titreDe(html), bardeaux: bardeaux(texteRedige(html)) })
+    } catch {
+      /* page illisible : elle ne se compare à rien, le reste suit */
+    }
+  })
+  return { empreinte, pages: pages.length, groupes: groupesDeDoublons(pages) }
+}
+const doublons = await releveDoublons()
+
 /* ------------------------------------------------------------ Renovate */
 
 // UNE SEULE RECHERCHE pour tout le compte : les « Dependency Dashboard » que
@@ -1339,6 +1407,9 @@ const modele = {
   // ce que le socle offre — les lignes de la matrice d'usage ; ce que chaque
   // consommateur en prend est dans `depots[].usageSocle`
   socleOffre,
+  // le même texte sur plusieurs pages du parc ; `null` quand aucun plan de
+  // site n'a pu être lu
+  doublons,
 }
 
 /* ------------------------------------------- ce qui a bougé, et depuis quand */

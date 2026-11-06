@@ -1252,6 +1252,11 @@
         }
         if (cle === 'prod') return puceLien(T('afaire.detail.prod', { depot: x.depot, n: x.retard }), carte)
         if (cle === 'mortes' || cle === 'fugaces') return puceLien(T('afaire.detail.fichiers', { depot: x.depot, fichiers: x.fichiers.join(T('liste')) }), carte)
+        // la première page du groupe, en ligne : c'est là qu'on compare
+        if (cle === 'doublons') {
+          const depots = [...new Set(x.depots.map((p) => p.depot))].join(T('liste'))
+          return puceLien(x.titre ? T('afaire.detail.doublon', { titre: x.titre, depots }) : T('afaire.detail.doublon.titres', { depots }), x.url, true)
+        }
         if (cle === 'prs') {
           const a = puceLien('', x.url || carte, Boolean(x.url))
           a.append(pastilleCi(x.ci), document.createTextNode(' ' + T('afaire.detail.pr', { depot: x.depot, num: x.num, titre: x.titre })))

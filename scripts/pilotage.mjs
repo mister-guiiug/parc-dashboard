@@ -16,6 +16,7 @@ export const NIVEAU_A_FAIRE = {
   introuvables: 'critique',
   prod: 'attention',
   fugaces: 'attention',
+  doublons: 'attention',
   alertes: 'attention',
   scanning: 'attention',
   scanningOff: 'attention',
