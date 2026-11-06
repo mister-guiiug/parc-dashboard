@@ -5,10 +5,11 @@
  * Aucune dépendance DOM : tout ce qui est ici est éprouvé par `node --test`.
  */
 
-import { aFaire } from './vue.mjs'
+import { aFaire, kpiDepuisDepots } from './vue.mjs'
 
 /** Niveau d’une rubrique « À faire » — couleur et glyphe du gabarit. */
 export const NIVEAU_A_FAIRE = {
+  graves: 'critique',
   rouges: 'critique',
   sites: 'critique',
   mortes: 'critique',
@@ -24,6 +25,9 @@ export const NIVEAU_A_FAIRE = {
   prs: 'decision',
   publier: 'decision',
   majeures: 'decision',
+  // Rubrique de la page seule : une librairie dormante que le propriétaire a
+  // décidé de remplacer. La décision vit dans son navigateur, pas dans le relevé.
+  remplacer: 'decision',
   correctifs: 'entretien',
   socle: 'entretien',
   renovate: 'entretien',
@@ -56,11 +60,17 @@ export function aFairePublie(D, T) {
   }
 }
 
-/** Entrées du rail hors chapitres `main` (contexte, file, cockpit). */
+/**
+ * Entrées du rail hors chapitres `main`, DANS L'ORDRE DE LA PAGE. « Production »
+ * était troisième ici et onzième à l'écran : le lien faisait sauter huit
+ * écrans. Les chapitres de `main` suivent, lus dans le DOM.
+ */
 export const LIENS_RAIL_OPS = [
-  { id: 'contexte', cle: 'nav.contexte' },
+  { id: 'etat', cle: 'nav.etat' },
   { id: 'afaire', cle: 'afaire.h2' },
-  { id: 'cockpit', cle: 'nav.cockpit' },
+  { id: 'bandeauChangements', cle: 'changements.h2' },
+  { id: 'indicateurs', cle: 'nav.indicateurs' },
+  { id: 'contexte', cle: 'nav.contexte' },
 ]
 
 /** Presets d’écran (C12) — clés stables dans l’URL `?preset=…`. */
@@ -228,96 +238,165 @@ export function alertesCrossParc(depots = []) {
 }
 
 /**
- * Tendances sur l’historique (C9).
- * @param {Array<{jour:string,taux?:number,rouges?:number,alertes?:number,socleEnRetard?:number,dormantes?:number,sansEnvManifest?:number,depotsSansRuleset?:number}>} histo
- * @param {number} fenetre jours
+ * LES ALERTES PAR CAUSE, et non plus par dépôt.
+ *
+ * Le 06/11/2026, la section listait 26 lignes Dependabot pour deux CVE
+ * seulement : 23 dépôts portaient les deux, trois une seule. Le propriétaire,
+ * et l'agent à qui il copiait la demande, traitaient vingt-six fois la même
+ * chose. Une cause est un identifiant d'alerte (CVE, GHSA, règle CodeQL) et
+ * sa source ; elle porte les dépôts touchés, et quand le relevé l'a lu, le
+ * paquet en cause et la première version corrigée.
+ *
+ * Deux formes de données, parce que le relevé a changé : `causes` (identifiant,
+ * paquet, correctif, gravité) depuis novembre 2026, et `ids` avant — un simple
+ * échantillon des huit premiers identifiants, sans gravité. Avec `ids`, la
+ * gravité d'une cause est INCONNUE (`null`), et `echantillon` dit que d'autres
+ * identifiants ont pu échapper au relevé.
+ *
+ * @param {object[]} depots
  */
-export function tendances(histo = [], fenetre = 30) {
-  const pts = (histo || []).filter((p) => p && p.jour).slice(-fenetre)
-  if (pts.length < 2) return { ok: false, pts: pts.length, delta: null }
-  const a = pts[0]
-  const b = pts[pts.length - 1]
-  const delta = (cle) => {
-    const va = typeof a[cle] === 'number' ? a[cle] : null
-    const vb = typeof b[cle] === 'number' ? b[cle] : null
-    if (va == null || vb == null) return null
-    return vb - va
-  }
-  return {
-    ok: true,
-    pts: pts.length,
-    de: a.jour,
-    a: b.jour,
-    delta: {
-      taux: delta('taux'),
-      rouges: delta('rouges'),
-      alertes: delta('alertes'),
-      dormantes: delta('dormantes'),
-      socleEnRetard: delta('socleEnRetard'),
-      sansEnvManifest: delta('sansEnvManifest'),
-      depotsSansRuleset: delta('depotsSansRuleset'),
-    },
-    dernier: {
-      taux: b.taux,
-      rouges: b.rouges,
-      alertes: b.alertes,
-      dormantes: b.dormantes,
-      socleEnRetard: b.socleEnRetard,
-      sansEnvManifest: b.sansEnvManifest,
-      depotsSansRuleset: b.depotsSansRuleset,
-    },
-  }
-}
-
-/**
- * Export / import des actions « traitées » (C2) — JSON partageable entre postes.
- * @param {Iterable<string>} cles
- */
-export function exporteTraites(cles) {
-  return JSON.stringify({ version: 1, traites: [...cles].sort() }, null, 2)
-}
-
-/**
- * @param {string} texte
- * @returns {string[] | null}
- */
-export function importeTraites(texte) {
-  try {
-    const j = JSON.parse(texte)
-    const liste = Array.isArray(j) ? j : j?.traites
-    if (!Array.isArray(liste)) return null
-    return liste.filter((x) => typeof x === 'string' && x)
-  } catch {
-    return null
-  }
-}
-
-/**
- * Export / import des décisions de dormance (C7).
- * @param {Record<string, { decision: string, jusqua?: string }>} decisions
- */
-export function exporteDormance(decisions) {
-  return JSON.stringify({ version: 1, dormance: decisions || {} }, null, 2)
-}
-
-/**
- * @param {string} texte
- * @returns {Record<string, { decision: string, jusqua?: string }> | null}
- */
-export function importeDormance(texte) {
-  try {
-    const j = JSON.parse(texte)
-    const obj = j?.dormance ?? (j && !Array.isArray(j) && !j.traites ? j : null)
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null
-    const out = {}
-    for (const [paquet, v] of Object.entries(obj)) {
-      if (!v || typeof v !== 'object' || typeof v.decision !== 'string') continue
-      out[paquet] = { decision: v.decision, ...(v.jusqua ? { jusqua: v.jusqua } : {}) }
+export function alertesParCause(depots = []) {
+  const causes = new Map()
+  for (const d of depots) {
+    for (const [kind, a] of [
+      ['dependabot', d.alertes],
+      ['codeql', d.scanning],
+    ]) {
+      if (a?.etat !== 'lu' || !a.total) continue
+      const detaillees = Array.isArray(a.causes) && a.causes.length > 0
+      const liste = detaillees ? a.causes : [...new Set(a.ids || [])].map((id) => ({ id, grave: null }))
+      const echantillon = !detaillees && (a.ids || []).length < a.total
+      for (const c of liste) {
+        if (!c?.id) continue
+        const cle = kind + ':' + c.id
+        const x = causes.get(cle) || { id: c.id, kind, paquet: null, corrige: null, grave: c.grave ?? null, echantillon: false, depots: [] }
+        if (c.grave === true) x.grave = true
+        else if (c.grave === false && x.grave === null) x.grave = false
+        x.paquet = x.paquet || c.paquet || null
+        x.corrige = x.corrige || c.corrige || null
+        x.echantillon = x.echantillon || echantillon
+        if (!x.depots.includes(d.nom)) x.depots.push(d.nom)
+        causes.set(cle, x)
+      }
     }
-    return out
+  }
+  return [...causes.values()]
+    .map((x) => ({ ...x, depots: x.depots.sort() }))
+    .sort((a, b) => Number(b.grave === true) - Number(a.grave === true) || b.depots.length - a.depots.length || a.id.localeCompare(b.id))
+}
+
+/**
+ * LA DEMANDE DE CORRECTION, une par cause, prête à confier à un agent.
+ *
+ * Elle remplace le « prompt sécu » : écrit en dur, sans accents, non traduit,
+ * et une ligne par dépôt qui répétait les mêmes identifiants. Même forme que
+ * « Copier la demande » des montées : l'en-tête daté, puis chaque cause avec
+ * ses dépôts.
+ *
+ * @param {ReturnType<typeof alertesParCause>} causes
+ * @param {(cle: string, p?: object) => string} T
+ * @param {string} quand date du relevé, déjà formatée
+ */
+export function texteCorrectionSecu(causes, T, quand) {
+  const blocs = (causes || []).map((c) => {
+    const lignes = [T('secu.demande.cause', { id: c.id, source: T('secu.kind.' + c.kind), n: c.depots.length })]
+    if (c.paquet) lignes.push(c.corrige ? T('secu.demande.paquet', { paquet: c.paquet, corrige: c.corrige }) : T('secu.demande.paquetSansCorrectif', { paquet: c.paquet }))
+    if (c.grave === true) lignes.push(T('secu.demande.grave'))
+    for (const depot of c.depots) lignes.push('- ' + depot)
+    return lignes.join('\n')
+  })
+  return [T('secu.demande.entete', { quand }), ...blocs].join('\n\n')
+}
+
+/**
+ * LA LIGNE D'ÉTAT DU PARC : ce qui va et ce qui ne va pas, en une rangée.
+ *
+ * Cinq blocs de la page existaient surtout pour dire « rien » — un tableau
+ * d'échecs vide sous ses en-têtes, « Rien à signaler côté production »,
+ * « 0 mises à jour en attente », quatre familles « 100 % au vert », et un
+ * « 100 % » de 64 px. Une ligne les remplace ; un bloc ne paraît plus que s'il
+ * a quelque chose à montrer.
+ *
+ * `niveau` : `ok`, `attention` (à traiter sans urgence), `critique`, ou
+ * `inconnu` quand le relevé n'a pas pu lire la source.
+ *
+ * @param {object[]} depots les dépôts du contexte courant
+ * @param {{ renovateLu?: boolean, kpi?: object }} [opts] `kpi` : ceux du relevé,
+ *   qui disent ce qu'il a pu LIRE — un filtre vide ne rend pas une source illisible
+ */
+export function etatDuParc(depots = [], opts = {}) {
+  const k = kpiDepuisDepots(depots, opts.kpi || {})
+  const prod = cockpitProd(depots)
+  const reno = salleRenovate(depots)
+  const secu = alertesCrossParc(depots)
+  const niv = (critique, attention) => (critique ? 'critique' : attention ? 'attention' : 'ok')
+  const secuLisible = k.alertesLisibles || k.scanningLisible
+  return [
+    { cle: 'ci', niveau: niv(k.rouges > 0, false), n: k.rouges, verts: k.verts, total: k.workflows, neutres: k.neutres, jamais: k.jamais, ancre: 'echecs' },
+    {
+      cle: 'production',
+      niveau: niv(prod.mortes.length > 0, prod.retard.length + prod.fugaces.length > 0),
+      n: prod.retard.length + prod.mortes.length + prod.fugaces.length,
+      encours: prod.enCours.length,
+      ancre: 'cockpit',
+    },
+    { cle: 'sites', niveau: niv(k.sitesEnLigne < k.sites, false), n: k.sites - k.sitesEnLigne, enLigne: k.sitesEnLigne, total: k.sites, ancre: 'cockpit' },
+    {
+      cle: 'securite',
+      niveau: secuLisible ? niv(secu.graves > 0, secu.total > 0) : 'inconnu',
+      n: secu.graves,
+      total: secu.total,
+      ancre: 'secu',
+    },
+    { cle: 'pr', niveau: niv(false, k.prOuvertes > 0), n: k.prOuvertes, ancre: 'afaire' },
+    {
+      cle: 'renovate',
+      niveau: opts.renovateLu === false ? 'inconnu' : niv(reno.introuvables.length > 0, reno.total > 0),
+      n: reno.total,
+      introuvables: reno.introuvables.length,
+      ancre: 'renovate',
+    },
+  ]
+}
+
+/**
+ * MES DÉCISIONS, EN UN FICHIER. Les cases « traité » et les décisions de
+ * dormance vivaient chacune avec son export et son import : quatre boutons pour
+ * un même besoin — retrouver ses choix sur un autre poste.
+ *
+ * @param {Iterable<string>} traites
+ * @param {Record<string, { decision: string, jusqua?: string }>} dormance
+ */
+export function exporteDecisions(traites, dormance) {
+  return JSON.stringify({ version: 2, traites: [...(traites || [])].sort(), dormance: dormance || {} }, null, 2)
+}
+
+/**
+ * Relit un fichier de décisions. Accepte aussi les deux formats d'avant
+ * (`{ version: 1, traites }`, une liste nue, `{ version: 1, dormance }`) : un
+ * export fait la veille doit se réimporter.
+ *
+ * @param {string} texte
+ * @returns {{ traites: string[], dormance: Record<string, { decision: string, jusqua?: string }> } | null}
+ */
+export function importeDecisions(texte) {
+  let j
+  try {
+    j = JSON.parse(texte)
   } catch {
     return null
   }
+  if (j === null || typeof j !== 'object') return null
+  const listeTraites = Array.isArray(j) ? j : Array.isArray(j.traites) ? j.traites : []
+  const brut = Array.isArray(j) ? null : j.dormance && typeof j.dormance === 'object' && !Array.isArray(j.dormance) ? j.dormance : !('traites' in j) && !('version' in j) ? j : null
+  const dormance = {}
+  for (const [paquet, v] of Object.entries(brut || {})) {
+    if (!v || typeof v !== 'object' || typeof v.decision !== 'string') continue
+    dormance[paquet] = { decision: v.decision, ...(v.jusqua ? { jusqua: v.jusqua } : {}) }
+  }
+  const traites = listeTraites.filter((x) => typeof x === 'string' && x)
+  if (!traites.length && !Object.keys(dormance).length && !Array.isArray(j) && !('traites' in j) && !('dormance' in j)) return null
+  return { traites, dormance }
 }
 
 /**

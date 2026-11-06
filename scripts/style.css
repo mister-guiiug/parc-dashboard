@@ -5,7 +5,9 @@
   --surface: #ffffff;
   --ink: #101820;
   --ink2: #4a5563;
-  --muted: #7a8494;
+  /* #7a8494 donnait 3,78:1 sur blanc pour un texte secondaire : sous le
+     seuil de 4,5:1. Celui-ci tient environ 6,5:1. */
+  --muted: #555f6e;
   --grid: #dde3ea;
   --baseline: #c5ced8;
   --border: rgba(16, 24, 32, 0.12);
@@ -21,11 +23,29 @@
   --rail-surface: #171d25;
   --good: #0ca30c;
   --warning: #fab219;
-  --serious: #ec835a;
-  --critical: #d03b3b;
+  /* En clair, l’orange et le rouge d’origine tombaient à 2,6:1 et 4,4:1 : un
+     glyphe « ! » à peine visible, un texte rouge sous le seuil. */
+  --serious: #c86428;
+  --critical: #be2828;
   --goodInk: #006300;
   --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+  /* ÉCHELLE TYPOGRAPHIQUE : six tailles au lieu de dix-sept écrites en dur
+     (9 à 64 px), et 12 px au minimum. Le 06/11/2026, 2 223 éléments de
+     texte étaient sous 12 px et le texte courant des cartes à 12,5 px. */
+  --t-1: 12px;
+  --t-2: 13px;
+  --t-3: 14px;
+  --t-4: 16px;
+  --t-5: 20px;
+  --t-6: 28px;
+  /* Espacements, pour les composants ajoutés par la refonte. */
+  --e-1: 4px;
+  --e-2: 8px;
+  --e-3: 12px;
+  --e-4: 16px;
+  --e-5: 24px;
+  --e-6: 32px;
   /* rampe ordinale claire : les pas 650/500/400/250. Le pas 450 (#2a78d6)
      est écarté volontairement — sa luminance tombe au point de bascule
      blanc/noir, où AUCUNE encre ne dépasse 4,5:1 pour l'étiquette posée
@@ -66,6 +86,8 @@
     --accent: #2dd4bf;
     --accent-ink: #042f2e;
     --goodInk: #34d399;
+    --serious: #ec835a;
+    --critical: #f87171;
     --ord1: #b7d3f6;
     --ord2: #86b6ef;
     --ord3: #3987e5;
@@ -89,6 +111,8 @@
   --accent: #2dd4bf;
   --accent-ink: #042f2e;
   --goodInk: #34d399;
+  --serious: #ec835a;
+  --critical: #f87171;
   --ord1: #b7d3f6;
   --ord2: #86b6ef;
   --ord3: #3987e5;
@@ -115,7 +139,7 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font: 400 15px/1.5 var(--sans);
+  font: 400 var(--t-3)/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 .shell {
@@ -173,15 +197,15 @@ h3 {
   padding: 0 4px;
 }
 .brand strong {
-  font-size: 15px;
+  font-size: var(--t-4);
   letter-spacing: -0.02em;
 }
 .brand .mono {
   color: var(--rail-muted);
-  font-size: 11.5px;
+  font-size: var(--t-1);
 }
 .railEtiquette {
-  font-size: 10px;
+  font-size: var(--t-1);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--rail-muted);
@@ -203,13 +227,13 @@ h3 {
   background: var(--rail-surface);
   color: var(--rail-ink);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--t-2);
   font-weight: 500;
 }
 .ecosysteme .sites a small {
   color: var(--rail-muted);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--t-1);
   font-weight: 400;
 }
 .ecosysteme .sites a[aria-current='page'] {
@@ -227,7 +251,7 @@ h3 {
   gap: 2px;
   overflow: visible;
   white-space: normal;
-  font-size: 13px;
+  font-size: var(--t-2);
 }
 .rail .liensSections a {
   color: var(--rail-muted);
@@ -272,7 +296,7 @@ h3 {
 }
 .chapeau .sous {
   color: var(--ink2);
-  font-size: 13px;
+  font-size: var(--t-2);
   margin-top: 5px;
 }
 .chapeau .fraicheur {
@@ -282,34 +306,6 @@ h3 {
   flex: 1 1 240px;
   max-width: 360px;
   min-width: 180px;
-}
-/* Repère de ce qu'elle contient, comme toute zone à défilement (voir `.tableEnveloppe`). */
-.sitesMobile {
-  position: relative;
-  display: none;
-  gap: 6px;
-  margin-top: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-.sitesMobile a {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 4px 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink2);
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-}
-.sitesMobile a[aria-current='page'] {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
 .basculeRail {
   display: none;
@@ -340,7 +336,7 @@ h3 {
   border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: var(--t-3);
 }
 /* Vide, la région ne prend AUCUNE place — mais reste dans l'arbre
    d'accessibilité, ce que `display: none` lui aurait retiré : ce qu'on y écrit
@@ -361,7 +357,7 @@ h3 {
   border-radius: 10px;
   background: color-mix(in srgb, var(--serious) 12%, var(--surface));
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: var(--t-3);
 }
 .bandeauPat[hidden] {
   display: none;
@@ -386,7 +382,7 @@ h3 {
   border-radius: 8px;
   padding: 7px 12px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--t-2);
   cursor: pointer;
   white-space: nowrap;
   min-height: 36px;
@@ -400,74 +396,12 @@ h3 {
   border-color: var(--ink);
 }
 
-/* ---------- hero + tuiles ---------- */
-.bandeau {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
-  gap: 28px;
-  align-items: center;
-  margin: 26px 0 12px;
-}
-@media (max-width: 860px) {
-  .bandeau {
-    grid-template-columns: 1fr;
-  }
-}
-.hero .chiffre {
-  font-size: 64px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-.hero .quoi {
-  color: var(--ink2);
-  font-size: 14px;
-  margin-top: 8px;
-  max-width: 30ch;
-}
-.hero .detail {
-  color: var(--ink2);
-  font-size: 13px;
-  margin-top: 4px;
-}
-
-.barreEtat {
-  display: flex;
-  gap: 2px;
-  height: 22px;
-  margin-bottom: 12px;
-}
-.barreEtat > span {
-  display: block;
-  border-radius: 2px;
-}
-.barreEtat > span:first-child {
-  border-radius: 4px 2px 2px 4px;
-}
-.barreEtat > span:last-child {
-  border-radius: 2px 4px 4px 2px;
-}
-.legende {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 20px;
-  font-size: 13px;
-  color: var(--ink2);
-}
-.legende span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
+/* ---------- tuiles ---------- */
 .puce {
   width: 10px;
   height: 10px;
   border-radius: 3px;
   flex: none;
-}
-.legende b {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .tuiles {
@@ -486,18 +420,18 @@ h3 {
 }
 .tuile .etiq {
   color: var(--ink2);
-  font-size: 12px;
+  font-size: var(--t-1);
   line-height: 1.35;
 }
 .tuile .val {
-  font-size: 27px;
+  font-size: var(--t-6);
   font-weight: 600;
   line-height: 1.1;
   margin-top: 5px;
   letter-spacing: -0.02em;
 }
 .tuile .app {
-  font-size: 12px;
+  font-size: var(--t-1);
   color: var(--ink2);
   margin-top: 3px;
 }
@@ -507,7 +441,7 @@ h3 {
   margin-bottom: 38px;
 }
 .titreFamilles {
-  font-size: 17px;
+  font-size: var(--t-4);
   margin-bottom: 4px;
 }
 .grilleFamilles {
@@ -533,11 +467,11 @@ h3 {
 }
 .ligneFamille .nomF {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--t-3);
 }
 .ligneFamille .sousF {
   color: var(--ink2);
-  font-size: 12px;
+  font-size: var(--t-1);
   margin-top: 2px;
 }
 .barreF {
@@ -555,7 +489,7 @@ h3 {
   border-radius: 2px 4px 4px 2px;
 }
 .chiffresF {
-  font-size: 12.5px;
+  font-size: var(--t-2);
   color: var(--ink2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -584,11 +518,11 @@ section {
   border-bottom: 1px solid var(--grid);
 }
 .teteGroupe h3 {
-  font-size: 15px;
+  font-size: var(--t-4);
 }
 .teteGroupe .compteur {
   color: var(--ink2);
-  font-size: 12.5px;
+  font-size: var(--t-2);
   font-variant-numeric: tabular-nums;
 }
 .titreSection {
@@ -599,16 +533,16 @@ section {
   margin-bottom: 4px;
 }
 .titreSection h2 {
-  font-size: 17px;
+  font-size: var(--t-4);
 }
 .titreSection .compteur {
   color: var(--ink2);
-  font-size: 13px;
+  font-size: var(--t-2);
   font-variant-numeric: tabular-nums;
 }
 .chapo {
   color: var(--ink2);
-  font-size: 13.5px;
+  font-size: var(--t-3);
   margin: 0 0 16px;
   max-width: 92ch;
 }
@@ -628,20 +562,20 @@ section {
   border-left: 3px solid var(--warning);
   border-radius: 8px;
   background: var(--surface);
-  font-size: 13.5px;
+  font-size: var(--t-3);
   color: var(--ink2);
   margin-bottom: 14px;
 }
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: var(--t-3);
 }
 thead th {
   text-align: left;
   font-weight: 500;
   color: var(--ink2);
-  font-size: 12px;
+  font-size: var(--t-1);
   padding: 0 12px 8px;
   border-bottom: 1px solid var(--grid);
   white-space: nowrap;
@@ -672,7 +606,9 @@ th.num {
 code,
 .mono {
   font-family: var(--mono);
-  font-size: 0.92em;
+  /* La chasse fixe paraît plus grande à taille égale, d’où 0,92 em ; mais
+     jamais sous le plancher de l’échelle, qu’un parent à 12 px faisait passer. */
+  font-size: max(0.92em, var(--t-1));
 }
 .depotLien {
   font-weight: 600;
@@ -696,7 +632,7 @@ code,
   flex: none;
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: var(--t-1);
   line-height: 1;
   font-weight: 700;
   color: #fff;
@@ -764,7 +700,7 @@ code,
   cursor: pointer;
 }
 .depot .tete h3 {
-  font-size: 15.5px;
+  font-size: var(--t-4);
 }
 .depot .corps {
   display: flex;
@@ -797,7 +733,7 @@ code,
    ce gris tient 3,5:1 — assez pour un glyphe (3:1 en AA non textuel), pas
    pour du texte. Le reste de la tête est en `--ink2`. */
 .chevron {
-  font-size: 10px;
+  font-size: var(--t-1);
   line-height: 1;
   color: var(--muted);
   transition: transform 0.12s ease;
@@ -814,7 +750,7 @@ code,
 /* La flèche vers GitHub : secondaire depuis que le nom sert à déplier, mais
    elle garde une cible tactile honnête. */
 .depot .depotLien {
-  font-size: 12px;
+  font-size: var(--t-1);
   color: var(--ink2);
   padding: 0 2px;
 }
@@ -827,7 +763,7 @@ code,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--t-1);
   color: var(--ink2);
   white-space: nowrap;
 }
@@ -847,7 +783,7 @@ code,
   color: var(--critical);
 }
 .badge {
-  font-size: 11px;
+  font-size: var(--t-1);
   padding: 2px 7px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -864,7 +800,7 @@ code,
   margin: 18px 0 0;
 }
 .titreBandeau {
-  font-size: 17px;
+  font-size: var(--t-4);
   margin: 0;
 }
 .listeChangements {
@@ -873,7 +809,7 @@ code,
   padding: 0;
   display: grid;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--t-2);
 }
 .listeChangements li {
   display: flex;
@@ -906,7 +842,7 @@ code,
   background: var(--ghost);
   padding: 8px 12px;
   margin: 10px 0;
-  font-size: 13px;
+  font-size: var(--t-2);
   color: var(--ink2);
 }
 /* Dormance : le rouge n'est PAS pour « pas de version depuis un an » — il
@@ -921,7 +857,7 @@ code,
 }
 .depot .desc {
   color: var(--ink2);
-  font-size: 13px;
+  font-size: var(--t-2);
   margin: -3px 0 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -929,7 +865,7 @@ code,
   overflow: hidden;
 }
 .metaLignes {
-  font-size: 12.5px;
+  font-size: var(--t-2);
   color: var(--ink2);
   display: flex;
   flex-direction: column;
@@ -954,7 +890,7 @@ code,
   align-items: center;
   background: var(--surface);
   padding: 6px 10px;
-  font-size: 12.5px;
+  font-size: var(--t-2);
   text-decoration: none;
 }
 .wf:hover {
@@ -966,7 +902,7 @@ code,
   width: 100%;
   text-align: left;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-1);
   color: var(--ink2);
   cursor: pointer;
 }
@@ -982,7 +918,7 @@ code,
 }
 .wf .quand {
   color: var(--ink2);
-  font-size: 11.5px;
+  font-size: var(--t-1);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1018,7 +954,7 @@ code,
   gap: 5px;
 }
 .lib {
-  font-size: 11.5px;
+  font-size: var(--t-1);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 2px 7px;
@@ -1038,7 +974,7 @@ code,
   display: flex;
   flex-wrap: wrap;
   gap: 10px 14px;
-  font-size: 12px;
+  font-size: var(--t-1);
   color: var(--ink2);
   border-top: 1px solid var(--grid);
   padding-top: 9px;
@@ -1066,7 +1002,7 @@ code,
   border-radius: 999px;
   padding: 7px 14px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--t-3);
 }
 .champ::placeholder {
   color: var(--muted);
@@ -1088,7 +1024,7 @@ select.bouton {
   justify-content: flex-start;
   border-radius: 2px;
   padding: 0 5px;
-  font-size: 11px;
+  font-size: var(--t-1);
   font-variant-numeric: tabular-nums;
   overflow: visible;
   white-space: nowrap;
@@ -1107,7 +1043,7 @@ tr.libLigne:hover td {
 }
 tr.detailLib td {
   background: var(--ghost);
-  font-size: 12.5px;
+  font-size: var(--t-2);
 }
 .versionBloc {
   display: flex;
@@ -1125,7 +1061,7 @@ tr.detailLib td {
   min-width: 86px;
 }
 .chipDepot {
-  font-size: 11.5px;
+  font-size: var(--t-1);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1px 7px;
@@ -1138,71 +1074,25 @@ tr.detailLib td {
 }
 .flecheDetail {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--t-1);
   width: 10px;
   display: inline-block;
 }
 
-/* ---------- activité ---------- */
-.activite {
-  display: grid;
-  grid-template-columns: minmax(120px, 168px) 1fr;
-  gap: 3px 12px;
-  align-items: center;
-  padding: 16px 18px;
-}
-.activite .nomA {
-  font-size: 12.5px;
-  text-align: right;
-  color: var(--ink2);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.activite .nomA:hover {
-  text-decoration: underline;
-  color: var(--ink);
-}
-.piste {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 20px;
-}
-.piste .barre {
-  height: 14px;
-  background: var(--series1);
-  border-radius: 0 4px 4px 0;
-  min-width: 2px;
-}
-.piste .vlab {
-  font-size: 11.5px;
-  color: var(--ink2);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.axeNote {
-  color: var(--ink2);
-  font-size: 11.5px;
-  padding: 4px 18px 14px;
-  border-top: 1px solid var(--grid);
-  margin-top: 8px;
-}
 
 footer {
   margin-top: 52px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
   color: var(--ink2);
-  font-size: 12.5px;
+  font-size: var(--t-2);
   display: flex;
   flex-wrap: wrap;
   gap: 6px 22px;
 }
 .vide {
   color: var(--ink2);
-  font-size: 13.5px;
+  font-size: var(--t-3);
   padding: 18px;
 }
 /* SAUF `hidden="until-found"`. Cette règle en faisait un `display: none`, et un
@@ -1229,7 +1119,7 @@ footer {
 .matrice {
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 12.5px;
+  font-size: var(--t-2);
 }
 .matrice th,
 .matrice td {
@@ -1299,7 +1189,7 @@ footer {
   outline-offset: 1px;
 }
 .triCol .fleche {
-  font-size: 10px;
+  font-size: var(--t-1);
   line-height: 1;
   color: var(--muted);
 }
@@ -1312,19 +1202,22 @@ footer {
 .cellule {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  font-size: 11.5px;
+  font-size: var(--t-1);
 }
 .cellule[data-ecart='0'] {
   color: var(--goodInk);
 }
+/* AMBRE ET ORANGE, PLUS DE ROUGE. Le rouge dit « cassé » ou « grave »
+   partout ailleurs ; vingt-cinq cellules rouges pour un retard de version
+   criaient au même niveau qu'une CI en échec. */
 .cellule[data-ecart='patch'] {
-  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
 }
 .cellule[data-ecart='mineure'] {
-  background: color-mix(in srgb, var(--serious) 30%, transparent);
+  background: color-mix(in srgb, var(--warning) 34%, transparent);
 }
 .cellule[data-ecart='majeure'] {
-  background: color-mix(in srgb, var(--critical) 32%, transparent);
+  background: color-mix(in srgb, var(--serious) 34%, transparent);
   font-weight: 500;
 }
 /* `--ink2`, et non `--muted`. Mesuré sur la page publiée : le point des
@@ -1389,7 +1282,7 @@ footer {
 }
 .usageIndirect {
   margin-left: 4px;
-  font-size: 11px;
+  font-size: var(--t-1);
   color: var(--ink2);
 }
 .usageLigne {
@@ -1415,16 +1308,16 @@ footer {
   outline-offset: 1px;
 }
 .usageFamille {
-  font-size: 11px;
+  font-size: var(--t-1);
   color: var(--ink2);
 }
 .usageTotal {
-  font-size: 11px;
+  font-size: var(--t-1);
   font-variant-numeric: tabular-nums;
   color: var(--ink2);
 }
 .usageSigne {
-  font-size: 11px;
+  font-size: var(--t-1);
   font-weight: 600;
   color: var(--serious);
 }
@@ -1440,11 +1333,11 @@ footer {
   margin: 4px 0 10px;
   padding-left: 18px;
   columns: 2 220px;
-  font-size: 12.5px;
+  font-size: var(--t-2);
 }
 #panneauUsageCorps h4 {
   margin: 10px 0 2px;
-  font-size: 13px;
+  font-size: var(--t-2);
 }
 /* ── Table des éléments ─────────────────────────────────────────────
    UNE SEULE TEINTE PAR GROUPE, mélangée au fond de la page plutôt que
@@ -1463,13 +1356,13 @@ footer {
   margin-bottom: 8px;
 }
 .rangPeriode {
-  font-size: 12px;
+  font-size: var(--t-1);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   min-width: 96px;
 }
 .nomPeriode {
-  font-size: 13px;
+  font-size: var(--t-2);
   color: var(--ink2);
 }
 .elements {
@@ -1498,17 +1391,17 @@ footer {
   position: absolute;
   top: 5px;
   right: 7px;
-  font-size: 10px;
+  font-size: var(--t-1);
   color: var(--ink2);
   font-variant-numeric: tabular-nums;
 }
 .elementSym {
-  font-size: 19px;
+  font-size: var(--t-5);
   line-height: 1.1;
   letter-spacing: -0.01em;
 }
 .elementNom {
-  font-size: 9.5px;
+  font-size: var(--t-1);
   line-height: 1.25;
   color: var(--ink2);
   overflow-wrap: anywhere;
@@ -1520,7 +1413,7 @@ footer {
    connu du parc : un jeton se valide contre un fond, pas contre une
    couleur composée. */
 .elementVer {
-  font-size: 9px;
+  font-size: var(--t-1);
   color: var(--ink2);
   font-variant-numeric: tabular-nums;
 }
@@ -1552,7 +1445,7 @@ footer {
  * résultat vide.
  */
 .etiquetteFiltre {
-  font-size: 12.5px;
+  font-size: var(--t-2);
   color: var(--ink2);
   align-self: center;
 }
@@ -1563,7 +1456,7 @@ footer {
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: var(--t-1);
   color: var(--ink2);
   vertical-align: 1px;
 }
@@ -1584,7 +1477,7 @@ footer {
   padding: 1px 6px;
   border: 1px dashed var(--border);
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: var(--t-1);
   color: var(--ink2);
   vertical-align: 1px;
 }
@@ -1599,7 +1492,7 @@ footer {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12.5px;
+  font-size: var(--t-2);
   color: var(--ink2);
   cursor: pointer;
 }
@@ -1623,7 +1516,7 @@ footer {
   border: 1px solid var(--border);
   color: var(--ink);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--t-2);
 }
 /* `:focus` ET PAS `:focus-visible`. Le second est une heuristique du
    navigateur — il ne se déclenche pas sur un focus posé par programme, et
@@ -1662,7 +1555,7 @@ footer {
   display: block;
   padding: 5px 9px;
   border-radius: 7px;
-  font-size: 12.5px;
+  font-size: var(--t-2);
   color: var(--ink2);
   text-decoration: none;
 }
@@ -1703,8 +1596,7 @@ footer {
   .colonnes,
   .rail,
   .dockMobile,
-  .basculeRail,
-  .sitesMobile {
+  .basculeRail {
     display: none;
   }
   .shell {
@@ -1757,7 +1649,7 @@ footer {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  font-size: 13.5px;
+  font-size: var(--t-3);
   color: var(--ink);
 }
 .aFaireDetails {
@@ -1773,17 +1665,17 @@ footer {
 }
 .aFaireAide {
   margin: 6px 0 0;
-  font-size: 12.5px;
+  font-size: var(--t-2);
   color: var(--ink2);
   max-width: 92ch;
 }
 .aFaireVide {
-  font-size: 13.5px;
+  font-size: var(--t-3);
   color: var(--ink2);
 }
 .bouton.copier {
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: var(--t-1);
 }
 
 /* ---------- gravité et âge d'un retard ---------- */
@@ -1806,7 +1698,7 @@ footer {
 }
 .ageAmont {
   display: block;
-  font-size: 11px;
+  font-size: var(--t-1);
   color: var(--ink2);
   white-space: nowrap;
 }
@@ -1831,7 +1723,7 @@ footer {
   align-items: center;
   gap: 8px 14px;
   margin: 2px 0 10px;
-  font-size: 12.5px;
+  font-size: var(--t-2);
 }
 /* Une pair du socle que le dépôt ne déclare pas : même pastille, trait tireté. */
 .chipDepot.transitif {
@@ -1846,7 +1738,7 @@ footer {
   padding: 0;
   display: grid;
   gap: 4px;
-  font-size: 12.5px;
+  font-size: var(--t-2);
 }
 .prListe a {
   color: var(--ink2);
@@ -1893,7 +1785,7 @@ footer {
   background: var(--page);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--t-1);
   line-height: 1.4;
 }
 .raccourci [data-mod='meta'] {
@@ -1928,7 +1820,7 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
   gap: 6px;
   padding: 5px 8px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--t-2);
   cursor: pointer;
   color: var(--ink);
 }
@@ -1975,9 +1867,6 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
   .basculeRail {
     display: inline-flex;
   }
-  .sitesMobile {
-    display: flex;
-  }
   .entete {
     padding: 12px 16px 10px;
   }
@@ -2004,7 +1893,7 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
     padding: 6px 4px;
     color: var(--ink2);
     text-decoration: none;
-    font-size: 11px;
+    font-size: var(--t-1);
     font-weight: 600;
     border-radius: 8px;
   }
@@ -2032,7 +1921,7 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
 .pliSection {
   margin-left: auto;
   padding: 3px 11px;
-  font-size: 12px;
+  font-size: var(--t-1);
 }
 
 /* ---------- pilotage C1–C12 ---------- */
@@ -2083,13 +1972,13 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
 }
 .panneauMatriceDl dt {
   color: var(--ink2);
-  font-size: 12.5px;
+  font-size: var(--t-2);
 }
 .panneauMatriceDl dd {
   margin: 0;
 }
 .decisionDormance {
-  font-size: 12px;
+  font-size: var(--t-1);
   padding: 2px 8px;
   max-width: 12rem;
 }
@@ -2098,12 +1987,12 @@ html[data-mod='meta'] .raccourci [data-mod='meta'] {
 }
 .cockpitBloc h3 {
   margin: 0 0 6px;
-  font-size: 13.5px;
+  font-size: var(--t-3);
 }
 .listeCockpit {
   margin: 0;
   padding-left: 1.2em;
-  font-size: 13px;
+  font-size: var(--t-2);
 }
 .listeCockpit li {
   margin: 2px 0;
@@ -2119,4 +2008,293 @@ button.element:hover,
 button.element:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ================================================================
+   REFONTE DU 06/11/2026 : l'écran « Aujourd'hui »
+   ================================================================ */
+
+/* La ligne d'état : ce qui va et ce qui ne va pas, en une rangée. Le niveau
+   se dit par le glyphe ET le mot, la couleur ne fait que le souligner. */
+.etatParc {
+  margin: var(--e-4) 0 var(--e-4);
+}
+.ligneEtat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.etatItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 36px;
+  padding: var(--e-1) var(--e-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--t-2);
+  color: var(--ink);
+}
+.etatItem a {
+  color: inherit;
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.etatGlyphe {
+  font-weight: 700;
+  color: var(--ink2);
+}
+.etatItem.niv-ok .etatGlyphe {
+  color: var(--goodInk);
+}
+.etatItem.niv-attention {
+  border-color: color-mix(in srgb, var(--serious) 55%, var(--border));
+}
+.etatItem.niv-attention .etatGlyphe {
+  color: var(--serious);
+}
+.etatItem.niv-critique {
+  border-color: var(--critical);
+  background: color-mix(in srgb, var(--critical) 8%, var(--surface));
+}
+.etatItem.niv-critique .etatGlyphe {
+  color: var(--critical);
+}
+
+/* Le filtre actif, rappelé dans la barre fixe. */
+.filtreActif {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+  margin-top: var(--e-2);
+  padding: var(--e-1) var(--e-1) var(--e-1) var(--e-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  font-size: var(--t-2);
+  color: var(--ink);
+}
+.filtreActif[hidden] {
+  display: none;
+}
+
+/* La pastille de fraîcheur : verte, ambre, rouge. Le mot suit en `.sr`. */
+.fraicheur .pastilleFraicheur {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--ink2);
+}
+.fraicheur[data-etat='frais'] .pastilleFraicheur {
+  background: var(--good);
+}
+.fraicheur[data-etat='ancien'] .pastilleFraicheur {
+  background: var(--warning);
+}
+.fraicheur[data-etat='panne'] .pastilleFraicheur {
+  background: var(--critical);
+}
+
+/* Les indicateurs, et les tuiles qui mènent quelque part. */
+.indicateurs {
+  margin: var(--e-4) 0;
+}
+a.tuile {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+a.tuile:hover .etiq,
+a.tuile:focus-visible .etiq {
+  color: var(--accent);
+  text-decoration: underline;
+}
+a.tuile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* PLUS DE CASE VIDE COLORÉE. Les filets venaient du fond de la grille, visible
+   entre les tuiles ET dans la place laissée libre en fin de rangée. Le fond
+   devient celui des tuiles, et chaque tuile trace ses propres filets. */
+.tuiles {
+  gap: 0;
+  background: var(--surface);
+}
+.tuiles .tuile {
+  box-shadow:
+    1px 0 0 var(--border),
+    0 1px 0 var(--border);
+}
+
+/* « Comment lire » : la méthode, repliée sous un chapeau d'une phrase. */
+.commentLire {
+  margin: 0 0 var(--e-3);
+  font-size: var(--t-2);
+  color: var(--ink2);
+}
+.commentLire summary {
+  width: max-content;
+  max-width: 100%;
+  font-weight: 600;
+  cursor: pointer;
+}
+.commentLire summary:hover {
+  color: var(--accent);
+}
+.commentLire p {
+  max-width: 90ch;
+  margin: var(--e-2) 0 0;
+}
+
+/* Une phrase d'aide sous un bloc, et ce qui est masqué, dit. */
+.aide {
+  margin: var(--e-2) 0;
+  font-size: var(--t-2);
+  color: var(--ink2);
+}
+.aide .bouton {
+  margin-left: var(--e-2);
+}
+
+/* La matrice en clair, quand peu de paquets sont éclatés. */
+.resumeMatrice {
+  margin: 0 0 var(--e-4);
+}
+.listeResume {
+  margin: var(--e-2) 0 0;
+  padding-left: 1.2em;
+}
+.listeResume li {
+  margin: var(--e-2) 0;
+}
+.listeResume .bouton {
+  margin-left: var(--e-2);
+}
+
+/* La composition du score de santé, dans la carte dépliée. */
+.santeDetail {
+  margin: var(--e-1) 0 var(--e-2);
+  font-size: var(--t-1);
+  color: var(--ink2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* La sécurité par cause : des dépôts en puces, un « non lu » qui se distingue. */
+.chipsDepots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1);
+}
+.muet {
+  color: var(--ink2);
+  font-style: italic;
+  white-space: nowrap;
+}
+.badge.nonFiltre {
+  border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
+}
+
+/* Une recherche sans résultat le dit, à l'emplacement des résultats. */
+.resultatsGlobaux .cmd-empty {
+  padding: var(--e-2) var(--e-3);
+  font-size: var(--t-2);
+  color: var(--ink2);
+}
+
+/* LES CASES « TRAITÉ » : 24 px de cible, le minimum de WCAG 2.2 (2.5.8). Elles
+   en faisaient 13. */
+.aFaireDetail input[type='checkbox'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 3px;
+}
+
+/* Langue et thème, dans le tiroir sur téléphone (voir `placeOutils`). */
+.outilsRail {
+  display: none;
+}
+
+/* ---------- téléphone : un en-tête compact ---------- */
+/* Le 06/11/2026, en 375 × 812, la barre collante mesurait 295 px et le dock
+   59 : 44 % de l'écran ne montrait jamais le contenu. Le titre tient sur une
+   ligne, le sous-titre (repris par les tuiles) s'efface, la fraîcheur tient sur
+   une ligne, langue et thème passent dans le tiroir, et le sommaire flottant
+   cède sa place au bouton du dock. */
+@media (max-width: 959px) {
+  .entete {
+    padding: var(--e-2) var(--e-3);
+  }
+  .chapeau {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--e-1) var(--e-2);
+    align-items: center;
+  }
+  .titreBloc {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .outils {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .entete .rechercheGlobale {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: none;
+  }
+  .chapeau h1 {
+    overflow: hidden;
+    font-size: var(--t-4);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  #sousTitre {
+    display: none;
+  }
+  .chapeau .fraicheur {
+    overflow: hidden;
+    font-size: var(--t-1);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .outilsRail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--e-2);
+    padding: var(--e-3) var(--e-4) 0;
+  }
+  .flottant #basculeSommaire,
+  .flottant #sommaire {
+    display: none;
+  }
+  .dockMobile button {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    padding: 6px 4px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--ink2);
+    font: inherit;
+    font-size: var(--t-1);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .dockMobile button:hover,
+  .dockMobile button:focus-visible,
+  .dockMobile button[aria-expanded='true'] {
+    color: var(--accent);
+    background: var(--ghost);
+  }
 }

@@ -432,7 +432,58 @@ export function resumeScanning(liste) {
     graves: l.filter(SCANNING_GRAVE).length,
     erreurs: l.filter(SCANNING_ERREUR).length,
     ids,
+    causes: causesDe(l, (a) => a?.rule?.id, SCANNING_GRAVE, () => ({})),
   }
+}
+
+/** Au-delà, les causes se tronquent : le modèle est embarqué dans la page. */
+export const MAX_CAUSES = 40
+
+/**
+ * LES CAUSES D'UNE LISTE D'ALERTES, une par identifiant, sans doublon.
+ *
+ * L'échantillon `ids` (huit premiers identifiants) répétait la même règle
+ * CodeQL huit fois, et ne disait ni le paquet en cause ni sa correction : la
+ * page ne pouvait pas regrouper les dépôts touchés par une même alerte.
+ *
+ * @param {unknown[]} l
+ * @param {(a: any) => string | null | undefined} idDe
+ * @param {(a: any) => boolean} estGrave
+ * @param {(a: any) => object} extra
+ */
+function causesDe(l, idDe, estGrave, extra) {
+  const parId = new Map()
+  for (const a of l) {
+    const id = idDe(a) || (a?.number != null ? String(a.number) : null)
+    if (!id) continue
+    const x = parId.get(id) || { id, n: 0, grave: false, ...extra(a) }
+    x.n++
+    if (estGrave(a)) x.grave = true
+    parId.set(id, x)
+  }
+  return [...parId.values()].sort((a, b) => Number(b.grave) - Number(a.grave) || b.n - a.n || a.id.localeCompare(b.id)).slice(0, MAX_CAUSES)
+}
+
+const DEPENDABOT_GRAVE = (a) => ['high', 'critical'].includes(a?.security_advisory?.severity)
+
+/**
+ * Les causes Dependabot : l'identifiant (CVE, sinon GHSA), le paquet en cause
+ * et la première version qui corrige — ce qu'il faut pour écrire « monter tel
+ * paquet en telle version » au lieu de « voir l'alerte ».
+ *
+ * @param {unknown[]} liste
+ */
+export function causesDependabot(liste) {
+  const l = Array.isArray(liste) ? liste : []
+  return causesDe(
+    l,
+    (a) => a?.security_advisory?.cve_id || a?.security_advisory?.ghsa_id,
+    DEPENDABOT_GRAVE,
+    (a) => ({
+      paquet: a?.dependency?.package?.name || a?.security_vulnerability?.package?.name || null,
+      corrige: a?.security_vulnerability?.first_patched_version?.identifier || null,
+    }),
+  )
 }
 
 /**

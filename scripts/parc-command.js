@@ -16,7 +16,8 @@ if (!api || !input || !list) {
     getItems: api.getItems,
     onSelect: api.onSelect,
     renderItem: api.renderItem,
-    emptyLabel: null,
+    // Une recherche sans résultat le DIT : la liste se refermait sans un mot.
+    emptyLabel: api.emptyLabel ?? null,
     idPrefix: 'resultat',
     clearOnSelect: true,
   });

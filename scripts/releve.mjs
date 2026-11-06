@@ -33,11 +33,11 @@ import { MAJEURS_ADMIS, SOCLE, aliasNpm, amontAdmis, changementsDepuis, classe, 
 // Ce que le relevé CALCULE vit à part de ce qu'il va CHERCHER : importer ce
 // fichier-ci déclenche la collecte, exige un jeton et consomme trois cent
 // trente appels d'API. Voir `scripts/modele.mjs`.
-import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, pileDuDepot } from './modele.mjs'
+import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, page404, pileDuDepot } from './modele.mjs'
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { causesDependabot, derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
 import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, brutsDepuisFichiers, estReutilisable, fichiersAScanner, fichiersDuSocle, grapheDuSocle, importesDe, offreDuSocle, outilsDuReutilisable, rattache, usageReprenable } from './socle-usage.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
@@ -596,6 +596,9 @@ await enLot(depots, 5, async (d) => {
       // comptent, pas de la même façon.
       production: liste.filter((a) => a.dependency?.scope === 'runtime').length,
       ids: idsDependabot(liste),
+      // Le paquet et la version qui corrige, par identifiant : la page regroupe
+      // les dépôts par cause au lieu de répéter la même CVE vingt-six fois.
+      causes: causesDependabot(liste),
     }
     alertesLisibles = true
   } catch {
@@ -1550,6 +1553,12 @@ if (DOSSIER_PUBLIE) {
   const servi = inchange ? avantPublie : modele
   writeFileSync(join(DOSSIER_PUBLIE, 'donnees.json'), JSON.stringify(servi) + '\n')
   writeFileSync(join(DOSSIER_PUBLIE, 'a-faire.json'), JSON.stringify(aFairePublie(servi, traducteur('fr'))) + '\n')
+
+  // LA 404 DU SITE. Sans elle, une URL inconnue sous la page montrait celle de
+  // GitHub, en anglais, sans chemin de retour. Le lien est ABSOLU : une 404 se
+  // sert à n'importe quelle profondeur, où `./` mènerait ailleurs.
+  const base404 = URL_PUBLIEE ? new URL(URL_PUBLIEE).pathname : './'
+  writeFileSync(join(DOSSIER_PUBLIE, '404.html'), page404(traducteur('fr'), traducteur('en'), base404))
 
   // LE FLUX ATOM des changements : être prévenu sans ouvrir la page — un
   // lecteur de flux, un téléphone. Les titres sont les phrases de la page

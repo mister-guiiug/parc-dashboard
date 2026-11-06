@@ -9,7 +9,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { PILE_MONTREE, SEUIL_DORMANCE_JOURS, estDormante, etatDormance, joursDepuis, maturitesDuCatalogue, pileDuDepot } from '../scripts/modele.mjs'
+import { PILE_MONTREE, SEUIL_DORMANCE_JOURS, estDormante, etatDormance, joursDepuis, maturitesDuCatalogue, page404, pileDuDepot } from '../scripts/modele.mjs'
+import { traducteur } from '../scripts/libelles.mjs'
 
 const JOUR = 86400000
 const MAINTENANT = new Date('2026-09-17T00:00:00Z')
@@ -165,4 +166,16 @@ test('pileDuDepot suit l’ordre écrit, pas celui du lockfile', () => {
     pileDuDepot(d, ctx()).map((p) => p.nom),
     PILE_MONTREE.map(([n]) => n),
   )
+})
+
+test('page404 : deux langues, hors des moteurs, et un chemin de retour ABSOLU', () => {
+  // Une URL inconnue sous la page montrait la 404 générique de GitHub, en
+  // anglais et sans lien. Le lien est absolu : une 404 se sert à toute profondeur.
+  const html = page404(traducteur('fr'), traducteur('en'), '/parc-dashboard/')
+  assert.ok(html.includes('<meta name="robots" content="noindex" />'))
+  assert.ok(html.includes('<h1>Cette page n’existe pas.</h1>'))
+  assert.ok(html.includes('<p lang="en">This page does not exist.'))
+  assert.equal(html.split('href="/parc-dashboard/"').length - 1, 2)
+  // le chemin est échappé, comme tout ce qui entre dans le HTML
+  assert.ok(page404(traducteur('fr'), traducteur('en'), '/a"b/').includes('href="/a&quot;b/"'))
 })

@@ -27,6 +27,7 @@ import {
   resumeScanning,
   satisfait,
   scanningDepuisReponse,
+  causesDependabot,
   derniereDeSerie,
   plafondEngines,
   unitesDeLArbre,
@@ -198,8 +199,43 @@ test('resumeScanning compte les graves et les erreurs', () => {
     graves: 2,
     erreurs: 1,
     ids: ['js/a', 'js/b', '3', '4'],
+    // une cause par identifiant, les graves d'abord ; sans règle, le numéro
+    causes: [
+      { id: '4', n: 1, grave: true },
+      { id: 'js/a', n: 1, grave: true },
+      { id: '3', n: 1, grave: false },
+      { id: 'js/b', n: 1, grave: false },
+    ],
   })
-  assert.deepEqual(resumeScanning([]), { etat: 'lu', total: 0, graves: 0, erreurs: 0, ids: [] })
+  assert.deepEqual(resumeScanning([]), { etat: 'lu', total: 0, graves: 0, erreurs: 0, ids: [], causes: [] })
+})
+
+test('resumeScanning regroupe une même règle en UNE cause, comptée', () => {
+  // Le 06/11/2026, l'échantillon `ids` répétait « vice/deps/vulnerable-dep »
+  // huit fois de suite, et taisait la règle grave noyée derrière.
+  const liste = [
+    ...Array.from({ length: 11 }, (_, i) => ({ number: i, rule: { id: 'vice/deps/vulnerable-dep', security_severity_level: 'medium' } })),
+    { number: 99, rule: { id: 'js/polynomial-redos', security_severity_level: 'high' } },
+  ]
+  assert.deepEqual(resumeScanning(liste).causes, [
+    { id: 'js/polynomial-redos', n: 1, grave: true },
+    { id: 'vice/deps/vulnerable-dep', n: 11, grave: false },
+  ])
+})
+
+test('causesDependabot : la CVE, le paquet en cause et la version qui corrige', () => {
+  const alerte = (cve, paquet, corrige, severity) => ({
+    security_advisory: { cve_id: cve, ghsa_id: 'GHSA-x', severity },
+    security_vulnerability: { package: { name: paquet }, first_patched_version: corrige ? { identifier: corrige } : null },
+    dependency: { package: { name: paquet } },
+  })
+  assert.deepEqual(causesDependabot([alerte('CVE-1', 'vite', '8.3.6', 'medium'), alerte('CVE-1', 'vite', '8.3.6', 'medium'), alerte('CVE-2', 'jsdom', null, 'critical')]), [
+    { id: 'CVE-2', n: 1, grave: true, paquet: 'jsdom', corrige: null },
+    { id: 'CVE-1', n: 2, grave: false, paquet: 'vite', corrige: '8.3.6' },
+  ])
+  // sans CVE, l'identifiant GHSA ; sans rien, une liste vide
+  assert.equal(causesDependabot([{ security_advisory: { ghsa_id: 'GHSA-abc' } }])[0].id, 'GHSA-abc')
+  assert.deepEqual(causesDependabot(null), [])
 })
 
 test('scanningDepuisReponse : trois états, jamais deux', () => {
@@ -214,6 +250,7 @@ test('scanningDepuisReponse : trois états, jamais deux', () => {
     graves: 1,
     erreurs: 1,
     ids: ['js/x'],
+    causes: [{ id: 'js/x', n: 1, grave: true }],
   })
 })
 
