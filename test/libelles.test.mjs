@@ -32,6 +32,7 @@ import { DEFAUT, LANGUES, LIBELLES, choisitLangue, interpole, traducteur } from 
 import { SOCLE, classe } from '../scripts/regles.mjs'
 import { CANAUX_USAGE, CATEGORIES_USAGE, GRAVITES, GROUPES, ORDRE_A_FAIRE, PERIODES, elementsHorsNpm } from '../scripts/vue.mjs'
 import { pileDuDepot } from '../scripts/modele.mjs'
+import { RAISONS_SONDE } from '../scripts/fonctionne.mjs'
 
 const ICI = dirname(fileURLToPath(import.meta.url))
 const lis = (f) => readFileSync(join(ICI, '..', 'scripts', f), 'utf8')
@@ -213,6 +214,8 @@ const FAMILLES_DYNAMIQUES = [
       'site-tombe',
       'site-revenu',
       'prod-retard',
+      'fonctionne-ko',
+      'fonctionne-ok',
     ],
     partielle: true,
   },
@@ -238,7 +241,11 @@ const FAMILLES_DYNAMIQUES = [
   // `runbookEchec()` de pilotage.mjs.
   { prefixe: 'echecs.runbook.', membres: ['pages', 'lockfile', 'socle', 'tests', 'qualite', 'generique', 'ouvrir', 'doc'] },
   // `cockpitProd()` — clés de rubrique rendues dans le gabarit.
-  { prefixe: 'cockpit.', membres: ['encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
+  { prefixe: 'cockpit.', membres: ['fonctionne', 'encours', 'retard', 'sites', 'mortes', 'fugaces'], partielle: true },
+  // `verdictSonde()` de fonctionne.mjs rend ces raisons ; `raisonCourte()` de
+  // vue.mjs ajoute « + N autres ». Importées : une raison ajoutée demain aura
+  // son libellé, ou ce test le dira.
+  { prefixe: 'sonde.raison.', membres: [...RAISONS_SONDE, 'autres'] },
   // `alertesCrossParc()` — kind dependabot | codeql.
   { prefixe: 'secu.kind.', membres: ['dependabot', 'codeql'] },
   // `familleUsage()` du gabarit : la famille d'un module, le canal sinon —

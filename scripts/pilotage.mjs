@@ -12,8 +12,10 @@ export const NIVEAU_A_FAIRE = {
   graves: 'critique',
   rouges: 'critique',
   sites: 'critique',
+  fonctionne: 'critique',
   mortes: 'critique',
   introuvables: 'critique',
+  sonde: 'attention',
   prod: 'attention',
   fugaces: 'attention',
   doublons: 'attention',
@@ -134,6 +136,9 @@ export function scoreSante(d) {
   const ci = wf === 0 ? 20 : Math.round(40 * ((d.compte?.vert || 0) / wf))
   let prod = 20
   if (d.pages?.url && d.pages.ok === false) prod = 0
+  // Répondre sans fonctionner ne vaut pas mieux que ne pas répondre : c'est
+  // ce « 200 » qui a caché trois jours la panne du jeu public de miss-arcade.
+  else if (d.sonde?.etat === 'ko') prod = 0
   else if (d.prod?.mortes?.length) prod = 4
   else if (d.prod?.etat === 'retard') prod = 8
   else if (d.prod?.fugaces?.length) prod = 12
@@ -159,19 +164,21 @@ export function scoreSante(d) {
 
 /** Cockpit production / sites (C8). */
 export function cockpitProd(depots = []) {
+  const nonFonctionnelles = []
   const enCours = []
   const retard = []
   const sitesDown = []
   const mortes = []
   const fugaces = []
   for (const d of depots) {
+    if (d.sonde?.etat === 'ko') nonFonctionnelles.push({ depot: d.nom, raisons: d.sonde.raisons || [] })
     if (d.prod?.etat === 'deploiement') enCours.push({ depot: d.nom, etat: d.prod.etat })
     if (d.prod?.etat === 'retard') retard.push({ depot: d.nom, retard: d.prod.retard })
     if (d.pages?.url && d.pages.ok === false) sitesDown.push({ depot: d.nom, url: d.pages.url })
     if (d.prod?.mortes?.length) mortes.push({ depot: d.nom, fichiers: d.prod.mortes })
     if (d.prod?.fugaces?.length) fugaces.push({ depot: d.nom, fichiers: d.prod.fugaces })
   }
-  return { enCours, retard, sitesDown, mortes, fugaces }
+  return { nonFonctionnelles, enCours, retard, sitesDown, mortes, fugaces }
 }
 
 /** Salle Renovate agrégée (C5). */
@@ -342,6 +349,17 @@ export function etatDuParc(depots = [], opts = {}) {
       ancre: 'cockpit',
     },
     { cle: 'sites', niveau: niv(k.sitesEnLigne < k.sites, false), n: k.sites - k.sitesEnLigne, enLigne: k.sitesEnLigne, total: k.sites, ancre: 'cockpit' },
+    // RÉPONDRE N'EST PAS FONCTIONNER : la ligne « sites » compte les HTTP 200,
+    // celle-ci les apps que la sonde a vues marcher. Sans sonde lue (`sonde`
+    // absent ou nul), « inconnu » — jamais un vert par défaut.
+    {
+      cle: 'fonctionne',
+      niveau: !opts.sonde ? 'inconnu' : prod.nonFonctionnelles.length ? 'critique' : opts.sonde.manquante ? 'attention' : 'ok',
+      n: prod.nonFonctionnelles.length,
+      total: depots.filter((d) => d.sonde).length,
+      manquante: Boolean(opts.sonde?.manquante),
+      ancre: prod.nonFonctionnelles.length ? 'cockpit' : 'afaire',
+    },
     {
       cle: 'securite',
       niveau: secuLisible ? niv(secu.graves > 0, secu.total > 0) : 'inconnu',

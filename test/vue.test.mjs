@@ -62,7 +62,13 @@ import {
   manquesUsage,
   indirectsDe,
   CATEGORIES_USAGE,
+  SEUIL_SONDE_MIN,
+  sondeManquante,
+  fraicheurSonde,
+  phraseRaison,
+  raisonCourte,
 } from '../scripts/vue.mjs'
+import { traducteur } from '../scripts/libelles.mjs'
 import { CATEGORIES } from '../scripts/socle-usage.mjs'
 import { cmpVersion, etatPublie } from '../scripts/regles.mjs'
 
@@ -1125,4 +1131,74 @@ test('hrefAncre et hrefSur : une ancre échappée, que la page sait relire', () 
   assert.equal(hrefSur('#lib-%40s%2Fx'), '#lib-%40s%2Fx', 'une ancre déjà encodée ne l’est pas deux fois')
   assert.equal(hrefSur('https://github.com/a'), 'https://github.com/a')
   assert.equal(hrefSur('javascript:alert(1)'), '#')
+})
+
+/* ── La sonde « fonctionne » ────────────────────────────────────────────── */
+
+const ARCADE_401 = { cle: 'requetes', n: 1, exemple: 'supabase:wksb… /rest/v1/rpc/jeu_public HTTP 401' }
+
+test('aFaire : une app qui répond sans fonctionner est CASSÉE, juste après les sites — le 401 de miss-arcade', () => {
+  const depots = [
+    depotAFaire('miss-arcade', { famille: 'pwa', pages: { url: 'https://h/miss-arcade/', ok: true }, sonde: { etat: 'ko', raisons: [ARCADE_401] } }),
+    depotAFaire('miss-dice', { famille: 'pwa', pages: { url: 'https://h/miss-dice/', ok: false }, sonde: { etat: 'ok', raisons: [] } }),
+    depotAFaire('x', { prod: { etat: 'retard', retard: 2 } }),
+  ]
+  const r = aFaire({ kpi: {}, depots, libs: [], sonde: { date: '2026-11-07T12:17:00Z', apps: 2, ko: 1, manquante: false } })
+  assert.deepEqual(
+    r.map((x) => x.cle),
+    ['sites', 'fonctionne', 'prod'],
+  )
+  assert.deepEqual(r.find((x) => x.cle === 'fonctionne').details, [{ depot: 'miss-arcade', raisons: [ARCADE_401] }])
+  // le filtre de familles suit le dépôt de l'app
+  assert.ok(!filtreAFaire(r, depots, { familles: new Set(['autre']) }).some((x) => x.cle === 'fonctionne'))
+})
+
+test('aFaire : une sonde manquante se dit, une sonde jamais lue aussi — un modèle d’avant la sonde, non', () => {
+  const base = { kpi: {}, depots: [depotAFaire('a')], libs: [] }
+  assert.deepEqual(aFaire({ ...base, sonde: { date: '2026-11-07T03:00:00Z', manquante: true } }), [{ cle: 'sonde', n: 1, details: [{ date: '2026-11-07T03:00:00Z' }] }])
+  assert.deepEqual(aFaire({ ...base, sonde: null }), [{ cle: 'sonde', n: 1, details: [{ jamais: true }] }])
+  assert.deepEqual(aFaire({ ...base, sonde: { date: '2026-11-07T12:00:00Z', manquante: false } }), [])
+  // pas de clé `sonde` : une page publiée avant elle n'a rien à en dire
+  assert.deepEqual(aFaire(base), [])
+  // et le filtre de familles ne la retire pas : elle n'appartient à aucun dépôt
+  const r = aFaire({ ...base, sonde: null })
+  assert.equal(filtreAFaire(r, base.depots, { familles: new Set(['pwa']) }).length, 1)
+})
+
+test('sondeManquante : au-delà de six heures entre la sonde et le passage, et pas avant', () => {
+  const ref = Date.parse('2026-11-07T12:00:00Z')
+  const avant = (min) => new Date(ref - min * 60000).toISOString()
+  assert.equal(sondeManquante(avant(SEUIL_SONDE_MIN), ref), false)
+  assert.equal(sondeManquante(avant(SEUIL_SONDE_MIN + 1), ref), true)
+  assert.equal(sondeManquante(null, ref), false)
+  assert.equal(sondeManquante('pas une date', ref), false)
+  assert.equal(SEUIL_SONDE_MIN, 6 * 60)
+})
+
+test('fraicheurSonde : un cron en retard ne la rend PAS manquante, une sonde qui échoue si', () => {
+  const D = { genere: '2026-09-23T01:00:00Z', sonde: { date: '2026-09-23T01:00:00Z' } }
+  // Le relevé n'est pas repassé depuis neuf heures (trou ordinaire du cron),
+  // mais la sonde est partie avec lui : elle n'est pas « manquante » — c'est
+  // à `fraicheur()` de dire la page ancienne.
+  assert.deepEqual(fraicheurSonde(D, { genere: D.genere, verifie: minutesAvant(9 * 60), sonde: minutesAvant(9 * 60 + 2) }, T0), { minutes: 9 * 60 + 2, manquante: false })
+  // Le relevé est passé il y a dix minutes, sans sonde depuis sept heures :
+  // c'est elle qui ne tourne plus.
+  assert.equal(fraicheurSonde(D, { genere: D.genere, verifie: minutesAvant(10), sonde: minutesAvant(7 * 60) }, T0).manquante, true)
+  // Le CDN peut servir un etat.json plus ancien que la page : la plus récente des deux dates fait foi.
+  assert.equal(fraicheurSonde({ genere: minutesAvant(5), sonde: { date: minutesAvant(5) } }, { verifie: minutesAvant(30), sonde: minutesAvant(30) }, T0).minutes, 5)
+  // Rien ne date la sonde : rien à dire.
+  assert.equal(fraicheurSonde({ genere: D.genere }, null, T0), null)
+  assert.equal(fraicheurSonde(null, null, T0), null)
+})
+
+test('raisonCourte : la première raison, et le nombre des autres — dans la langue lue', () => {
+  const fr = traducteur('fr')
+  const en = traducteur('en')
+  assert.equal(raisonCourte([ARCADE_401], fr), '1 requête en échec — supabase:wksb… /rest/v1/rpc/jeu_public HTTP 401')
+  assert.equal(raisonCourte([{ cle: 'react' }, ARCADE_401, { cle: 'csp', n: 2, exemple: 'x' }], fr), "React n'a pas monté : le contenu servi aux robots est resté (+ 2 autres raisons)")
+  assert.equal(raisonCourte([{ cle: 'http', code: 404 }], en), 'the page answers HTTP 404')
+  assert.equal(raisonCourte([], fr), '')
+  assert.equal(raisonCourte(undefined, fr), '')
+  // chaque raison que le verdict sait rendre a sa phrase, sans marqueur oublié
+  for (const r of [{ cle: 'chargement', erreur: 'e' }, { cle: 'ecranErreur' }, { cle: 'backend', exemple: 'h' }]) assert.doesNotMatch(phraseRaison(r, fr), /[{}]|sonde\.raison/)
 })

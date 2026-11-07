@@ -421,7 +421,11 @@ test('etatPublie date la page publiée ET le passage, séparément', () => {
   assert.deepEqual(etatPublie({ genere: '2026-09-23T09:57:45.678Z' }, maintenant), {
     genere: '2026-09-23T09:57:45.678Z',
     verifie: '2026-09-23T14:17:30.000Z',
+    sonde: null,
   })
+  // La sonde « fonctionne » du passage, datée à part : la page servie peut
+  // être plus ancienne qu'elle quand ses verdicts n'ont pas bougé.
+  assert.equal(etatPublie({ genere: '2026-09-23T09:57:45.678Z' }, maintenant, '2026-09-23T14:15:02.000Z').sonde, '2026-09-23T14:15:02.000Z')
   // Sans page à décrire, `genere` reste nul plutôt qu'inventé.
   assert.equal(etatPublie(null, maintenant).genere, null)
 })
@@ -439,6 +443,37 @@ test('changementsDepuis relève le site qui tombe et celui qui revient — pas u
       ['site-revenu', 'b'],
     ],
   )
+})
+
+test('changementsDepuis relève l’app qui cesse de fonctionner, et celle qui repasse — sur deux sondes', () => {
+  const s = (etat) => ({ etat, raisons: [] })
+  const av = avec([{ nom: 'a', sonde: s('ok') }, { nom: 'b', sonde: s('ko') }, { nom: 'c' }])
+  const ap = avec([{ nom: 'a', sonde: s('ko') }, { nom: 'b', sonde: s('ok') }, { nom: 'c', sonde: s('ko') }])
+  // `c` n'était pas sondée : la première sonde n'annonce pas toutes les apps.
+  assert.deepEqual(
+    changementsDepuis(av, ap).map((x) => [x.type, x.depot]),
+    [
+      ['fonctionne-ko', 'a'],
+      ['fonctionne-ok', 'b'],
+    ],
+  )
+})
+
+test('fond ignore la date de la sonde, pas ses verdicts ni son retard', () => {
+  const a = modeleMinimal()
+  a.sonde = { date: '2026-11-07T10:17:00.000Z', apps: 1, ko: 0, manquante: false }
+  a.depots[0].sonde = { etat: 'ok', raisons: [] }
+  const b = JSON.parse(JSON.stringify(a))
+  b.sonde.date = '2026-11-07T11:17:00.000Z'
+  assert.equal(fond(a), fond(b), 'une sonde qui repasse sans rien changer ne republie pas la page')
+  const c = JSON.parse(JSON.stringify(a))
+  c.depots[0].sonde = { etat: 'ko', raisons: [{ cle: 'react' }] }
+  assert.notEqual(fond(a), fond(c), 'une app qui cesse de fonctionner republie')
+  const d = JSON.parse(JSON.stringify(a))
+  d.sonde.manquante = true
+  assert.notEqual(fond(a), fond(d), 'une sonde qui devient manquante republie — une fois')
+  // et `fond` ne touche pas au modèle qu'on lui passe
+  assert.equal(a.sonde.date, '2026-11-07T10:17:00.000Z')
 })
 
 test('changementsDepuis relève la production qui décroche — si elle était DÉJÀ mesurée', () => {

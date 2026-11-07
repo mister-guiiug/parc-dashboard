@@ -1,1 +1,4 @@
 index.local.html
+node_modules/
+# sortie de scripts/sonde.mjs
+sonde/
