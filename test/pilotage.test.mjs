@@ -81,6 +81,30 @@ test('cockpitProd range les signaux', () => {
   assert.equal(c.sitesDown.length, 1)
   assert.equal(c.mortes.length, 1)
   assert.equal(c.fugaces.length, 1)
+  assert.deepEqual(c.nonFonctionnelles, [])
+})
+
+test('cockpitProd et scoreSante : répondre sans fonctionner ne vaut pas mieux que ne pas répondre', () => {
+  const raisons = [{ cle: 'requetes', n: 1, exemple: 'supabase:wksb… /rest/v1/rpc/jeu_public HTTP 401' }]
+  const arcade = { nom: 'miss-arcade', compte: { vert: 5, rouge: 0 }, pages: { url: 'https://x', ok: true }, prod: { etat: 'aJour' }, sonde: { etat: 'ko', raisons } }
+  assert.deepEqual(cockpitProd([arcade, { nom: 'b', sonde: { etat: 'ok', raisons: [] } }]).nonFonctionnelles, [{ depot: 'miss-arcade', raisons }])
+  // le « 200 / à jour » de la ligne Pages ne doit plus lui valoir 20 sur 20
+  assert.equal(scoreSante(arcade).axes.prod, 0)
+  assert.equal(scoreSante({ ...arcade, sonde: { etat: 'ok', raisons: [] } }).axes.prod, 20)
+})
+
+test('etatDuParc : la ligne « fonctionne » — inconnue sans sonde, critique sur un échec, en attention si manquante', () => {
+  const app = (nom, etat) => ({ nom, compte: { vert: 1, rouge: 0 }, workflows: [{ etat: 'vert' }], pages: { url: 'https://' + nom, ok: true }, sonde: { etat, raisons: etat === 'ko' ? [{ cle: 'react' }] : [] } })
+  const ligne = (depots, sonde) => etatDuParc(depots, { renovateLu: true, sonde }).find((x) => x.cle === 'fonctionne')
+  const sonde = { date: '2026-11-07T12:17:00Z', apps: 2, ko: 0, manquante: false }
+  assert.deepEqual(ligne([app('a', 'ok'), app('b', 'ok')], sonde), { cle: 'fonctionne', niveau: 'ok', n: 0, total: 2, manquante: false, ancre: 'afaire' })
+  const ko = ligne([app('a', 'ok'), app('b', 'ko')], { ...sonde, manquante: true })
+  assert.equal(ko.niveau, 'critique', 'un échec passe devant une sonde manquante')
+  assert.equal(ko.n, 1)
+  assert.equal(ko.ancre, 'cockpit')
+  assert.equal(ligne([app('a', 'ok')], { ...sonde, manquante: true }).niveau, 'attention')
+  assert.equal(ligne([app('a', 'ok')], null).niveau, 'inconnu')
+  assert.equal(ligne([app('a', 'ok')], undefined).niveau, 'inconnu')
 })
 
 test('salleRenovate agrège et classe', () => {
@@ -230,6 +254,8 @@ test('etatDuParc : chaque élément dit son niveau, et mène à sa section', () 
       ['ci', 'ok'],
       ['production', 'ok'],
       ['sites', 'ok'],
+      // sans sonde lue, « inconnu » — jamais un vert par défaut
+      ['fonctionne', 'inconnu'],
       ['securite', 'inconnu'],
       ['pr', 'ok'],
       ['renovate', 'ok'],

@@ -7,6 +7,10 @@
   "license": "MIT",
   "scripts": {
     "releve": "node scripts/releve.mjs",
+    "sonde": "node scripts/sonde.mjs",
     "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
   }
 }

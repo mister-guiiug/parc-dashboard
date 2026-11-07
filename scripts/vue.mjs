@@ -680,6 +680,67 @@ export function fraicheur(genere, etat, maintenant, seuilPanneMin = SEUIL_PANNE_
   }
 }
 
+/* ── La sonde « fonctionne » : son âge, et ses raisons ──────────────────── */
+
+/**
+ * AU-DELÀ DE SIX HEURES, LE RELEVÉ « FONCTIONNE » EST DIT MANQUANT.
+ *
+ * Six heures, et non les douze de `SEUIL_PANNE_MIN` : ce seuil-ci ne se
+ * mesure PAS à l'horloge du lecteur, mais entre deux passages du même
+ * workflow — la sonde et le relevé partent ensemble. Quand les deux tournent,
+ * la sonde a quelques minutes au moment du relevé, quel que soit le retard du
+ * cron ; elle ne vieillit que si SON job échoue pendant que le relevé passe.
+ * Les trous du cron (jusqu'à 10 h 38 du 1er au 5/11/2026), qui ont fait
+ * monter l'autre seuil, ne peuvent donc pas le faire sonner. Le relevé qui ne
+ * passe plus du tout, lui, reste l'affaire de `fraicheur()`.
+ */
+export const SEUIL_SONDE_MIN = 6 * 60
+
+/** Une sonde datée `date` est-elle manquante au moment `reference` ? */
+export function sondeManquante(date, reference, seuilMin = SEUIL_SONDE_MIN) {
+  const t = typeof date === 'string' ? Date.parse(date) : NaN
+  const r = typeof reference === 'string' ? Date.parse(reference) : reference
+  if (!Number.isFinite(t) || !Number.isFinite(r)) return false
+  return r - t > seuilMin * 60000
+}
+
+/**
+ * L'ÂGE DE LA SONDE, VU DE LA PAGE OUVERTE. `etat.json` porte la date de la
+ * dernière sonde (`sonde`) et celle du dernier passage (`verifie`) : la page
+ * en ligne n'est republiée que quand le fond bouge, mais la sonde, elle,
+ * repasse chaque fois. La plus récente des deux sources fait foi — le CDN
+ * peut servir un `etat.json` en retard sur la page.
+ *
+ * `null` quand rien ne date la sonde : la ligne d'état dit alors « non sondé ».
+ */
+export function fraicheurSonde(D, etat, maintenant, seuilMin = SEUIL_SONDE_MIN) {
+  const t = (iso) => {
+    const x = typeof iso === 'string' ? Date.parse(iso) : NaN
+    return Number.isFinite(x) ? x : -Infinity
+  }
+  const date = Math.max(t(etat?.sonde), t(D?.sonde?.date))
+  if (!Number.isFinite(date)) return null
+  const reference = Math.max(t(etat?.verifie), t(D?.genere), date)
+  return {
+    minutes: Math.max(0, Math.floor((maintenant - date) / 60000)),
+    manquante: reference - date > seuilMin * 60000,
+  }
+}
+
+/** Une raison de la sonde, en phrase — la même sur la page et dans l'issue. */
+export const phraseRaison = (r, T) => T('sonde.raison.' + r?.cle, r || {})
+
+/**
+ * LA RAISON COURTE d'une app qui ne fonctionne pas : la première, et le
+ * nombre des autres. Les raisons viennent dans l'ordre de `RAISONS_SONDE`
+ * (`fonctionne.mjs`), du plus profond au plus visible.
+ */
+export function raisonCourte(raisons, T) {
+  const liste = raisons || []
+  if (!liste.length) return ''
+  return phraseRaison(liste[0], T) + (liste.length > 1 ? T('sonde.raison.autres', { n: liste.length - 1 }) : '')
+}
+
 /* ── Le retard d'une librairie : sa gravité, et son âge ─────────────────── */
 
 /** Les gravités d'un retard, de la plus légère à la plus lourde. */
@@ -835,8 +896,15 @@ export const ORDRE_A_FAIRE = [
   'graves',
   'rouges',
   'sites',
+  // UNE APP QUI RÉPOND SANS FONCTIONNER est aussi cassée qu'un site tombé —
+  // et plus trompeuse : trois jours durant, jusqu'au 07/11/2026, le jeu public de miss-arcade
+  // renvoyait 401 sous un « 200 / à jour ».
+  'fonctionne',
   'mortes',
   'introuvables',
+  // Sans sonde fraîche, les verdicts ci-dessus vieillissent : à dire avant
+  // tout le reste de ce qui demande attention.
+  'sonde',
   'prod',
   'fugaces',
   'doublons',
@@ -896,6 +964,15 @@ export function aFaire(D) {
     'sites',
     depots.filter((d) => d.pages?.url && d.pages.ok === false).map((d) => ({ depot: d.nom, url: d.pages.url })),
   )
+  pousse(
+    'fonctionne',
+    depots.filter((d) => d.sonde?.etat === 'ko').map((d) => ({ depot: d.nom, raisons: d.sonde.raisons || [] })),
+  )
+  // `null` EXPLICITE et non absent : le relevé pose toujours `sonde`, à `null`
+  // quand aucune sonde n'a jamais été lue ; un modèle d'avant la sonde n'a pas
+  // la clé, et n'a rien à en dire.
+  if (D?.sonde === null) pousse('sonde', [{ jamais: true }])
+  else if (D?.sonde?.manquante) pousse('sonde', [{ date: D.sonde.date }])
   pousse(
     'mortes',
     depots.filter((d) => d.prod?.mortes?.length).map((d) => ({ depot: d.nom, fichiers: d.prod.mortes })),
@@ -1118,6 +1195,7 @@ export function phraseChangement(c, T) {
   if (c.type === 'rulesets') return [T('changements.rulesets'), T('changements.rulesets.suite', { de: c.de, a: c.a })]
   if (c.type === 'site-tombe' || c.type === 'site-revenu') return [c.depot, T('changements.' + c.type)]
   if (c.type === 'prod-retard') return [c.depot, T('changements.prod-retard', { n: c.retard })]
+  if (c.type === 'fonctionne-ko' || c.type === 'fonctionne-ok') return [c.depot, T('changements.' + c.type)]
   if (c.type === 'depot-entre') return [c.depot, T('changements.depot-entre')]
   return [c.depot, T('changements.depot-sorti')]
 }
