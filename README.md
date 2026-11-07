@@ -19,18 +19,19 @@ Elle se régénère **toute seule** : le cron de [`releve.yml`](.github/workflow
 | Plusieurs pipelines cassent-ils pour la même raison ? | bandeau de motif partagé, en tête de cette section |
 | Quels workflows tournent, et avec quel historique ? | les cinq derniers runs, en bande, sur chaque carte |
 | Le site déployé répond-il vraiment ? | pastille « site en ligne » (requête HTTP réelle, pas l'état déclaré par l'API) |
+| L'app FONCTIONNE-t-elle, ou répond-elle seulement ? | ligne « Apps » de l'état du parc, bloc « Répondent mais ne fonctionnent pas » de Production, ligne « Sonde » de chaque carte — voir « La sonde « fonctionne » » |
 | Qui est en retard sur quelle librairie ? | section « Librairies », ligne dépliable |
 | Une librairie du parc est-elle encore entretenue ? | section « Librairies dormantes » |
 | Qu'est-ce qui a changé depuis la photo du jour ? | bandeau « Ce qui a bougé », sous les tuiles |
 | La page est-elle à jour ? | ligne « Vérifié il y a … » sous le titre, et bandeau « relevé plus récent » en tête |
-| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, production, textes en double, PR, socle à publier, majeurs, correctifs, socle, Renovate |
+| Qu'est-ce que je dois FAIRE ? | bloc « À faire » en tête : rouges, sites, apps qui ne fonctionnent pas, sonde manquante, production, textes en double, PR, socle à publier, majeurs, correctifs, socle, Renovate |
 | Comment demander une montée sans ambiguïté ? | bouton « Copier la demande » : nom exact, cible, gravité, chaque dépôt et sa version |
 | Comment faire faire la montée par une IA ? | bouton « Copier le prompt », dans Librairies : les consignes, puis les montées des lignes affichées |
 | Ce qui tourne en ligne est-il ce qui est fusionné ? | ligne « Production » de chaque carte (`version.json` comparé à `main`) |
 | Une URL de production va-t-elle mourir ? | morceaux fugaces et URL mortes, sur la carte et dans « À faire » |
 | Le parc publie-t-il le même texte sur plusieurs pages ? | rubrique « textes publiés sur plusieurs pages » de « À faire » — voir « Les textes en double » |
 | Qu'attend Renovate, et que ne voit-il pas ? | ligne « Renovate » de chaque carte, et deux rubriques de « À faire » |
-| Comment être prévenu sans ouvrir la page ? | flux Atom `changements.xml`, lien sous le titre |
+| Comment être prévenu sans ouvrir la page ? | une **issue par app en panne** dans ce dépôt, ouverte et fermée par le workflow — GitHub notifie le propriétaire ; et le flux Atom `changements.xml`, lien sous le titre |
 | Comment un programme lit-il l'état du parc ? | `donnees.json` (le modèle de la page) et `a-faire.json` (la liste « À faire »), publiés à côté d'elle ; le serveur MCP [`mister-parc-mcp`](https://github.com/mister-guiiug/mister-parc-mcp) les sert |
 | Comment aller droit à un dépôt ou à une librairie ? | recherche de la barre fixe — touche `/` |
 | Est-ce que ça s'améliore ? | courbe et écart daté (« +49 depuis le 12 sept. ») sous les tuiles qui en portent une |
@@ -151,6 +152,43 @@ plages npm, dernière d'une série, dossiers, `.nvmrc`, plafonds de moteur)
 vivent dans [`scripts/collecte.mjs`](scripts/collecte.mjs), éprouvées par
 [`test/collecte.test.mjs`](test/collecte.test.mjs) — dont un extrait RÉEL d'un
 tableau Renovate. Ce module n'est pas inséré dans la page.
+
+## La sonde « fonctionne »
+
+Jusqu'au 07/11/2026, la page disait si une app **répond** — HTTP 200, `version.json` égal à `main` — et pas si elle **fonctionne**. Trois jours durant, jusqu'au 07/11, le jeu public de miss-arcade renvoyait 401 à chaque visiteur (droits anonymes refusés par la base) : la coquille était servie, React montait, l'appel qui fait vivre l'écran échouait derrière, et la page affichait « 200 / à jour ». Elle n'envoyait d'ailleurs aucune alerte.
+
+À chaque passage du relevé, le job `sonder` de [`releve.yml`](.github/workflows/releve.yml) ouvre chaque app web du catalogue (`FAMILY_APPS` de `apps-catalog.js`, relu dans le socle comme pour les maturités) dans le Google Chrome du runner, **sans service worker** — la sonde juge ce que le réseau sert, pas un précache d'hier —, sur un écran de téléphone. Une app **fonctionne** quand :
+
+- sa page se charge (2xx) ;
+- React a **remplacé** le contenu servi aux robots (`data-dwc="served-content"`) — le seul contenu qu'aucun script ne produit, donc la seule preuve que le JavaScript a tourné ;
+- elle n'affiche pas son écran d'erreur (`data-dwc="error-boundary"`) ;
+- aucune violation de CSP (une politique `Report-Only` ne compte pas : elle ne bloque rien), aucune requête en échec (≥ 400, ou erreur réseau) ;
+- les projets Supabase que son JavaScript nomme répondent (`/auth/v1/health` sans clé : 401 dit un projet vivant ; un nom introuvable ou un 5xx, un projet supprimé ou en pause).
+
+Sinon elle « répond mais ne fonctionne pas », et la page dit **la raison courte** : « 1 requête en échec — supabase:wksb… /rest/v1/rpc/jeu_public HTTP 401 ». Les hôtes de backend sont masqués (nature et quatre caractères) : la page et les issues sont publiques. Les règles vivent dans [`scripts/fonctionne.mjs`](scripts/fonctionne.mjs), éprouvées par [`test/fonctionne.test.mjs`](test/fonctionne.test.mjs) ; [`scripts/sonde.mjs`](scripts/sonde.mjs) ne fait qu'observer. Vingt-deux apps se sondaient en 35 secondes le 07/11/2026, trois à la fois.
+
+**Lecture seule.** La mesure d'audience (PostHog, GA, Sentry), toute création de session et toute écriture vers un tiers sont bloquées. Sauf les lectures qui voyagent en POST : la première sonde, écrite le même jour, bloquait tout POST — elle ne voyait donc pas la panne qui l'a fait écrire, et en inventait une autre (« jeu introuvable, Failed to fetch »), puisque le jeu de miss-arcade se lit par `POST /rest/v1/rpc/…`. Une RPC Supabase et l'écoute Firestore passent ; une écriture dans une table, dans un seau ou par `Write/channel` reste bloquée.
+
+**Ce qui ne compte pas.** Les erreurs de console sont jointes, à titre indicatif, mais ne font pas le verdict : sans service worker, mister-cim10 et mister-doc journalisent « Cannot read properties of undefined (reading 'waiting') » — l'échec d'un worker que la sonde a elle-même bloqué. Une requête **annulée** (`ERR_ABORTED`) n'est pas une requête en échec.
+
+**Une app en échec est retentée, seule,** avant d'être dite en panne : trois apps de front sur un runner chargé peuvent rater un montage, et un hoquet du réseau une requête. Une alerte qui sonne pour rien apprend à ne plus la lire.
+
+**L'alerte : une issue par app.** [`scripts/alerte.mjs`](scripts/alerte.mjs) ouvre une issue dans ce dépôt quand une app tombe (« Sonde : miss-x ne fonctionne pas », libellé `sonde`) ; la met à jour quand la panne change — avec un commentaire si sa **nature** change, sans commentaire pour un autre exemple de la même ; la **rouvre** si l'app retombe ; la **ferme** quand l'app repasse, ou quand elle quitte le catalogue. L'issue est retrouvée par une marque de son corps (`<!-- sonde-fonctionne:miss-x -->`), pas par son libellé : un libellé refusé ne doit pas faire ouvrir une issue de plus à chaque heure. GitHub notifie le propriétaire comme pour toute issue de son dépôt. `node scripts/alerte.mjs sonde/sonde.json --a-blanc` dit ce qu'il ferait sans rien toucher.
+
+**Le job ne rougit que si la SONDE est en panne** — catalogue illisible, navigateur introuvable, ou témoin (`https://mister-guiiug.github.io/`) injoignable : sans ce témoin, une coupure du réseau du runner ferait « tomber » toutes les apps d'un coup, chacune avec son issue. Le relevé passe alors quand même, et **reprend les verdicts de la page en ligne avec leur date** : une sonde ratée n'efface rien, elle vieillit.
+
+**Un relevé « fonctionne » manquant depuis plus de six heures se dit** : dans la ligne d'état (« Apps : relevé « fonctionne » manquant depuis plus de 6 h »), dans « À faire », et sous le titre (« dernière sonde des apps il y a 7 heures »). Six heures et non les douze de la fraîcheur de la page, parce que ce seuil-ci ne se mesure pas à l'horloge du lecteur mais **entre deux passages du même workflow** : la sonde part avec le relevé, et n'a que quelques minutes quand il publie, quel que soit le retard du cron. Elle ne vieillit que si SON job échoue pendant que le relevé passe. Les trous du cron, qui ont fait passer l'autre seuil de six à douze heures, ne peuvent donc pas la faire sonner ; un relevé qui ne passe plus du tout reste l'affaire de la fraîcheur de la page. `etat.json` porte la date de la dernière sonde (`sonde`) : la page servie n'est republiée que quand un verdict change, la sonde, elle, repasse à chaque fois.
+
+**Ce que la sonde ne voit toujours pas :**
+
+- **derrière la connexion** — elle ne crée aucune session, donc ne voit que l'écran d'un visiteur anonyme : un tableau de bord qui casse une fois connecté passe pour sain ;
+- **le chemin d'écriture** — elle bloque les écritures, et ne fait aucun geste : enregistrer, envoyer un formulaire, jouer, inviter. Une RLS qui refuse l'écriture, une Edge Function en panne ne se voient pas ;
+- **le hors-ligne** — elle tourne sans service worker : un précache cassé, une app qui ne démarre plus sans réseau (qowa, settle et ticket-pwa le 05/11/2026) lui échappent ;
+- **toute autre page que l'accueil**, et tout ce qui n'arrive qu'après un délai, un défilement ou une notification ;
+- **un autre navigateur que Chrome** (Safari d'iPhone en tête) ;
+- **ce que fait une RPC appelée à l'ouverture** — elle passe, comme pour chaque visiteur : une app qui écrirait dès l'accueil le ferait aussi à chaque passage de la sonde.
+
+Éprouver en local, en lecture seule : `npm ci`, puis `node scripts/sonde.mjs --canal chrome` (le Chrome installé ; `--apps miss-arcade` pour une seule, `--catalogue <fichier>` pour un catalogue local), et `node scripts/releve.mjs --sortie <page> --sonde sonde/sonde.json` pour la page.
 
 ## La matrice des écarts
 
@@ -421,7 +459,7 @@ corrigée — qui ne change aucune donnée — n'atteindrait jamais la page publ
 node scripts/releve.mjs
 ```
 
-Un seul script, sans dépendance : `PARC_TOKEN`, sinon `GITHUB_TOKEN`, dans
+Un seul script, sans dépendance (seule la sonde, à part, demande `playwright-core`) : `PARC_TOKEN`, sinon `GITHUB_TOKEN`, dans
 l'environnement, environ 400 appels d'API (384 à 405 sur les passages des 27 et 28/09/2026 ; un de plus par PR ouverte, pour sa CI, et un par dépôt dont la tête a bougé, pour ses dossiers), et `index.html` est réécrit.
 
 | Option | Effet | Écrit dans |
@@ -433,8 +471,9 @@ l'environnement, environ 400 appels d'API (384 à 405 sur les passages des 27 et
 | `--precedente <url>` | prend la page **en ligne** pour état précédent — voir ci-dessous | — |
 | `--publier <dossier>` | écrit le site à déployer : `index.html`, `etat.json`, `historique.json`, `donnees.json`, `a-faire.json`, et `changements.xml` avec `--precedente` | `<dossier>` |
 | `--instantane` | avec `--publier`, écrit aussi la photo du jour dans le dépôt, quand un jour nouveau apparaît | `index.html`, `historique.json` |
+| `--sonde <fichier>` | les verdicts de la sonde « fonctionne » ; absent ou illisible, ceux de la page précédente sont repris, avec leur date | — |
 
-La CI lance `--precedente <url de la page> --publier _site --instantane`.
+La CI lance `--precedente <url de la page> --publier _site --instantane --sonde sonde/sonde.json`, après le job `sonder` — qu'elle attend sans l'exiger : une sonde en panne ne fige pas la page, et la publication ne dépend que du relevé.
 
 ### Comment la page est publiée
 
