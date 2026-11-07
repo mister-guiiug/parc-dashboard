@@ -52,8 +52,62 @@ jobs:
           node-version-file: .nvmrc
       - run: npm test
 
+  # RÉPONDRE N'EST PAS FONCTIONNER. Le relevé dit qu'une app répond 200 et sert
+  # `main` ; trois jours durant, jusqu'au 07/11/2026, le jeu public de miss-arcade faisait cela, et
+  # renvoyait 401 à chaque visiteur. Ce job ouvre chaque app du catalogue dans
+  # Chrome, sans service worker, et juge : React a-t-il monté, une requête
+  # a-t-elle échoué, la CSP a-t-elle refusé quelque chose ? Voir
+  # `scripts/sonde.mjs` et `scripts/fonctionne.mjs`.
+  #
+  # Une app en panne ouvre une issue ici (une par app, fermée quand elle
+  # repasse) ; c'est l'issue qui notifie, pas ce job. Le job ne rougit que si
+  # la SONDE est en panne — le relevé passe alors quand même, reprend les
+  # verdicts d'avant, et la page dit depuis quand ils datent.
+  sonder:
+    name: Sonde « fonctionne »
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # ouvrir, tenir à jour et fermer une issue par app en panne — rien d'autre
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # `playwright-core` seul, sans navigateur à télécharger : le Google
+      # Chrome des runners suffit (SONDE_CANAL).
+      - run: npm ci
+
+      - name: Sonder les apps du catalogue
+        id: sonde
+        env:
+          SONDE_CANAL: chrome
+        run: node scripts/sonde.mjs --sortie sonde/sonde.json
+
+      - name: Alerter par issue
+        if: steps.sonde.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/alerte.mjs sonde/sonde.json
+
+      - uses: actions/upload-artifact@v4
+        if: steps.sonde.outcome == 'success'
+        with:
+          name: sonde
+          path: sonde/sonde.json
+          retention-days: 7
+
   relever:
-    needs: regles
+    # La sonde est attendue, pas exigée : en panne, elle ne doit pas figer la
+    # page. Le relevé reprend alors les verdicts de la page en ligne, datés.
+    needs: [regles, sonder]
+    if: ${{ !cancelled() && needs.regles.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -65,6 +119,13 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+
+      # Absent si la sonde a échoué : le relevé le dit et reprend.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sonde
+          path: sonde
 
       # LA PAGE N'EST PLUS COMMITÉE : elle part sur Pages comme artefact (job
       # suivant). L'état précédent — ce qui décide s'il y a quelque chose à
@@ -82,6 +143,7 @@ jobs:
           --precedente "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
           --publier _site
           --instantane
+          --sonde sonde/sonde.json
 
       # LA PHOTO DU JOUR : le premier passage qui voit un jour nouveau commite
       # l'`index.html` et le `historique.json` du dépôt — repère de « ce qui a
@@ -115,6 +177,9 @@ jobs:
   # plus.
   publier:
     needs: relever
+    # Sans cette condition, une sonde en échec — un job EN AMONT de `relever` —
+    # suffirait à sauter la publication : `success()` regarde toute la chaîne.
+    if: ${{ !cancelled() && needs.relever.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

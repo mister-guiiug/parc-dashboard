@@ -266,6 +266,11 @@ export function fond(modele) {
   for (const d of o.depots || []) {
     if (d.pages) delete d.pages.ms
   }
+  // LA DATE DE LA SONDE avance à chaque passage, ses verdicts presque jamais :
+  // la compter republierait une page identique toutes les heures. La page
+  // l'apprend par `etat.json` (`sonde`). Le drapeau `manquante`, lui, compte :
+  // il ne bascule qu'une fois.
+  if (o.sonde) delete o.sonde.date
   return JSON.stringify(o)
 }
 
@@ -343,8 +348,10 @@ export function joursAbsents(reference, historique) {
  * identique depuis le matin ne saurait pas dire si le relevé a tourné depuis
  * ou s'il est en panne ; c'est `fraicheur()` de `vue.mjs` qui les lit.
  */
-export function etatPublie(modele, maintenant) {
-  return { genere: modele?.genere ?? null, verifie: new Date(maintenant).toISOString() }
+export function etatPublie(modele, maintenant, sonde = null) {
+  // `sonde` date la dernière sonde « fonctionne » — celle du passage, pas
+  // celle de la page servie, qui peut être plus ancienne quand rien n'a bougé.
+  return { genere: modele?.genere ?? null, verifie: new Date(maintenant).toISOString(), sonde: sonde ?? null }
 }
 
 // LE RELEVÉ PRÉCÉDENT ÉTAIT DÉJÀ LU, PUIS JETÉ. Il servait uniquement à décider
@@ -381,6 +388,11 @@ export function changementsDepuis(av, ap) {
     // mesurait DÉJÀ : sans cette condition, le premier relevé qui la lit
     // annoncerait d'un coup tous les retards comme des nouveautés.
     if (a.prod && d.prod && a.prod.etat !== 'retard' && d.prod.etat === 'retard') out.push({ type: 'prod-retard', depot: nom, retard: d.prod.retard })
+    // Une app qui cesse de fonctionner, ou qui repasse — sur deux sondes
+    // relevées, pour la même raison : la première sonde ne doit pas annoncer
+    // toutes les apps comme des nouveautés.
+    if (a.sonde?.etat === 'ok' && d.sonde?.etat === 'ko') out.push({ type: 'fonctionne-ko', depot: nom })
+    if (a.sonde?.etat === 'ko' && d.sonde?.etat === 'ok') out.push({ type: 'fonctionne-ok', depot: nom })
   }
 
   const lA = new Map((av.libs || []).map((l) => [l.paquet, l]))
@@ -410,6 +422,7 @@ export function changementsDepuis(av, ap) {
   const rang = {
     'ci-rouge': 0,
     'site-tombe': 0,
+    'fonctionne-ko': 0,
     alertes: 1,
     scanning: 1,
     envManifest: 1,
@@ -419,6 +432,7 @@ export function changementsDepuis(av, ap) {
     'depot-sorti': 3,
     'ci-vert': 4,
     'site-revenu': 4,
+    'fonctionne-ok': 4,
     reveillee: 5,
     amont: 6,
     'depot-entre': 7,

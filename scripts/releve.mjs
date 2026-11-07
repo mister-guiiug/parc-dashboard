@@ -17,7 +17,9 @@
 //                 commit sur `main` ;
 //   --instantane  le premier passage d'un jour nouveau réécrit aussi
 //                 l'`index.html` et le `historique.json` du dépôt, que la CI
-//                 commite : la photo du jour (voir plus bas).
+//                 commite : la photo du jour (voir plus bas) ;
+//   --sonde       le fichier de la sonde « fonctionne » (`scripts/sonde.mjs`),
+//                 que le job `sonder` du même workflow vient d'écrire.
 //
 // Tout vient de l'API GitHub, de raw.githubusercontent et du registre npm : le
 // runner n'a aucune copie de travail sous la main. Le mode --local n'ajoute que
@@ -43,7 +45,9 @@ import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
 import { bardeaux, groupesDeDoublons, proprietaire, texteRedige, titreDe, urlsDuPlan } from './doublons.mjs'
 import { PLAFOND_FICHIERS, SOCLE_PAQUET, VERSION_MESURE, brutsDepuisFichiers, estReutilisable, fichiersAScanner, fichiersDuSocle, grapheDuSocle, importesDe, offreDuSocle, outilsDuReutilisable, rattache, usageReprenable } from './socle-usage.mjs'
 // Le flux Atom dit les changements avec les MÊMES phrases que la page.
-import { phraseChangement } from './vue.mjs'
+import { phraseChangement, sondeManquante } from './vue.mjs'
+// La sonde « fonctionne » : ses verdicts, repris ou frais. Voir `scripts/fonctionne.mjs`.
+import { lisSonde, verdictsDuReleve } from './fonctionne.mjs'
 import { aFairePublie } from './pilotage.mjs'
 import { traducteur } from './libelles.mjs'
 
@@ -66,9 +70,11 @@ const valeurDe = (option) => (args.includes(option) ? args[args.indexOf(option) 
 const URL_PUBLIEE = valeurDe('--precedente')
 const DOSSIER_PUBLIE = valeurDe('--publier')
 const INSTANTANE = args.includes('--instantane')
+const FICHIER_SONDE = valeurDe('--sonde')
 for (const [option, valeur] of [
   ['--precedente', URL_PUBLIEE],
   ['--publier', DOSSIER_PUBLIE],
+  ['--sonde', FICHIER_SONDE],
 ]) {
   // `--publier --instantane` prendrait « --instantane » pour un dossier.
   if (args.includes(option) && (!valeur || valeur.startsWith('--'))) {
@@ -831,6 +837,38 @@ await enLot(sites, 8, async (d) => {
 })
 for (const d of depots) if (!d.pages) d.pages = d.pagesUrl ? { url: d.pagesUrl, code: null, ok: null } : null
 
+/* ------------------------------------------- la sonde « fonctionne » */
+
+/**
+ * RÉPONDRE N'EST PAS FONCTIONNER. Ce qui précède dit qu'un site répond 200 et
+ * sert `main` ; trois jours durant, jusqu'au 07/11/2026, le jeu public de miss-arcade faisait
+ * exactement cela, et renvoyait 401 à chaque visiteur. La sonde
+ * (`scripts/sonde.mjs`, job `sonder` du même workflow) ouvre chaque app du
+ * catalogue dans Chromium ; ses verdicts sont lus ici, et rangés sur la carte
+ * du dépôt.
+ *
+ * SANS FICHIER — job en échec, artefact absent —, les verdicts de la page en
+ * ligne sont repris avec LEUR date : une sonde ratée n'efface rien, elle
+ * vieillit, et au-delà de six heures la page le dit (`sondeManquante`).
+ */
+let sondeLue = null
+if (FICHIER_SONDE) {
+  try {
+    sondeLue = lisSonde(JSON.parse(readFileSync(FICHIER_SONDE, 'utf8')))
+    if (!sondeLue) throw new Error('fichier sans verdict lisible')
+  } catch (e) {
+    console.error(`::warning::sonde « fonctionne » illisible (${e.message}) — verdicts repris de la page en ligne`)
+  }
+}
+const verdicts = verdictsDuReleve(sondeLue, avantPublie)
+for (const d of depots) {
+  const v = verdicts.parDepot.get(d.nom)
+  if (v) d.sonde = v
+}
+const sondeDuModele = verdicts.sonde ? { ...verdicts.sonde, manquante: sondeManquante(verdicts.sonde.date, MAINTENANT.getTime()) } : null
+if (sondeDuModele) console.error(`Sonde « fonctionne » du ${sondeDuModele.date}${sondeLue ? '' : ' (reprise)'} : ${sondeDuModele.ko}/${sondeDuModele.apps} app(s) répondent sans fonctionner.`)
+else console.error('  ATTENTION : aucune sonde « fonctionne », ni fraîche ni reprise — la page le dira')
+
 /* ------------------------------------------- les pages publiées en double */
 
 /**
@@ -1410,6 +1448,10 @@ const modele = {
   // le même texte sur plusieurs pages du parc ; `null` quand aucun plan de
   // site n'a pu être lu
   doublons,
+  // la sonde « fonctionne » : sa date (hors du fond), le compte de ses
+  // verdicts et son retard ; `null`, et non absent, quand aucune n'a été lue —
+  // la page distingue « jamais sondé » d'une page d'avant la sonde
+  sonde: sondeDuModele,
 }
 
 /* ------------------------------------------- ce qui a bougé, et depuis quand */
@@ -1613,7 +1655,10 @@ if (DOSSIER_PUBLIE) {
   writeFileSync(join(DOSSIER_PUBLIE, 'index.html'), pageServie)
   await copierModulesCommande(DOSSIER_PUBLIE)
   writeFileSync(join(DOSSIER_PUBLIE, 'historique.json'), JSON.stringify(histo) + '\n')
-  writeFileSync(join(DOSSIER_PUBLIE, 'etat.json'), JSON.stringify(etatPublie(inchange ? avantPublie : modele, MAINTENANT)) + '\n')
+  // La date de la sonde est celle du PASSAGE : la page servie, inchangée,
+  // peut porter des verdicts plus anciens que ceux que la sonde vient de
+  // reconfirmer.
+  writeFileSync(join(DOSSIER_PUBLIE, 'etat.json'), JSON.stringify(etatPublie(inchange ? avantPublie : modele, MAINTENANT, modele.sonde?.date)) + '\n')
 
   // LES DONNÉES DE LA PAGE, LISIBLES SANS LA PAGE. Un programme qui voulait
   // l'état du parc devait télécharger le HTML et en extraire le bloc `donnees`.

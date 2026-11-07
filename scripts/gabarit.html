@@ -307,7 +307,7 @@
             <span class="compteur" id="compteurCockpit"></span>
           </div>
           <p class="chapo" data-t="cockpit.chapo">
-            Déploiements en cours, production en retard, sites hors ligne, URL mortes et morceaux fugaces.
+            Apps qui répondent sans fonctionner, déploiements en cours, production en retard, sites hors ligne, URL mortes et morceaux fugaces.
           </p>
           <div id="corpsCockpit"></div>
         </section>
@@ -983,6 +983,12 @@
         if (x.cle === 'ci') return x.niveau === 'ok' ? T('etatParc.ci.ok', { verts: x.verts, total: x.total }) : T('etatParc.ci.ko', { n: x.n })
         if (x.cle === 'production') return x.niveau === 'ok' ? T('etatParc.production.ok') : T('etatParc.production.ko', { n: x.n })
         if (x.cle === 'sites') return T('etatParc.sites', { enLigne: x.enLigne, total: x.total })
+        if (x.cle === 'fonctionne') {
+          if (x.niveau === 'inconnu') return T('etatParc.fonctionne.inconnu')
+          if (x.n) return T('etatParc.fonctionne.ko', { n: x.n })
+          if (x.manquante) return T('etatParc.fonctionne.manquante')
+          return T('etatParc.fonctionne.ok', { total: x.total })
+        }
         if (x.cle === 'securite') {
           if (x.niveau === 'inconnu') return T('etatParc.securite.inconnu')
           if (x.niveau === 'critique') return T('etatParc.securite.critique', { n: x.n, total: x.total })
@@ -1003,13 +1009,15 @@
        * signale un problème mène à sa section, et seulement si elle est affichée.
        */
       function rendEtat() {
-        const items = etatDuParc(depotsDuContexte(), { renovateLu: D.renovateLu !== false, kpi: D.kpi })
+        const items = etatDuParc(depotsDuContexte(), { renovateLu: D.renovateLu !== false, kpi: D.kpi, sonde: D.sonde })
         const ul = $('#ligneEtat')
         ul.textContent = ''
         for (const x of items) {
           // Un parc sans site Pages n'a rien à dire des sites ; un filtre sans
           // workflow n'a rien à dire de la CI (« 0/0 au vert » ne disait rien).
           if ((x.cle === 'sites' || x.cle === 'ci') && !x.total) continue
+          // Un filtre sans app sondée (desktop, outillage) n'a rien à dire du fonctionnement.
+          if (x.cle === 'fonctionne' && !x.total && x.niveau === 'ok') continue
           const li = el('li', 'etatItem niv-' + x.niveau)
           const g = el('span', 'etatGlyphe', GLYPHES_ETAT[x.niveau])
           g.setAttribute('aria-hidden', 'true')
@@ -1019,6 +1027,7 @@
           if (lien) corps.href = hrefAncre(x.ancre)
           // Le détail que portait le « 100 % » : neutralisés et jamais exécutés.
           if (x.cle === 'ci') corps.title = T('etatParc.ci.titre', { verts: x.verts, neutres: x.neutres, jamais: x.jamais })
+          if (x.cle === 'fonctionne' && D.sonde?.date) corps.title = T('carte.sonde.titre', { quand: fmtHeure(D.sonde.date) })
           li.append(g, corps)
           ul.append(li)
         }
@@ -1065,6 +1074,8 @@
         'site-tombe': { p: '✕', c: 'var(--critical)' },
         'site-revenu': { p: '✓', c: 'var(--goodInk)' },
         'prod-retard': { p: '!', c: 'var(--serious)' },
+        'fonctionne-ko': { p: '✕', c: 'var(--critical)' },
+        'fonctionne-ok': { p: '✓', c: 'var(--goodInk)' },
       }
 
       function rendChangements() {
@@ -1226,6 +1237,9 @@
         if (cle === 'remplacer') return puceLien(T('afaire.detail.remplacer', { paquet: x.paquet, n: x.n }), '#dormance')
         if (cle === 'rouges' || cle === 'alertes' || cle === 'scanning') return puceLien(T('afaire.detail.compte', { nom: x.depot, n: x.n }), carte)
         if (cle === 'sites' || cle === 'dossiersIncertains') return puceLien(x.depot, carte)
+        if (cle === 'fonctionne') return puceLien(T('afaire.detail.fonctionne', { depot: x.depot, raison: raisonCourte(x.raisons, T) }), carte)
+        // la sonde se relance depuis la page du workflow : on y mène
+        if (cle === 'sonde') return puceLien(x.date ? T('afaire.detail.sonde', { quand: fmtHeure(x.date) }) : T('afaire.detail.sonde.jamais'), URL_RELEVE, true)
         if (cle === 'scanningOff') {
           const href = lienConformite(cle, x, D.depots) || carte
           return puceLien(x.depot, href, Boolean(lienConformite(cle, x, D.depots)))
@@ -1689,6 +1703,13 @@
           b.title = T('carte.malLu.titre')
           tete.append(b)
         }
+        // UNE APP QUI RÉPOND SANS FONCTIONNER, dans la tête : c'est le défaut
+        // que le « 200 » de la ligne Pages cachait.
+        if (d.sonde?.etat === 'ko') {
+          const b = el('span', 'badge alerte grave', T('carte.sonde.badge'))
+          b.title = raisonCourte(d.sonde.raisons, T)
+          tete.append(b)
+        }
         // LA PRODUCTION, dans la tête aussi : une carte pliée ne doit pas taire
         // un site qui sert autre chose que `main`, ni une URL qui va mourir.
         if (d.prod?.etat === 'retard') tete.append(el('span', 'badge alerte', T('carte.prod.badge')))
@@ -1788,6 +1809,8 @@
         meta.append(l1, l2)
         const lp = ligneProd(d)
         if (lp) meta.append(lp)
+        const ls = ligneSonde(d)
+        if (ls) meta.append(ls)
         if (d.renovate) meta.append(ligneRenovate(d))
         corps.append(meta)
 
@@ -1973,6 +1996,26 @@
         }
         l.append(g, document.createTextNode(' ' + T('carte.prod.' + etat, params)))
         if (p.construit) l.title = T('carte.prod.titre', { quand: fmtHeure(p.construit) })
+        return l
+      }
+
+      /**
+       * « Sonde · ✕ répond mais ne fonctionne pas : 1 requête en échec — … »
+       * — ce que la ligne Production ne peut pas dire : elle compare des
+       * commits, la sonde ouvre l'app. Toutes les raisons sont dans le titre.
+       */
+      function ligneSonde(d) {
+        const s = d.sonde
+        if (!s) return null
+        const ok = s.etat === 'ok'
+        const l = el('div')
+        l.append(el('span', 'cle', T('carte.sonde')))
+        const g = el('span', 'glyphe g-' + (ok ? 'vert' : 'rouge'), GLYPHES[ok ? 'vert' : 'rouge'])
+        g.style.display = 'inline-grid'
+        g.setAttribute('aria-hidden', 'true')
+        l.append(g, document.createTextNode(' ' + (ok ? T('carte.sonde.ok') : T('carte.sonde.ko', { raison: raisonCourte(s.raisons, T) }))))
+        const titre = [D.sonde?.date ? T('carte.sonde.titre', { quand: fmtHeure(D.sonde.date) }) : '', ...(ok ? [] : (s.raisons || []).map((r) => '· ' + phraseRaison(r, T)))]
+        l.title = titre.filter(Boolean).join('\n')
         return l
       }
 
@@ -2689,6 +2732,19 @@
             ligne.append(g)
           }
           ligne.append(el('span', f.panne ? 'panneFraicheur' : null, T(f.panne ? 'fraicheur.panne' : 'fraicheur.verifie', { quand: ilYa(f.minutes) })))
+          // L'ÂGE DE LA SONDE « FONCTIONNE », que `etat.json` date à chaque
+          // passage. Manquante quand le relevé passe sans elle depuis plus de
+          // six heures — voir `SEUIL_SONDE_MIN` de `vue.mjs`.
+          const sonde = fraicheurSonde(D, ETAT, Date.now())
+          if (sonde) {
+            ligne.append(' · ')
+            if (sonde.manquante) {
+              const g = el('span', 'alerteFraicheur', '⚠ ')
+              g.setAttribute('aria-hidden', 'true')
+              ligne.append(g)
+            }
+            ligne.append(el('span', sonde.manquante ? 'panneFraicheur' : null, T(sonde.manquante ? 'fraicheur.sonde.manquante' : 'fraicheur.sonde', { quand: ilYa(sonde.minutes) })))
+          }
           ligne.append(' · ')
           const a = el('a', null, T('fraicheur.relancer'))
           a.href = lienExterne(URL_RELEVE)
@@ -3921,6 +3977,7 @@
         hote.textContent = ''
         let n = 0
         for (const [cle, liste] of [
+          ['fonctionne', c.nonFonctionnelles],
           ['encours', c.enCours],
           ['retard', c.retard],
           ['sites', c.sitesDown],
@@ -3940,6 +3997,7 @@
             if (x.retard != null) li.append(document.createTextNode(' · ' + x.retard))
             if (x.url) li.append(document.createTextNode(' · ' + x.url))
             if (x.fichiers) li.append(document.createTextNode(' · ' + x.fichiers.join(T('liste'))))
+            if (x.raisons) li.append(document.createTextNode(' · ' + raisonCourte(x.raisons, T)))
             ul.append(li)
           }
           bloc.append(ul)
