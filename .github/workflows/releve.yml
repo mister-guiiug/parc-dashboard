@@ -167,6 +167,22 @@ jobs:
         run: |
           echo "Pas d'instantané à commiter (jour déjà photographié, ou rien de neuf aujourd'hui) — le site part seul. Fond changé : ${{ steps.releve.outputs.change }}."
 
+      # LES RÉPARATIONS, À BLANC (étape 1, depuis le 20/11/2026). Le plan de
+      # `scripts/reparations.mjs` : relancer les jobs en échec d'un workflow qui
+      # vérifie, redéployer une production en retard, relancer une sonde
+      # manquante — avec ses gardes (ancienneté, un essai par jour, deux au
+      # plus, cinq actions par passage). Sans `--actif` ni `REPARATEUR_TOKEN`,
+      # il n'écrit RIEN ailleurs : il publie `reparations.json` avec la page et
+      # le dit dans le résumé du job. Son suivi d'un passage à l'autre est relu
+      # sur la page en ligne, comme l'état précédent du relevé.
+      - name: Réparations du parc (à blanc)
+        continue-on-error: true
+        run: >-
+          node scripts/reparer.mjs
+          --donnees _site/donnees.json
+          --sortie _site/reparations.json
+          --precedent "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/reparations.json"
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
