@@ -590,24 +590,53 @@ export function resumeEnvManifest(texte, attendus = null) {
 }
 
 /**
+ * Les dépôts dont un workflow POUSSE lui-même sur `main`, et dont le ruleset
+ * est donc allégé À DESSEIN : `deletion` + `non_fast_forward`, sans
+ * `pull_request` ni contextes exigés.
+ *
+ * Sur un compte personnel, GitHub refuse d'exempter GitHub Actions d'une
+ * règle `pull_request` (« must be part of the … organization ») : l'exiger
+ * éteindrait le push du workflow. C'est `apply-rulesets.mjs` du socle qui
+ * pose ces rulesets, d'après sa liste `AUTO_PUBLIE` ; celle-ci en est la
+ * copie, sans `parc-dashboard`, que le relevé ne juge pas (`soi`). Les deux
+ * listes bougent ensemble.
+ *
+ * Sans elle, le relevé rangeait mister-contrib en « actif mais incomplet »
+ * chaque heure, comme un oubli à corriger, alors que le corriger casserait
+ * son relevé quotidien.
+ */
+export const PUBLICATION_AUTOMATIQUE = Object.freeze({
+  'mister-contrib': 'releve.yml → public/donnees.json, github-actions[bot]',
+})
+
+/**
  * État des rulesets GitHub d'un dépôt.
  *
  * `protectSolide` vient des règles effectives de la branche par défaut
  * (pull_request + required_status_checks). Absent → on ne peut que dire
  * « actif » sans juger le contenu.
  *
+ * `allegeADessein` porte la raison d'un dépôt de `PUBLICATION_AUTOMATIQUE` :
+ * un ruleset actif mais sans `pull_request` y devient `voulu`, montré sur la
+ * carte avec sa raison, et sorti de « À faire ». Les autres états ne changent
+ * pas : un ruleset absent ou désactivé reste un défaut, même là.
+ *
  * @param {unknown} liste réponse JSON de /repos/.../rulesets, ou null si refus
  * @param {number} [status] code HTTP quand la liste n'est pas un tableau
  * @param {boolean | null} [protectSolide] true / false / null (illisible)
+ * @param {string | null} [allegeADessein] raison, si le dépôt pousse sur main
  */
-export function resumeRuleset(liste, status, protectSolide = null) {
+export function resumeRuleset(liste, status, protectSolide = null, allegeADessein = null) {
   if (status === 403 || status === 404) return { etat: 'illisible' }
   if (liste == null) return { etat: 'illisible' }
   if (!Array.isArray(liste)) return { etat: 'illisible' }
   if (liste.length === 0) return { etat: 'absent' }
   const actifs = liste.filter((r) => r && r.enforcement === 'active')
   if (actifs.length === 0) return { etat: 'disabled' }
-  if (protectSolide === false) return { etat: 'faible', n: actifs.length }
+  if (protectSolide === false) {
+    if (allegeADessein) return { etat: 'voulu', n: actifs.length, raison: allegeADessein }
+    return { etat: 'faible', n: actifs.length }
+  }
   return { etat: 'actif', n: actifs.length }
 }
 

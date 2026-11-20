@@ -1692,6 +1692,11 @@
           const b = el('span', 'badge alerte', T('carte.ruleset.badge'))
           b.title = T('carte.ruleset.titre', { etat: d.ruleset.etat })
           tete.append(b)
+        } else if (d.ruleset?.etat === 'voulu') {
+          // Allégé à dessein (le dépôt pousse lui-même sur main) : montré, pas en alerte.
+          const b = el('span', 'badge', T('carte.ruleset.badge'))
+          b.title = T('carte.ruleset.voulu', { raison: d.ruleset.raison || '' })
+          tete.append(b)
         }
         if (d.dossiersIncertains) {
           const b = el('span', 'badge alerte', T('carte.dossiersIncertains.badge'))

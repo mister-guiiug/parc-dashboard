@@ -39,7 +39,7 @@ import { SEUIL_DORMANCE_JOURS, estDormante, etatDormance, maturitesDuCatalogue, 
 // Les lectures nouvelles du 23/09/2026 — production, morceaux fugaces,
 // Renovate, pairs du socle, journal — ont leurs règles pures à part, hors de la
 // page. Voir `scripts/collecte.mjs`.
-import { causesDependabot, derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
+import { causesDependabot, derniereDeSerie, entreeDe, espacesDeTravail, etatChecks, etatProd, fluxAtom, fugacesDe, idsDependabot, journalMisAJour, lisTableauRenovate, nomsEnvManifest, pairsDures, PUBLICATION_AUTOMATIQUE, plafondEngines, precacheDe, referencesDe, resumeEnvManifest, resumeRuleset, scanningDepuisReponse, socleDeReference, unitesDeLArbre, verrouilleesDe, versionNvmrc } from './collecte.mjs'
 import { lireRulesetsDepot, paginerJson } from './reseau.mjs'
 // Les pages publiées en double entre les sites : règles pures et seuil mesuré.
 import { bardeaux, groupesDeDoublons, proprietaire, texteRedige, titreDe, urlsDuPlan } from './doublons.mjs'
@@ -692,7 +692,7 @@ await enLot(depots, 5, async (d) => {
     const headers = { authorization: `Bearer ${JETON}`, accept: 'application/vnd.github+json', 'user-agent': 'parc-dashboard' }
     const lu = await lireRulesetsDepot(d.nwo, d.brancheDefaut, fetch, { api: API, headers })
     appels += lu.appels
-    d.ruleset = resumeRuleset(lu.liste, lu.status, lu.protect)
+    d.ruleset = resumeRuleset(lu.liste, lu.status, lu.protect, PUBLICATION_AUTOMATIQUE[d.nom] ?? null)
     if (d.ruleset.etat === 'illisible') rulesetsRefuse++
     else rulesetsLisibles = true
   } catch {

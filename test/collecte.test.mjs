@@ -23,6 +23,7 @@ import {
   precacheDe,
   referencesDe,
   resumeEnvManifest,
+  PUBLICATION_AUTOMATIQUE,
   resumeRuleset,
   resumeScanning,
   satisfait,
@@ -534,4 +535,21 @@ test('resumeRuleset : absent, disabled, actif, faible, ou illisible', () => {
   })
   assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, false), { etat: 'faible', n: 1 })
   assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, true), { etat: 'actif', n: 1 })
+})
+
+test('resumeRuleset : un dépôt qui pousse sur main a un ruleset allégé « voulu », pas « faible »', () => {
+  const raison = PUBLICATION_AUTOMATIQUE['mister-contrib']
+  assert.ok(raison, 'mister-contrib est dans la liste')
+  assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, false, raison), {
+    etat: 'voulu',
+    n: 1,
+    raison,
+  })
+  // La raison n'excuse que l'absence de pull_request : le reste reste un défaut.
+  assert.deepEqual(resumeRuleset([], 200, null, raison), { etat: 'absent' })
+  assert.deepEqual(resumeRuleset([{ enforcement: 'disabled' }], 200, null, raison), { etat: 'disabled' })
+  assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, true, raison), { etat: 'actif', n: 1 })
+  // Les autres dépôts ne sont pas dans la liste : faible reste faible.
+  assert.equal(PUBLICATION_AUTOMATIQUE['miss-genius'], undefined)
+  assert.deepEqual(resumeRuleset([{ enforcement: 'active' }], 200, false, null), { etat: 'faible', n: 1 })
 })
