@@ -190,6 +190,27 @@ Sinon elle « répond mais ne fonctionne pas », et la page dit **la raison cour
 
 Éprouver en local, en lecture seule : `npm ci`, puis `node scripts/sonde.mjs --canal chrome` (le Chrome installé ; `--apps miss-arcade` pour une seule, `--catalogue <fichier>` pour un catalogue local), et `node scripts/releve.mjs --sortie <page> --sonde sonde/sonde.json` pour la page.
 
+## Les réparations (à blanc)
+
+Depuis le 20/11/2026, après chaque relevé, [`scripts/reparer.mjs`](scripts/reparer.mjs) dit ce que le parc pourrait réparer **sans intervention**. Il ne pousse jamais sur `main` et ne fusionne rien : réparer, c'est relancer une opération sans code ou, plus tard, ouvrir une PR. Au passage suivant, l'écart a disparu ou il est repris.
+
+**Quatre modes**, un par rubrique « À faire » (`MODES` dans [`scripts/reparations.mjs`](scripts/reparations.mjs)) :
+
+| Mode | Rubriques | Étape |
+| --- | --- | --- |
+| `auto`, sans code | workflow rouge d'un workflow qui **vérifie** (CI, CodeQL, Lighthouse, VICE, Signatures IA…) : relancer les jobs en échec ; production en retard : relancer le déploiement ; relevé « fonctionne » manquant : relancer le relevé | 1 |
+| `script`, PR sans IA | correctifs et socle (Renovate), alertes avec correctif, version du socle à publier, CodeQL absent, `env.manifest` | 0 et 2 |
+| `agent`, PR relue | alerte grave, app qui ne fonctionne pas, URL mortes, morceaux fugaces, doublons, alertes CodeQL, paquet introuvable | 3 |
+| `humain` | site injoignable, rulesets, arbre tronqué, PR à relire, majeurs, librairie à remplacer, PR Renovate en attente | jamais |
+
+Un déploiement, une publication, une migration Supabase ou Renovate ne se **relancent pas** à l'aveugle : ils agissent sur le monde. Ces rouges sont dits « hors de portée » et attendent l'étape 3.
+
+**Les gardes**, éprouvées par [`test/reparations.test.mjs`](test/reparations.test.mjs) : un écart n'est traité qu'après une heure (un déploiement lancé par une fusion a le temps de finir) ; un essai par jour sur le même écart, deux au plus, puis une **escalade** et plus rien ; au plus cinq actions par passage ; jamais le dépôt du relevé lui-même (sauf sa sonde) ; une relance de jobs seulement si le run a vraiment échoué et n'a jamais été relancé.
+
+**À blanc par défaut.** Sans `--actif` ni jeton `REPARATEUR_TOKEN`, il n'envoie **aucune** requête d'écriture : il publie `reparations.json` avec la page (actions qu'il aurait faites, en attente, escalades, hors de portée, couverture par mode, suivi d'un passage à l'autre) et le résume dans le job « relever ». À blanc, une action simulée compte comme un essai : le journal montre la cadence réelle. Un journal d'un autre mode repart de zéro au premier passage actif.
+
+**L'activer** (étape 1 réelle, après une semaine à blanc) demande une GitHub App dédiée aux droits Actions, Contents, Pull requests et Issues en écriture, **jamais Administration**, sa clé en secret de ce dépôt, et `--actif` dans [`releve.yml`](.github/workflows/releve.yml). Le jeton du dépôt ne suffit pas : il n'écrit pas ailleurs, et une PR qu'il ouvrirait ne lancerait pas la CI.
+
 ## La matrice des écarts
 
 « Librairies » répond paquet par paquet ; la matrice les met côte à côte. Une
