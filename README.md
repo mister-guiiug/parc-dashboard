@@ -78,6 +78,12 @@ ne peut pas contourner via l’app Actions sur un dépôt de compte personnel
 (`CHECKS['parc-dashboard']`) pour le jour où le dépôt sera sous organisation
 ou où l’instantané ne poussera plus sur `main`.
 
+mister-contrib est dans le même cas : son relevé quotidien pousse
+`public/donnees.json` sur `main`. Le relevé le sait (`PUBLICATION_AUTOMATIQUE`,
+copie de la liste `AUTO_PUBLIE` du socle) : son ruleset allégé y vaut `voulu`,
+montré sur la carte avec sa raison, et non « actif mais incomplet » dans
+« À faire ». Un ruleset absent ou désactivé y reste un défaut.
+
 ## Ce que la page demande de faire
 
 Depuis le 23/09/2026, la page ne se contente plus de constater. Tirer d'un relevé
